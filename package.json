@@ -9,6 +9,7 @@
   ],
   "scripts": {
     "dev": "turbo run dev",
+    "prebuild": "npm --workspace apps/api run prisma:generate",
     "build": "turbo run build",
     "start": "turbo run start"
   },
