@@ -6,12 +6,12 @@ export default function Home() {
       <div className="container flex min-h-screen items-center py-10">
         <div className="shell-panel grid gap-10 overflow-hidden lg:grid-cols-[1.1fr_0.9fr]">
           <div className="p-8 lg:p-12">
-            <div className="section-title">Collaborative workspace suite</div>
+            <div className="section-title">NetField operations suite</div>
             <h1 className="mt-4 max-w-2xl text-4xl font-black tracking-tight text-slate-950 sm:text-5xl lg:text-6xl">
-              One place for goals, tasks, announcements, files, and team discussion.
+              One place for bank tickets, field tasks, hardware flow, and team discussion.
             </h1>
             <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-600">
-              Built to keep the full execution loop together: choose a workspace, track goals, update status, share files, and keep every team member in sync.
+              Built to keep service work moving: register tickets, assign field tasks, track POS hardware, share files, and keep every team member in sync.
             </p>
 
             <div className="mt-8 flex flex-wrap gap-3">
