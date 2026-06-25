@@ -1,0 +1,2 @@
+-- Superseded by 20260616000100_bank_ticket_bank_fields_links.
+-- Kept as an empty migration so existing migration ordering stays stable.

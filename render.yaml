@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: freecloud-bank-api
+    runtime: node
+    rootDir: apps/api
+    plan: starter
+    buildCommand: npm install && npx prisma generate
+    startCommand: npx prisma migrate deploy && node src/server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        value: file:/var/data/prod.db
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: CLIENT_URL
+        sync: false
+      - key: CLIENT_URLS
+        sync: false
+    disk:
+      name: freecloud-bank-data
+      mountPath: /var/data
+      sizeGB: 1

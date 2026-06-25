@@ -1,0 +1,1 @@
+ALTER TABLE "Workspace" ADD COLUMN "isImportant" BOOLEAN NOT NULL DEFAULT false;

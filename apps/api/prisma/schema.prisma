@@ -1,0 +1,480 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// For local SQLite development, enums are represented as strings
+
+model User {
+  id           String    @id @default(uuid())
+  name         String
+  email        String    @unique
+  passwordHash String
+  avatarUrl    String?
+  userRole     String    @default("EMPLOYEE")
+  bankName     String?
+  workspaces   WorkspaceMember[]
+  ownedWorkspaces Workspace[]
+  assignedWorkspaces Workspace[] @relation("assignedWorkspaceEmployee")
+  bankTickets BankTicket[] @relation("bankTicketCreator")
+  adminAssignedTickets BankTicket[] @relation("bankTicketAdmin")
+  ticketUpdates TicketUpdate[]
+  hardwareBatchesCreated HardwareBatch[] @relation("hardwareBatchCreator")
+  hardwareBatchesAssigned HardwareBatch[] @relation("hardwareBatchAssignee")
+  hardwareUpdates HardwareUpdate[]
+  workspaceUpdates WorkspaceUpdate[]
+  workspaceAttachments WorkspaceAttachment[]
+  ownedGoals Goal[]
+  goalActivities GoalActivity[]
+  announcements Announcement[]
+  announcementReactions AnnouncementReaction[]
+  announcementComments AnnouncementComment[]
+  assignedActionItems ActionItem[]
+  notifications Notification[]
+  auditLogs AuditLog[]
+  messages     Message[]
+  files        File[]
+  globalMessages GlobalMessage[]
+  globalFiles GlobalFile[]
+  organizedMeetings Meeting[] @relation("organizedMeetings")
+  meetingInvites MeetingInvite[] @relation("meetingInvites")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model Workspace {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  accentColor String?
+  tidNumber String?
+  posSerial String?
+  zoneName String?
+  serviceType String?
+  merchantAddress String?
+  bankName String?
+  taskStatus String @default("PENDING")
+  isImportant Boolean @default(false)
+  startedAt DateTime?
+  completedAt DateTime?
+  assignedEmployee User? @relation("assignedWorkspaceEmployee", fields: [assignedEmployeeId], references: [id])
+  assignedEmployeeId String?
+  ticket BankTicket? @relation(fields: [ticketId], references: [id])
+  ticketId String?
+  owner       User     @relation(fields: [ownerId], references: [id])
+  ownerId     String
+  members     WorkspaceMember[]
+  goals       Goal[]
+  announcements Announcement[]
+  actionItems ActionItem[]
+  meetings    Meeting[]
+  notifications Notification[]
+  auditLogs   AuditLog[]
+  messages    Message[]
+  files       File[]
+  taskUpdates WorkspaceUpdate[]
+  taskAttachments WorkspaceAttachment[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model WorkspaceMember {
+  id          String    @id @default(uuid())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  workspaceId String
+  user        User      @relation(fields: [userId], references: [id])
+  userId      String
+  role        String
+  createdAt   DateTime  @default(now())
+
+  @@unique([workspaceId, userId])
+  @@index([userId])
+}
+
+model Goal {
+  id          String      @id @default(uuid())
+  workspace   Workspace   @relation(fields: [workspaceId], references: [id])
+  workspaceId String
+  title       String
+  description String?
+  owner       User?       @relation(fields: [ownerId], references: [id])
+  ownerId     String?
+  dueDate     DateTime?
+  status      String  @default("TODO")
+  milestones  Milestone[]
+  activities  GoalActivity[]
+  actionItems ActionItem[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([workspaceId, status])
+  @@index([ownerId])
+}
+
+model Milestone {
+  id        String   @id @default(uuid())
+  goal      Goal     @relation(fields: [goalId], references: [id])
+  goalId    String
+  title     String
+  type      String   @default("GENERAL")
+  progress  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model GoalActivity {
+  id        String   @id @default(uuid())
+  goal      Goal     @relation(fields: [goalId], references: [id])
+  goalId    String
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  message   String
+  createdAt DateTime @default(now())
+}
+
+model Announcement {
+  id        String                 @id @default(uuid())
+  workspace Workspace?             @relation(fields: [workspaceId], references: [id])
+  workspaceId String?
+  author    User                   @relation(fields: [authorId], references: [id])
+  authorId  String
+  title     String
+  content   String
+  isPinned  Boolean                @default(false)
+  reactions AnnouncementReaction[]
+  comments  AnnouncementComment[]
+  createdAt DateTime               @default(now())
+  updatedAt DateTime               @updatedAt
+}
+
+model AnnouncementReaction {
+  id             String       @id @default(uuid())
+  announcement   Announcement @relation(fields: [announcementId], references: [id])
+  announcementId String
+  user           User         @relation(fields: [userId], references: [id])
+  userId         String
+  emoji          String
+  createdAt      DateTime     @default(now())
+}
+
+model AnnouncementComment {
+  id             String       @id @default(uuid())
+  announcement   Announcement @relation(fields: [announcementId], references: [id])
+  announcementId String
+  user           User         @relation(fields: [userId], references: [id])
+  userId         String
+  content        String
+  createdAt      DateTime     @default(now())
+}
+
+model ActionItem {
+  id          String     @id @default(uuid())
+  workspace   Workspace  @relation(fields: [workspaceId], references: [id])
+  workspaceId String
+  goal        Goal?      @relation(fields: [goalId], references: [id])
+  goalId      String?
+  title       String
+  description String?
+  assignee    User?      @relation(fields: [assigneeId], references: [id])
+  assigneeId  String?
+  priority    String   @default("MEDIUM")
+  dueDate     DateTime?
+  status      String @default("TODO")
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([workspaceId, status])
+  @@index([assigneeId])
+  @@index([goalId])
+}
+
+model Meeting {
+  id          String     @id @default(uuid())
+  workspace   Workspace  @relation(fields: [workspaceId], references: [id])
+  workspaceId String
+  title       String
+  description String?
+  organizer   User       @relation("organizedMeetings", fields: [organizerId], references: [id])
+  organizerId String
+  startTime   DateTime
+  endTime     DateTime
+  location    String?
+  meetingLink String?
+  invitees    MeetingInvite[]
+  reminderMinutes Int @default(15)
+  reminderSent Boolean @default(false)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+model MeetingInvite {
+  id          String     @id @default(uuid())
+  meeting     Meeting    @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  meetingId   String
+  user        User       @relation("meetingInvites", fields: [userId], references: [id])
+  userId      String
+  status      String     @default("PENDING")
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+model Notification {
+  id          String           @id @default(uuid())
+  user        User             @relation(fields: [userId], references: [id])
+  userId      String
+  workspace   Workspace?       @relation(fields: [workspaceId], references: [id])
+  workspaceId String?
+  type        String
+  message     String
+  targetUrl   String?
+  isRead      Boolean          @default(false)
+  createdAt   DateTime         @default(now())
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  workspace  Workspace @relation(fields: [workspaceId], references: [id])
+  workspaceId String
+  user       User?    @relation(fields: [userId], references: [id])
+  userId     String?
+  action     String
+  entityType String
+  entityId   String?
+  metadata   String?
+  createdAt  DateTime @default(now())
+}
+
+model Message {
+  id             String   @id @default(uuid())
+  workspace      Workspace @relation(fields: [workspaceId], references: [id])
+  workspaceId    String
+  author         User     @relation(fields: [authorId], references: [id])
+  authorId       String
+  content        String
+  attachmentName String?
+  attachmentType String?
+  attachmentSize Int?
+  attachmentUrl  String?
+  latitude       Float?
+  longitude      Float?
+  locationLabel  String?
+  createdAt      DateTime @default(now())
+
+  @@index([workspaceId, createdAt])
+}
+
+model File {
+  id          String   @id @default(uuid())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  workspaceId String
+  user        User     @relation(fields: [userId], references: [id])
+  userId      String
+  name        String
+  type        String
+  size        Int
+  url         String
+  uploadedAt  DateTime @default(now())
+}
+
+model WorkspaceUpdate {
+  id          String   @id @default(uuid())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspaceId String
+  employee    User     @relation(fields: [employeeId], references: [id])
+  employeeId  String
+  serviceType String?
+  remarks     String?
+  status      String   @default("IN_PROGRESS")
+  latitude    Float?
+  longitude   Float?
+  locationLabel String?
+  attachments WorkspaceAttachment[]
+  createdAt   DateTime @default(now())
+
+  @@index([workspaceId, createdAt])
+  @@index([employeeId])
+}
+
+model WorkspaceAttachment {
+  id          String   @id @default(uuid())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspaceId String
+  update      WorkspaceUpdate? @relation(fields: [updateId], references: [id], onDelete: Cascade)
+  updateId    String?
+  uploadedBy  User     @relation(fields: [uploadedById], references: [id])
+  uploadedById String
+  name        String
+  type        String
+  size        Int
+  url         String
+  createdAt   DateTime @default(now())
+
+  @@index([workspaceId, createdAt])
+  @@index([updateId])
+}
+
+model GlobalMessage {
+  id             String   @id @default(uuid())
+  author         User     @relation(fields: [authorId], references: [id])
+  authorId       String
+  content        String
+  attachmentName String?
+  attachmentType String?
+  attachmentSize Int?
+  attachmentUrl  String?
+  latitude       Float?
+  longitude      Float?
+  locationLabel  String?
+  createdAt      DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([authorId])
+}
+
+model GlobalFile {
+  id         String   @id @default(uuid())
+  user       User     @relation(fields: [userId], references: [id])
+  userId     String
+  name       String
+  type       String
+  size       Int
+  url        String
+  uploadedAt DateTime @default(now())
+}
+
+
+model BankTicket {
+  id          String   @id @default(uuid())
+  ticketNo    String   @unique
+  title       String
+  description String?
+  tidNumber   String?
+  posSerial   String?
+  zoneName    String?
+  serviceType String?
+  merchantAddress String?
+  bankName    String?
+  priority    String   @default("NORMAL")
+  status      String   @default("SUBMITTED")
+  bankUser    User     @relation("bankTicketCreator", fields: [bankUserId], references: [id])
+  bankUserId  String
+  assignedAdmin User?  @relation("bankTicketAdmin", fields: [assignedAdminId], references: [id])
+  assignedAdminId String?
+  assignedEmployeeId String?
+  workspaces  Workspace[]
+  hardwareBatches HardwareBatch[]
+  updates     TicketUpdate[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([bankUserId, status])
+  @@index([assignedAdminId])
+  @@index([assignedEmployeeId])
+  @@index([createdAt])
+}
+
+model TicketUpdate {
+  id        String   @id @default(uuid())
+  ticket    BankTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  ticketId  String
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  type      String   @default("COMMENT")
+  message   String
+  createdAt DateTime @default(now())
+
+  @@index([ticketId, createdAt])
+  @@index([userId])
+}
+
+model HardwareBatch {
+  id          String   @id @default(uuid())
+  batchNo     String   @unique
+  bankName    String?
+  ticket      BankTicket? @relation(fields: [ticketId], references: [id])
+  ticketId    String?
+  createdBy   User     @relation("hardwareBatchCreator", fields: [createdById], references: [id])
+  createdById String
+  assignedTo  User?    @relation("hardwareBatchAssignee", fields: [assignedToId], references: [id])
+  assignedToId String?
+  totalQuantity Int    @default(0)
+  receivedQuantity Int @default(0)
+  repairedQuantity Int @default(0)
+  faultyQuantity Int   @default(0)
+  pendingQuantity Int  @default(0)
+  returnedQuantity Int @default(0)
+  status      String   @default("SENT")
+  note        String?
+  updates     HardwareUpdate[]
+  items       HardwareItem[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([assignedToId, status])
+  @@index([ticketId])
+  @@index([createdAt])
+}
+
+model HardwareItem {
+  id           String   @id @default(uuid())
+  batch        HardwareBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  batchId      String
+  serialNumber String
+  problem      String
+  note         String?
+  status       String   @default("PENDING")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([batchId])
+  @@index([serialNumber])
+}
+
+model HardwareUpdate {
+  id        String   @id @default(uuid())
+  batch     HardwareBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  batchId   String
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  type      String   @default("COMMENT")
+  quantity  Int?
+  receivedQuantity Int?
+  repairedQuantity Int?
+  faultyQuantity Int?
+  pendingQuantity Int?
+  returnedQuantity Int?
+  comment   String?
+  mentionedUserIds String?
+  createdAt DateTime @default(now())
+
+  @@index([batchId, createdAt])
+  @@index([userId])
+}
+
+model PosSerial {
+  id           String   @id @default(uuid())
+  bankName     String
+  serialNumber String   @unique
+  model        String?
+  location     String?
+  status       String   @default("ACTIVE")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([bankName])
+  @@index([serialNumber])
+}
+
+
+model BankMaster {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name])
+}

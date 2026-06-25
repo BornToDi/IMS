@@ -1,0 +1,24 @@
+Updated workflow:
+1. Admin creates/edits/deletes banks in POS Serial Management first.
+2. Admin opens/selects a bank and adds POS serials under that bank.
+3. Bank registration uses the admin-created bank dropdown.
+4. Bank users do not select bank in Hardware. Their registered bank is auto-used.
+5. Hardware POS serial dropdown is filtered by the registered/selected bank.
+6. Admin Hardware still selects bank, then gets only that bank's POS serials.
+7. Bank rename updates bankName references in users, tickets, field tasks, hardware batches and POS serials.
+
+Changed files:
+- apps/api/prisma/schema.prisma
+- apps/api/prisma/migrations/20260617010000_bank_master/migration.sql
+- apps/api/src/controllers/posSerialController.js
+- apps/api/src/routes/posSerials.js
+- apps/api/src/controllers/hardwareController.js
+- apps/api/src/controllers/ticketController.js
+- apps/web/app/pos-serials/page.js
+- apps/web/app/hardware/page.js
+- apps/web/app/tickets/page.js
+
+Local DB update command:
+cd apps\api
+npx prisma@5.6.0 generate
+npx prisma@5.6.0 db push
