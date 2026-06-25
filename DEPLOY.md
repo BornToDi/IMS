@@ -9,14 +9,14 @@ This project has two deploy targets:
 
 Create a new Render Blueprint from this repo. The root `render.yaml` config creates:
 
-- Web service: `freecloud-bank-api`
+- Web service: `netfield-api`
 - SQLite persistent disk mounted at `/var/data`
 - Health check: `/api/health`
 
 After the first backend deploy, copy the backend URL, for example:
 
 ```text
-https://freecloud-bank-api.onrender.com
+https://netfield-api.onrender.com
 ```
 
 ## 2. Frontend on Vercel
@@ -39,7 +39,7 @@ NEXT_PUBLIC_API_URL=https://your-render-backend-url
 Deploy the frontend and copy the frontend URL, for example:
 
 ```text
-https://your-app.vercel.app
+https://netfield.vercel.app
 ```
 
 ## 3. Update Backend CORS
@@ -47,8 +47,8 @@ https://your-app.vercel.app
 In Render, set these environment variables to the Vercel frontend URL:
 
 ```env
-CLIENT_URL=https://your-app.vercel.app
-CLIENT_URLS=https://your-app.vercel.app
+CLIENT_URL=https://netfield.vercel.app
+CLIENT_URLS=https://netfield.vercel.app
 ```
 
 Redeploy the Render backend after changing those values.

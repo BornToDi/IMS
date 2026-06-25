@@ -27,7 +27,7 @@ export default function Navbar() {
             <span className="text-sm font-bold tracking-wide">TH</span>
           </div>
           <div>
-            <div className="text-lg font-semibold tracking-tight">Collaborative Team Hub</div>
+            <div className="text-lg font-semibold tracking-tight">NetField</div>
             {/* <div className="text-xs text-slate-300">Workspaces, goals, messages, and notifications</div> */}
           </div>
         </div>

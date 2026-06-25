@@ -1,6 +1,6 @@
-# Collaborative Team Hub
+# NetField
 
-Monorepo scaffold for the Collaborative Team Hub technical assessment.
+Monorepo scaffold for NetField.
 
 Structure:
 

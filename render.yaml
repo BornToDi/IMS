@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: freecloud-bank-api
+    name: netfield-api
     runtime: node
     rootDir: apps/api
     plan: starter
@@ -21,6 +21,6 @@ services:
       - key: CLIENT_URLS
         sync: false
     disk:
-      name: freecloud-bank-data
+      name: netfield-data
       mountPath: /var/data
       sizeGB: 1

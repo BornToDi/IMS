@@ -1,8 +1,8 @@
 import './globals.css'
 
 export const metadata = {
-  title: 'Collaborative Team Hub',
-  description: 'Workspace goals, tasks, announcements, files, and team chat in one place',
+  title: 'NetField',
+  description: 'Field tasks, bank tickets, hardware flow, and team chat in one place',
 }
 
 export default function RootLayout({ children }) {
