@@ -5,6 +5,7 @@
   "main": "src/server.js",
   "scripts": {
     "dev": "cross-env NODE_ENV=development nodemon src/server.js",
+    "postinstall": "prisma generate",
     "start": "node src/server.js",
     "prisma:generate": "prisma generate",
     "seed": "node prisma/seed.js"
