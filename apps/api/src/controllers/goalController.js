@@ -245,7 +245,7 @@ async function addActivity(req, res) {
     if (!member && goal.workspace.ownerId !== userId) return res.status(403).json({ error: 'Access denied' });
     const activity = await prisma.goalActivity.create({
       data: { goalId: id, userId, message },
-      include: { user: true }
+      include: { user: { select: { id: true, name: true, avatarUrl: true } } }
     });
     res.status(201).json(activity);
   } catch (err) {

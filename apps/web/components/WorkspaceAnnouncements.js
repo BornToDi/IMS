@@ -1,6 +1,7 @@
 "use client"
 import React, { useEffect, useState } from 'react'
 import { useAuthStore } from '../store/useAuthStore'
+import { htmlToPlainText } from '../lib/plainText'
 
 export default function WorkspaceAnnouncements({ workspaceId }) {
   const [announcements, setAnnouncements] = useState([])
@@ -84,7 +85,7 @@ export default function WorkspaceAnnouncements({ workspaceId }) {
                 <div className="text-xs text-slate-500">By {a.author?.name} • {new Date(a.createdAt).toLocaleDateString()}</div>
               </div>
             </div>
-            <div className="mt-2 text-sm" dangerouslySetInnerHTML={{ __html: a.content }} />
+            <div className="mt-2 whitespace-pre-wrap text-sm">{htmlToPlainText(a.content)}</div>
             {a.reactions?.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1">
                 {a.reactions.map((r) => (

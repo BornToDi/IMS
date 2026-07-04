@@ -4,6 +4,7 @@ import Layout from '../../../components/Layout'
 import AnnouncementEditor from '../../../components/AnnouncementEditor'
 import CommentsList from '../../../components/CommentsList'
 import { useAuthStore } from '../../../store/useAuthStore'
+import { htmlToPlainText } from '../../../lib/plainText'
 
 export default function AnnouncementsPage() {
   const [announcements, setAnnouncements] = useState([])
@@ -179,7 +180,7 @@ export default function AnnouncementsPage() {
                       <button className="btn bg-red-600 hover:bg-red-700" onClick={() => deleteAnnouncement(a.id)}>Delete</button>
                     </div>
                   </div>
-                  <div className="mt-2" dangerouslySetInnerHTML={{ __html: a.content }} />
+                  <div className="mt-2 whitespace-pre-wrap">{htmlToPlainText(a.content)}</div>
                   <div className="mt-2 flex items-center space-x-2">
                     {a.reactions?.map((r) => (
                       <span key={r.id} className="px-2 py-1 bg-gray-100 rounded">{r.emoji}</span>

@@ -1,6 +1,7 @@
 const prisma = require('../prismaClient');
 const path = require('path');
 const fs = require('fs');
+const publicUser = { id: true, name: true, email: true, avatarUrl: true, userRole: true, bankName: true };
 
 async function postGlobalMessage(req, res) {
   try {
@@ -17,7 +18,7 @@ async function postGlobalMessage(req, res) {
         longitude: longitude === undefined || longitude === null || longitude === '' ? null : Number(longitude),
         locationLabel: locationLabel || null
       },
-      include: { author: true }
+      include: { author: { select: publicUser } }
     });
 
     res.status(201).json(message);
@@ -31,7 +32,7 @@ async function getGlobalMessages(req, res) {
   try {
     const { limit = 100, offset = 0 } = req.query;
     const messages = await prisma.globalMessage.findMany({
-      include: { author: true },
+      include: { author: { select: publicUser } },
       orderBy: { createdAt: 'asc' },
       take: parseInt(limit),
       skip: parseInt(offset)
@@ -74,7 +75,7 @@ async function uploadGlobalFile(req, res) {
         longitude: longitude === undefined || longitude === null || longitude === '' ? null : Number(longitude),
         locationLabel: locationLabel || null
       },
-      include: { author: true }
+      include: { author: { select: publicUser } }
     });
 
     const io = req.app?.locals?.io;

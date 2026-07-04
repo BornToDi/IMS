@@ -1,0 +1,24 @@
+[Unit]
+Description=NetField web application
+After=network-online.target netfield-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=netfield
+Group=netfield
+WorkingDirectory=/opt/netfield/apps/web
+EnvironmentFile=/etc/netfield/web.env
+ExecStart=/usr/bin/npm start -- -H 127.0.0.1 -p 3000
+Restart=always
+RestartSec=5
+TimeoutStopSec=20
+KillSignal=SIGTERM
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/opt/netfield/apps/web/.next
+
+[Install]
+WantedBy=multi-user.target

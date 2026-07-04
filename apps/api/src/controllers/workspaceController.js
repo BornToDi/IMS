@@ -424,7 +424,10 @@ async function listMembers(req, res) {
   const workspace = await prisma.workspace.findUnique({ where: { id }, include: { members: true } });
   if (!workspace) return res.status(404).json({ error: 'Workspace not found' });
   if (!canViewWorkspace(workspace, userId)) return res.status(403).json({ error: 'Access denied' });
-  const members = await prisma.workspaceMember.findMany({ where: { workspaceId: id }, include: { user: true } });
+  const members = await prisma.workspaceMember.findMany({
+    where: { workspaceId: id },
+    include: { user: { select: { id: true, name: true, email: true, avatarUrl: true, userRole: true, bankName: true } } }
+  });
   res.json(members);
 }
 
@@ -435,7 +438,10 @@ async function updateMemberRole(req, res) {
   const workspace = await prisma.workspace.findUnique({ where: { id } });
   if (!workspace) return res.status(404).json({ error: 'Workspace not found' });
   if (workspace.ownerId !== userId) return res.status(403).json({ error: 'Access denied' });
-  const member = await prisma.workspaceMember.update({ where: { id: memberId }, data: { role } });
+  const existing = await prisma.workspaceMember.findFirst({ where: { id: memberId, workspaceId: id } });
+  if (!existing) return res.status(404).json({ error: 'Member not found' });
+  if (!String(role || '').trim()) return res.status(400).json({ error: 'Role is required' });
+  const member = await prisma.workspaceMember.update({ where: { id: memberId }, data: { role: String(role).trim().toUpperCase() } });
   res.json(member);
 }
 
@@ -445,6 +451,9 @@ async function removeMember(req, res) {
   const workspace = await prisma.workspace.findUnique({ where: { id } });
   if (!workspace) return res.status(404).json({ error: 'Workspace not found' });
   if (workspace.ownerId !== userId) return res.status(403).json({ error: 'Access denied' });
+  const member = await prisma.workspaceMember.findFirst({ where: { id: memberId, workspaceId: id } });
+  if (!member) return res.status(404).json({ error: 'Member not found' });
+  if (member.userId === workspace.ownerId) return res.status(400).json({ error: 'Workspace owner cannot be removed' });
   await prisma.workspaceMember.delete({ where: { id: memberId } });
   res.json({ ok: true });
 }

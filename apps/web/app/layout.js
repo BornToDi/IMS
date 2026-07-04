@@ -9,7 +9,10 @@ export default function RootLayout({ children }) {
  return (
     <html lang="en">
       <head />
-      <body className="bg-slate-950 text-slate-900">
+      <body
+        className="bg-slate-950 text-slate-900"
+        suppressHydrationWarning
+      >
         {children}
       </body>
     </html>

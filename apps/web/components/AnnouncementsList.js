@@ -1,4 +1,5 @@
 import React from 'react'
+import { htmlToPlainText } from '../lib/plainText'
 
 export default function AnnouncementsList({ announcements = [], onReact }) {
   return (
@@ -15,7 +16,7 @@ export default function AnnouncementsList({ announcements = [], onReact }) {
             </div>
           </div>
 
-          <div className="mt-2" dangerouslySetInnerHTML={{ __html: a.content }} />
+          <div className="mt-2 whitespace-pre-wrap">{htmlToPlainText(a.content)}</div>
 
           <div className="mt-2 flex items-center space-x-2">
             {a.reactions?.map((r) => (

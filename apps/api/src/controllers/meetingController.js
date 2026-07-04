@@ -63,6 +63,7 @@ async function listMeetings(req, res) {
     const { workspaceId } = req.params;
 
     if (!userId) return res.status(401).json({ error: 'Not authenticated' });
+    if (!workspaceId) return res.status(400).json({ error: 'workspaceId required' });
 
     // Check if user is member of workspace
     const member = await prisma.workspaceMember.findFirst({

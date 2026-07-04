@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "packageManager": "npm@9.8.0",
   "engines": {
-    "node": "20.x"
+    "node": "22.x"
   },
   "workspaces": [
     "apps/*",
@@ -14,16 +14,25 @@
     "dev": "turbo run dev",
     "prebuild": "npm --workspace apps/api run prisma:generate",
     "build": "turbo run build",
+    "build:server": "npm --workspace apps/api run prisma:generate && npm --workspace apps/web run build",
+    "migrate:server": "npm --workspace apps/api run migrate:deploy",
     "start": "turbo run start"
   },
   "dependencies": {
-    "next": "^13.4.12",
-    "react": "18.2.0",
-    "react-dom": "18.2.0"
+    "next": "16.2.9",
+    "react": "19.2.7",
+    "react-dom": "19.2.7"
   },
   "devDependencies": {
     "autoprefixer": "^10.5.0",
-    "postcss": "^8.5.13",
+    "postcss": "8.5.15",
     "turbo": "^2.9.6"
+  },
+  "overrides": {
+    "engine.io": "6.6.9",
+    "engine.io-client": "6.6.6",
+    "postcss": "8.5.15",
+    "socket.io-adapter": "2.5.8",
+    "ws": "8.21.0"
   }
 }

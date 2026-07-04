@@ -50,6 +50,7 @@ export default function HardwarePage() {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState('ALL')
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [busy, setBusy] = useState(false)
@@ -255,7 +256,7 @@ export default function HardwarePage() {
                         <option value="">{serialsLoading ? 'Loading serials...' : effectiveBankName ? 'Select POS serial' : (isBank ? 'No bank assigned' : 'Select bank first')}</option>
                         {posSerials.map(pos => {
                           const selectedElsewhere = form.items.some((row, rowIndex) => rowIndex !== index && row.serialNumber === pos.serialNumber)
-                          const details = [pos.model, pos.location].filter(Boolean).join(' · ')
+                          const details = [pos.model, pos.location, pos.place].filter(Boolean).join(' · ')
                           return <option key={pos.id || pos.serialNumber} value={pos.serialNumber} disabled={selectedElsewhere}>{pos.serialNumber}{details ? ` · ${details}` : ''}</option>
                         })}
                       </select>
@@ -277,7 +278,17 @@ export default function HardwarePage() {
         )}
 
         <section className="rounded-3xl border border-slate-200 bg-white p-3 shadow-sm">
-          <div className="grid gap-2 md:grid-cols-[1fr_180px_auto]">
+          <button
+            type="button"
+            onClick={() => setFiltersOpen(current => !current)}
+            aria-expanded={filtersOpen}
+            aria-controls="hardware-filters"
+            className="flex w-full items-center justify-between rounded-2xl bg-slate-900 px-4 py-3 text-sm font-black text-white md:hidden"
+          >
+            <span>Filter{query || status !== 'ALL' ? ' (active)' : ''}</span>
+            <span aria-hidden="true">{filtersOpen ? '▲' : '▼'}</span>
+          </button>
+          <div id="hardware-filters" className={`${filtersOpen ? 'grid' : 'hidden'} mt-2 gap-2 md:mt-0 md:grid md:grid-cols-[1fr_180px_auto]`}>
             <input value={query} onChange={e => setQuery(e.target.value)} className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold" placeholder="Search batch, bank, ticket, person, POS serial, problem..." />
             <select value={status} onChange={e => setStatus(e.target.value)} className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold"><option value="ALL">All status</option><option value="SENT">Sent</option><option value="RECEIVED">Received</option><option value="REPAIRING">Repairing</option><option value="PARTIALLY_RETURNED">Partially returned</option><option value="COMPLETED">Completed</option></select>
             <button onClick={load} className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-black text-white">Refresh</button>

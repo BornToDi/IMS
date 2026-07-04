@@ -23,6 +23,14 @@ async function createActionItem(req, res) {
   const member = await prisma.workspaceMember.findFirst({ where: { workspaceId, userId } });
   if (!member && workspace.ownerId !== userId) return res.status(403).json({ error: 'Access denied' });
   if (!title) return res.status(400).json({ error: 'Title required' });
+  if (assigneeId) {
+    const assignee = await prisma.workspaceMember.findFirst({ where: { workspaceId, userId: assigneeId } });
+    if (!assignee) return res.status(400).json({ error: 'Assignee must be a workspace member' });
+  }
+  if (goalId) {
+    const goal = await prisma.goal.findFirst({ where: { id: goalId, workspaceId } });
+    if (!goal) return res.status(400).json({ error: 'Goal must belong to this workspace' });
+  }
   let due = null
   if (dueDate) {
     let isoStr = dueDate
@@ -46,22 +54,33 @@ async function createActionItem(req, res) {
 }
 
 async function getActionItem(req, res) {
+  const userId = req.userId;
   const { id } = req.params;
-  const item = await prisma.actionItem.findUnique({ where: { id }, include: { assignee: true } });
+  const item = await prisma.actionItem.findUnique({ where: { id }, include: { assignee: true, workspace: true } });
   if (!item) return res.status(404).json({ error: 'Action item not found' });
+  const member = await prisma.workspaceMember.findFirst({ where: { workspaceId: item.workspaceId, userId } });
+  if (!member && item.workspace.ownerId !== userId) return res.status(403).json({ error: 'Access denied' });
   res.json(item);
 }
 
 async function updateActionItem(req, res) {
   const userId = req.userId;
   const { id } = req.params;
-  const { title, description, assigneeId, priority, dueDate } = req.body;
+  const { title, description, assigneeId, priority, dueDate, goalId } = req.body;
   const item = await prisma.actionItem.findUnique({ where: { id }, include: { workspace: true } });
   if (!item) return res.status(404).json({ error: 'Action item not found' });
   const member = await prisma.workspaceMember.findFirst({
     where: { workspaceId: item.workspaceId, userId }
   });
   if (!member && item.workspace.ownerId !== userId) return res.status(403).json({ error: 'Access denied' });
+  if (assigneeId) {
+    const assignee = await prisma.workspaceMember.findFirst({ where: { workspaceId: item.workspaceId, userId: assigneeId } });
+    if (!assignee) return res.status(400).json({ error: 'Assignee must be a workspace member' });
+  }
+  if (goalId) {
+    const goal = await prisma.goal.findFirst({ where: { id: goalId, workspaceId: item.workspaceId } });
+    if (!goal) return res.status(400).json({ error: 'Goal must belong to this workspace' });
+  }
   let due = undefined
   if (dueDate !== undefined) {
     if (dueDate === null || dueDate === '') {
@@ -79,7 +98,7 @@ async function updateActionItem(req, res) {
   try {
     const updated = await prisma.actionItem.update({
       where: { id },
-      data: { title, description, assigneeId, priority, dueDate: due },
+      data: { title, description, assigneeId, priority, dueDate: due, ...(goalId !== undefined ? { goalId: goalId || null } : {}) },
       include: { assignee: true }
     })
     res.json(updated)

@@ -5,7 +5,8 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import Layout from '../../../components/Layout'
 import { useAuthStore } from '../../../store/useAuthStore'
-import { API_BASE_URL, apiFetch } from '../../../lib/api'
+import { API_BASE_URL, SOCKET_BASE_URL, apiFetch } from '../../../lib/api'
+import { getCurrentLocationWithPlace, isGenericLocationLabel, resolvePlaceName } from '../../../lib/location'
 
 function fileUrl(url) {
   if (!url) return '#'
@@ -25,14 +26,11 @@ function statusClass(status) {
   return 'bg-yellow-100 text-yellow-800 border-yellow-200'
 }
 async function getLocation() {
-  if (typeof window === 'undefined' || !navigator.geolocation) return {}
-  return new Promise((resolve) => {
-    navigator.geolocation.getCurrentPosition(
-      (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude, locationLabel: 'Update location' }),
-      () => resolve({ error: 'Location permission is required to submit work update' }),
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 }
-    )
-  })
+  try {
+    return await getCurrentLocationWithPlace()
+  } catch {
+    return { error: 'Location permission is required to submit work update' }
+  }
 }
 
 export default function WorkspaceDetailPage() {
@@ -50,6 +48,7 @@ export default function WorkspaceDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [lightbox, setLightbox] = useState(null)
+  const [placeNames, setPlaceNames] = useState({})
   const fileRef = useRef(null)
 
   const isCreator = workspace?.ownerId === user?.id
@@ -74,8 +73,19 @@ export default function WorkspaceDetailPage() {
   useEffect(() => { load() }, [id, accessToken])
 
   useEffect(() => {
+    updates.forEach((update) => {
+      if (!update?.latitude || !update?.longitude) return
+      const key = `${update.latitude},${update.longitude}`
+      if (placeNames[key]) return
+      resolvePlaceName(update.latitude, update.longitude).then((place) => {
+        setPlaceNames((current) => current[key] ? current : { ...current, [key]: place })
+      })
+    })
+  }, [updates, placeNames])
+
+  useEffect(() => {
     if (!accessToken || !id) return
-    const socket = io(API_BASE_URL || 'http://localhost:5000', {
+    const socket = io(SOCKET_BASE_URL, {
       auth: { token: accessToken },
       transports: ['websocket', 'polling']
     })
@@ -278,8 +288,8 @@ export default function WorkspaceDetailPage() {
                     </div>
                     {(u.latitude && u.longitude) && (
                       <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-3">
-                        <div className="text-xs font-black text-black">📍 {u.locationLabel || 'Update location'}</div>
-                        <div className="mt-1 text-[11px] font-semibold text-black/55">Captured with this update · Lat {Number(u.latitude).toFixed(6)}, Long {Number(u.longitude).toFixed(6)}</div>
+                        <div className="text-xs font-black text-black">📍 Update location</div>
+                        <div className="mt-1 text-[11px] font-semibold text-black/55">{placeNames[`${u.latitude},${u.longitude}`] || (isGenericLocationLabel(u.locationLabel) ? 'Finding place name…' : u.locationLabel)}</div>
                         <a href={`https://www.google.com/maps?q=${u.latitude},${u.longitude}`} target="_blank" rel="noreferrer" className="mt-2 inline-flex rounded-full bg-black px-3 py-2 text-xs font-black text-white">Open live location</a>
                       </div>
                     )}

@@ -1,5 +1,15 @@
 const prisma = require('../prismaClient');
 
+async function canAccessAnnouncement(announcement, userId) {
+  if (!announcement?.workspaceId) return true;
+  if (announcement.workspace?.ownerId === userId) return true;
+  const member = await prisma.workspaceMember.findFirst({
+    where: { workspaceId: announcement.workspaceId, userId },
+    select: { id: true }
+  });
+  return Boolean(member);
+}
+
 async function createAnnouncement(req, res) {
   try {
     const { workspaceId, title, content, isPinned } = req.body;
@@ -96,6 +106,7 @@ async function getAnnouncement(req, res) {
     const announcement = await prisma.announcement.findUnique({
       where: { id },
       include: {
+        workspace: { select: { ownerId: true } },
         author: { select: { id: true, name: true, email: true, avatarUrl: true } },
         reactions: { include: { user: { select: { id: true, name: true } } } },
         comments: { include: { user: { select: { id: true, name: true, avatarUrl: true } } } }
@@ -104,6 +115,9 @@ async function getAnnouncement(req, res) {
 
     if (!announcement) {
       return res.status(404).json({ error: 'Announcement not found' });
+    }
+    if (!(await canAccessAnnouncement(announcement, req.userId))) {
+      return res.status(403).json({ error: 'Access denied' });
     }
 
     res.json(announcement);
@@ -163,7 +177,11 @@ async function deleteAnnouncement(req, res) {
       return res.status(403).json({ error: 'Only author can delete this announcement' });
     }
 
-    await prisma.announcement.delete({ where: { id } });
+    await prisma.$transaction([
+      prisma.announcementReaction.deleteMany({ where: { announcementId: id } }),
+      prisma.announcementComment.deleteMany({ where: { announcementId: id } }),
+      prisma.announcement.delete({ where: { id } })
+    ]);
     res.json({ success: true, id });
   } catch (error) {
     console.error('[announcement/delete]', error);
@@ -198,7 +216,7 @@ async function pinAnnouncement(req, res) {
   const updated = await prisma.announcement.update({
     where: { id },
     data: { isPinned: !announcement.isPinned },
-    include: { author: true }
+    include: { author: { select: { id: true, name: true, email: true, avatarUrl: true } } }
   });
   res.json(updated);
 }
@@ -212,6 +230,9 @@ async function addReaction(req, res) {
     if (!emoji) {
       return res.status(400).json({ error: 'emoji required' });
     }
+    const announcement = await prisma.announcement.findUnique({ where: { id }, include: { workspace: { select: { ownerId: true } } } });
+    if (!announcement) return res.status(404).json({ error: 'Announcement not found' });
+    if (!(await canAccessAnnouncement(announcement, userId))) return res.status(403).json({ error: 'Access denied' });
 
     // Check if user already reacted with this emoji
     const existing = await prisma.announcementReaction.findFirst({
@@ -246,6 +267,9 @@ async function removeReaction(req, res) {
     if (!emoji) {
       return res.status(400).json({ error: 'emoji required' });
     }
+    const announcement = await prisma.announcement.findUnique({ where: { id }, include: { workspace: { select: { ownerId: true } } } });
+    if (!announcement) return res.status(404).json({ error: 'Announcement not found' });
+    if (!(await canAccessAnnouncement(announcement, userId))) return res.status(403).json({ error: 'Access denied' });
 
     await prisma.announcementReaction.deleteMany({
       where: { announcementId: id, userId, emoji }
@@ -267,6 +291,9 @@ async function addComment(req, res) {
     if (!content) {
       return res.status(400).json({ error: 'content required' });
     }
+    const announcement = await prisma.announcement.findUnique({ where: { id }, include: { workspace: { select: { ownerId: true } } } });
+    if (!announcement) return res.status(404).json({ error: 'Announcement not found' });
+    if (!(await canAccessAnnouncement(announcement, userId))) return res.status(403).json({ error: 'Access denied' });
 
     const comment = await prisma.announcementComment.create({
       data: { announcementId: id, userId, content },
@@ -281,10 +308,14 @@ async function addComment(req, res) {
 }
 
 async function getComments(req, res) {
+  const userId = req.userId;
   const { id } = req.params;
+  const announcement = await prisma.announcement.findUnique({ where: { id }, include: { workspace: { select: { ownerId: true } } } });
+  if (!announcement) return res.status(404).json({ error: 'Announcement not found' });
+  if (!(await canAccessAnnouncement(announcement, userId))) return res.status(403).json({ error: 'Access denied' });
   const comments = await prisma.announcementComment.findMany({
     where: { announcementId: id },
-    include: { user: true }
+    include: { user: { select: { id: true, name: true, avatarUrl: true } } }
   });
   res.json(comments);
 }

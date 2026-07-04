@@ -51,7 +51,7 @@ app.locals.io = io;
 app.use(express.json({ limit: '20mb' }));
 app.use(cookieParser());
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
+app.options('/{*splat}', cors(corsOptions));
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 const prisma = require('./prismaClient');
@@ -146,7 +146,7 @@ io.on('connection', async (socket) => {
           longitude: longitude === undefined || longitude === null || longitude === '' ? null : Number(longitude),
           locationLabel: locationLabel || null
         },
-        include: { author: true }
+        include: { author: { select: { id: true, name: true, email: true, avatarUrl: true, userRole: true, bankName: true } } }
       });
 
       io.to('global-chat-room').emit('new-global-message', message);
@@ -167,8 +167,9 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
-  console.log(`API server listening on ${PORT}`);
+const HOST = process.env.HOST || '0.0.0.0';
+server.listen(PORT, HOST, () => {
+  console.log(`API server listening on ${HOST}:${PORT}`);
   console.log('[cors] allowed origins:', allowedOrigins.join(', '));
 });
 

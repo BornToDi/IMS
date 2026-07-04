@@ -1,27 +1,34 @@
 import { create } from 'zustand'
-import { useEffect } from 'react'
+
+let refreshPromise = null
 
 export const useAuthStore = create((set, get) => ({
   user: null,
   activeWorkspace: null,
   accessToken: null,
   refreshAccessToken: async () => {
-    try {
-      const res = await fetch('/api/auth/refresh', {
-        method: 'POST',
-        credentials: 'include'
-      })
-      if (!res.ok) {
+    if (refreshPromise) return refreshPromise
+    refreshPromise = (async () => {
+      try {
+        const res = await fetch('/api/auth/refresh', {
+          method: 'POST',
+          credentials: 'include'
+        })
+        if (!res.ok) {
+          set({ user: null, accessToken: null })
+          return null
+        }
+        const data = await res.json()
+        set({ accessToken: data.accessToken })
+        return data.accessToken
+      } catch (e) {
         set({ user: null, accessToken: null })
         return null
+      } finally {
+        refreshPromise = null
       }
-      const data = await res.json()
-      set({ accessToken: data.accessToken })
-      return data.accessToken
-    } catch (e) {
-      set({ user: null, accessToken: null })
-      return null
-    }
+    })()
+    return refreshPromise
   },
   setAuth: (user, token) => {
     set({ user, accessToken: token })

@@ -8,6 +8,7 @@ export default function ProtectedRoute({ children }) {
   const pathname = usePathname()
   const user = useAuthStore((s) => s.user)
   const accessToken = useAuthStore((s) => s.accessToken)
+  const refreshAccessToken = useAuthStore((s) => s.refreshAccessToken)
   const setAuth = useAuthStore((s) => s.setAuth)
   const setActiveWorkspace = useAuthStore((s) => s.setActiveWorkspace)
   const [loading, setLoading] = useState(true)
@@ -51,6 +52,23 @@ export default function ProtectedRoute({ children }) {
     check()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, accessToken])
+
+  useEffect(() => {
+    if (!user || !accessToken) return undefined
+    const refreshWhenActive = () => {
+      if (document.visibilityState === 'visible') refreshAccessToken()
+    }
+    const intervalId = window.setInterval(() => {
+      refreshAccessToken()
+    }, 5 * 60 * 1000)
+    window.addEventListener('focus', refreshWhenActive)
+    document.addEventListener('visibilitychange', refreshWhenActive)
+    return () => {
+      window.clearInterval(intervalId)
+      window.removeEventListener('focus', refreshWhenActive)
+      document.removeEventListener('visibilitychange', refreshWhenActive)
+    }
+  }, [user, accessToken, refreshAccessToken])
 
   useEffect(() => {
     if (!user || loading) return

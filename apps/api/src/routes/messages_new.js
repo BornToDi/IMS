@@ -54,7 +54,7 @@ router.get('/', auth, async (req, res) => {
 
     const messages = await prisma.message.findMany({
       where: { workspaceId },
-      include: { author: true },
+      include: { author: { select: { id: true, name: true, email: true, avatarUrl: true, userRole: true, bankName: true } } },
       orderBy: { createdAt: 'asc' },
       take: parseInt(limit),
       skip: parseInt(offset)

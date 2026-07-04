@@ -1,4 +1,7 @@
+import { useAuthStore } from '../store/useAuthStore'
+
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || ''
+export const SOCKET_BASE_URL = API_BASE_URL || undefined
 
 export function authHeaders(token, extra = {}) {
   return {
@@ -8,12 +11,20 @@ export function authHeaders(token, extra = {}) {
 }
 
 export async function apiFetch(path, token, options = {}) {
-  const headers = authHeaders(token, options.headers || {})
-  const res = await fetch(`${API_BASE_URL}${path}`, {
-    credentials: 'include',
-    ...options,
-    headers
-  })
+  async function request(accessToken) {
+    return fetch(`${API_BASE_URL}${path}`, {
+      credentials: 'include',
+      ...options,
+      headers: authHeaders(accessToken, options.headers || {})
+    })
+  }
+
+  let res = await request(token)
+  if (res.status === 401) {
+    const nextToken = await useAuthStore.getState().refreshAccessToken()
+    if (nextToken) res = await request(nextToken)
+  }
+
   if (!res.ok) {
     let body = {}
     try { body = await res.json() } catch (e) {}

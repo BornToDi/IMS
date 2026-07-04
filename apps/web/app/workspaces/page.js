@@ -119,6 +119,7 @@ export default function WorkspacesPage() {
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState('ALL')
   const [dateFilter, setDateFilter] = useState('30')
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [form, setForm] = useState(emptyForm)
@@ -447,7 +448,7 @@ export default function WorkspacesPage() {
                         <span>{pos.serialNumber}</span>
 
                         <span className="truncate text-xs font-semibold text-slate-500">
-                          {[pos.model, pos.location].filter(Boolean).join(' · ') || 'No details'}
+                          {[pos.model, pos.location, pos.place].filter(Boolean).join(' · ') || 'No details'}
                         </span>
                       </button>
                     ))}
@@ -524,7 +525,11 @@ export default function WorkspacesPage() {
         )}
 
         <section className="rounded-3xl border border-slate-200 bg-white p-3 shadow-sm">
-          <div className="grid gap-2 lg:grid-cols-[1fr_150px_150px_150px_auto_auto]">
+          <button type="button" onClick={() => setFiltersOpen((open) => !open)} aria-expanded={filtersOpen} aria-controls="workspace-filters" className="flex w-full items-center justify-between rounded-2xl bg-slate-900 px-4 py-3 text-sm font-black text-white lg:hidden">
+            <span>Filter{query || filter !== 'ALL' || dateFilter !== '30' ? ' (active)' : ''}</span>
+            <span aria-hidden="true">{filtersOpen ? '▲' : '▼'}</span>
+          </button>
+          <div id="workspace-filters" className={`${filtersOpen ? 'grid' : 'hidden'} mt-2 gap-2 lg:mt-0 lg:grid lg:grid-cols-[1fr_150px_150px_150px_auto_auto]`}>
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}

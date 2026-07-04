@@ -1,68 +1,141 @@
 # Deploy Guide
 
-This project has two deploy targets:
+## Oracle Linux server
 
-- `apps/api`: Express + Prisma API
-- `apps/web`: Next.js frontend
+This is the recommended single-server layout:
 
-## 1. Backend on Render
+- Nginx: public ports 80/443
+- Next.js: `127.0.0.1:3000`
+- Express and Socket.IO: `127.0.0.1:5000`
+- SQLite and uploads: `/var/lib/netfield`
+- systemd: automatic startup and restart
 
-Create a new Render Blueprint from this repo. The root `render.yaml` config creates:
+The repository templates are in `deploy/oracle-linux`.
 
-- Web service: `netfield-api`
-- SQLite persistent disk mounted at `/var/data`
-- Health check: `/api/health`
+### 1. Install the server packages
 
-After the first backend deploy, copy the backend URL, for example:
+Oracle Linux 8/9:
 
-```text
-https://netfield-api.onrender.com
+```bash
+sudo dnf module reset nodejs -y
+sudo dnf module enable nodejs:22 -y
+sudo dnf install -y nodejs nginx git openssl
+node --version
 ```
 
-## 2. Frontend on Vercel
+Use Node 22 LTS. Do not use Node 20 because it is end-of-life.
 
-Import the same GitHub repo in Vercel.
+### 2. Create the service user and directories
 
-Use these settings:
-
-```text
-Root Directory: apps/web
-Build Command: npm run build
+```bash
+sudo useradd --system --create-home --shell /bin/bash netfield
+sudo mkdir -p /opt/netfield /var/lib/netfield/uploads /etc/netfield
+sudo chown -R netfield:netfield /opt/netfield /var/lib/netfield
+sudo chmod 750 /etc/netfield
 ```
 
-Set this environment variable:
+Clone the repository:
 
-```env
-NEXT_PUBLIC_API_URL=https://your-render-backend-url
+```bash
+sudo -u netfield git clone https://github.com/BornToDi/IMS.git /opt/netfield
+cd /opt/netfield
+sudo -u netfield npm ci
 ```
 
-Deploy the frontend and copy the frontend URL, for example:
+Keep uploaded files outside the Git checkout:
 
-```text
-https://netfield.vercel.app
+```bash
+sudo -u netfield ln -sfn /var/lib/netfield/uploads /opt/netfield/apps/api/uploads
 ```
 
-## 3. Update Backend CORS
+### 3. Configure production environment
 
-In Render, set these environment variables to the Vercel frontend URL:
-
-```env
-CLIENT_URL=https://netfield.vercel.app
-CLIENT_URLS=https://netfield.vercel.app
+```bash
+sudo cp deploy/oracle-linux/api.env.example /etc/netfield/api.env
+sudo cp deploy/oracle-linux/web.env.example /etc/netfield/web.env
+sudo chmod 640 /etc/netfield/api.env /etc/netfield/web.env
+sudo chown root:netfield /etc/netfield/api.env /etc/netfield/web.env
 ```
 
-Redeploy the Render backend after changing those values.
+Edit `/etc/netfield/api.env`. Replace `YOUR_DOMAIN` and generate two different secrets:
 
-## 4. Verify
-
-Open:
-
-```text
-https://your-render-backend-url/api/health
+```bash
+openssl rand -hex 64
 ```
 
-Then open the Vercel URL and test register/login.
+An IP-only HTTP check can confirm that the page responds, but authenticated sessions require the final HTTPS domain because production refresh cookies are secure.
 
-## Notes
+### 4. Migrate and build
 
-The current production config uses SQLite on a persistent Render disk. For heavier production usage, PostgreSQL is recommended.
+```bash
+sudo -u netfield bash -c 'set -a; source /etc/netfield/api.env; set +a; cd /opt/netfield; npm run migrate:server'
+cd /opt/netfield
+sudo -u netfield npm run build:server
+```
+
+`prisma migrate deploy` applies committed migrations without resetting production data.
+
+### 5. Install systemd services
+
+```bash
+sudo cp deploy/oracle-linux/netfield-api.service /etc/systemd/system/
+sudo cp deploy/oracle-linux/netfield-web.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now netfield-api netfield-web
+sudo systemctl status netfield-api netfield-web
+```
+
+Logs:
+
+```bash
+sudo journalctl -u netfield-api -u netfield-web -f
+```
+
+### 6. Configure Nginx
+
+Copy the template and replace `YOUR_DOMAIN`:
+
+```bash
+sudo cp deploy/oracle-linux/nginx.conf /etc/nginx/conf.d/netfield.conf
+sudo vi /etc/nginx/conf.d/netfield.conf
+sudo setsebool -P httpd_can_network_connect 1
+sudo nginx -t
+sudo systemctl enable --now nginx
+sudo systemctl reload nginx
+```
+
+Open the OS firewall:
+
+```bash
+sudo firewall-cmd --permanent --add-service=http
+sudo firewall-cmd --permanent --add-service=https
+sudo firewall-cmd --reload
+```
+
+Also allow inbound TCP 80 and 443 in the Oracle Cloud subnet security list or Network Security Group. Do not expose ports 3000 or 5000 publicly.
+
+### 7. HTTPS and verification
+
+Point the domain DNS A record to the server, install a trusted TLS certificate, then verify:
+
+```bash
+sudo dnf install -y certbot python3-certbot-nginx
+sudo certbot --nginx -d YOUR_DOMAIN
+curl -I https://YOUR_DOMAIN
+curl https://YOUR_DOMAIN/api/health
+```
+
+Test login, file upload, notifications, and Company Chat. WebSocket support is included in the Nginx template.
+
+### Updating later
+
+```bash
+cd /opt/netfield
+sudo -u netfield git pull --ff-only
+sudo -u netfield npm ci
+sudo -u netfield bash -c 'set -a; source /etc/netfield/api.env; set +a; cd /opt/netfield; npm run migrate:server'
+sudo -u netfield npm run build:server
+sudo systemctl restart netfield-api netfield-web
+```
+
+Back up `/var/lib/netfield/prod.db` and `/var/lib/netfield/uploads` before each update. SQLite is suitable for one application server and moderate traffic; use PostgreSQL before horizontal scaling or heavy concurrent writes.

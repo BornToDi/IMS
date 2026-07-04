@@ -97,6 +97,7 @@ export default function DashboardPage() {
   const [statusFilter, setStatusFilter] = useState('ALL')
   const [employeeFilter, setEmployeeFilter] = useState('ALL')
   const [dateFilter, setDateFilter] = useState('30')
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const [showEmployeeReport, setShowEmployeeReport] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -183,29 +184,33 @@ export default function DashboardPage() {
 
         {error && <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{error}</div>}
 
-        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-          {[[ 'Total', stats.total ], [ 'Important', stats.important ], [ 'Pending', stats.pending ], [ 'In progress', stats.progress ], [ 'Done', stats.done ]].map(([label, count]) => (
-            <div key={label} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="text-3xl font-black text-black">{loading ? '…' : count}</div>
-              <div className="mt-1 text-sm font-black text-black/65">{label}</div>
+        <section className="grid grid-cols-6 gap-2 sm:gap-3 xl:grid-cols-5">
+          {[[ 'Total', stats.total ], [ 'Important', stats.important ], [ 'Pending', stats.pending ], [ 'In progress', stats.progress ], [ 'Done', stats.done ]].map(([label, count], index) => (
+            <div key={label} className={`${index < 3 ? 'col-span-2' : 'col-span-3'} rounded-2xl border border-slate-200 bg-white px-3 py-3 shadow-sm sm:px-4 sm:py-4 xl:col-span-1`}>
+              <div className="text-2xl font-black leading-none text-black sm:text-3xl">{loading ? '…' : count}</div>
+              <div className="mt-1.5 text-xs font-black leading-tight text-black/65 sm:text-sm">{label}</div>
             </div>
           ))}
         </section>
 
-        <section className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="grid gap-3 lg:grid-cols-[1fr_170px_190px_190px_auto_auto]">
-            <input value={query} onChange={(e) => setQuery(e.target.value)} className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold text-black outline-none focus:border-black" placeholder="Search TID, POS, zone, employee..." />
-            <select value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold text-black outline-none focus:border-black">
+        <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+          <button type="button" onClick={() => setFiltersOpen((open) => !open)} aria-expanded={filtersOpen} aria-controls="dashboard-filters" className="flex w-full items-center justify-between rounded-2xl bg-slate-900 px-4 py-3 text-sm font-black text-white lg:hidden">
+            <span>Filter{query || dateFilter !== '30' || statusFilter !== 'ALL' || employeeFilter !== 'ALL' ? ' (active)' : ''}</span>
+            <span aria-hidden="true">{filtersOpen ? '▲' : '▼'}</span>
+          </button>
+          <div id="dashboard-filters" className={`${filtersOpen ? 'grid' : 'hidden'} mt-2 grid-cols-2 gap-2 sm:gap-3 lg:mt-0 lg:grid lg:grid-cols-[1fr_170px_190px_190px_auto_auto]`}>
+            <input value={query} onChange={(e) => setQuery(e.target.value)} className="col-span-2 rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-bold text-black outline-none focus:border-black lg:col-span-1 lg:rounded-2xl lg:px-4 lg:py-3" placeholder="Search TID, POS, zone, employee..." />
+            <select value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} className="min-w-0 rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-bold text-black outline-none focus:border-black lg:rounded-2xl lg:px-4 lg:py-3">
               <option value="7">Last 7 days</option><option value="15">Last 15 days</option><option value="30">Last 30 days</option><option value="MONTH">This month</option><option value="YEAR">This year</option><option value="ALL">All time</option>
             </select>
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold text-black outline-none focus:border-black">
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="min-w-0 rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-bold text-black outline-none focus:border-black lg:rounded-2xl lg:px-4 lg:py-3">
               <option value="ALL">All status</option><option value="IMPORTANT">Important</option><option value="PENDING">Pending</option><option value="IN_PROGRESS">In progress</option><option value="COMPLETED">Completed</option>
             </select>
-            <select value={employeeFilter} onChange={(e) => setEmployeeFilter(e.target.value)} className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold text-black outline-none focus:border-black">
+            <select value={employeeFilter} onChange={(e) => setEmployeeFilter(e.target.value)} className="col-span-2 min-w-0 rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-bold text-black outline-none focus:border-black sm:col-span-1 lg:col-span-1 lg:rounded-2xl lg:px-4 lg:py-3">
               <option value="ALL">All engineers</option>{employees.map((emp) => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
             </select>
-            <button type="button" onClick={() => { setQuery(''); setDateFilter('30'); setStatusFilter('ALL'); setEmployeeFilter('ALL') }} className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-black text-black">Reset</button>
-            <button type="button" onClick={() => downloadCsvReport(filtered)} className="rounded-2xl bg-black px-5 py-3 text-sm font-black text-white">Export Excel</button>
+            <button type="button" onClick={() => { setQuery(''); setDateFilter('30'); setStatusFilter('ALL'); setEmployeeFilter('ALL') }} className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-black text-black lg:rounded-2xl lg:px-5 lg:py-3">Reset</button>
+            <button type="button" onClick={() => downloadCsvReport(filtered)} className="rounded-xl bg-black px-3 py-2.5 text-sm font-black text-white lg:rounded-2xl lg:px-5 lg:py-3">Export Excel</button>
           </div>
         </section>
 

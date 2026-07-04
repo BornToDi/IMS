@@ -1,16 +1,13 @@
 "use client"
 
 import React, { useState, useEffect } from 'react'
-import dynamic from 'next/dynamic'
-import 'react-quill/dist/quill.snow.css'
-
-const ReactQuill = dynamic(() => import('react-quill'), { ssr: false })
+import { htmlToPlainText } from '../lib/plainText'
 
 export default function AnnouncementEditor({ initialContent = '', onChange }) {
-  const [value, setValue] = useState(initialContent)
+  const [value, setValue] = useState(() => htmlToPlainText(initialContent))
 
   useEffect(() => {
-    setValue(initialContent)
+    setValue(htmlToPlainText(initialContent))
   }, [initialContent])
 
   function handleChange(content) {
@@ -19,8 +16,11 @@ export default function AnnouncementEditor({ initialContent = '', onChange }) {
   }
 
   return (
-    <div className="announcement-editor">
-      <ReactQuill value={value} onChange={handleChange} theme="snow" />
-    </div>
+    <textarea
+      value={value}
+      onChange={(event) => handleChange(event.target.value)}
+      className="input min-h-36 resize-y"
+      placeholder="Write the announcement..."
+    />
   )
 }

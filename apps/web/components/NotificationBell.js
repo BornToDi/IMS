@@ -2,7 +2,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { io } from 'socket.io-client'
 import { useRouter } from 'next/navigation'
-import { API_BASE_URL, apiFetch } from '../lib/api'
+import { SOCKET_BASE_URL, apiFetch } from '../lib/api'
 import { useAuthStore } from '../store/useAuthStore'
 
 export default function NotificationBell() {
@@ -33,7 +33,7 @@ export default function NotificationBell() {
 
   useEffect(() => {
     if (!accessToken) return
-    const socket = io(API_BASE_URL || 'http://localhost:5000', {
+    const socket = io(SOCKET_BASE_URL, {
       auth: { token: accessToken },
       transports: ['websocket', 'polling']
     })
@@ -88,7 +88,7 @@ export default function NotificationBell() {
       </button>
 
       {showDropdown && (
-        <div className="absolute right-0 z-50 mt-3 w-[340px] overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-2xl">
+        <div className="fixed inset-x-4 top-20 z-50 overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-2xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-3 sm:w-[min(340px,calc(100vw-2rem))]">
           <div className="border-b border-slate-100 bg-slate-50 px-4 py-3">
             <h3 className="text-sm font-black text-slate-900">Notifications</h3>
             <p className="text-xs text-slate-500">{unreadCount} unread, updates arrive live</p>

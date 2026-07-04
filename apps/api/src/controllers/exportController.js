@@ -1,4 +1,5 @@
 const prisma = require('../prismaClient');
+const publicUser = { id: true, name: true, email: true, avatarUrl: true, userRole: true, bankName: true };
 
 async function exportWorkspace(req, res) {
   try {
@@ -11,7 +12,7 @@ async function exportWorkspace(req, res) {
     if (!member && workspace.ownerId !== userId) return res.status(403).json({ error: 'Access denied' });
 
     const data = await prisma.$transaction([
-      prisma.workspace.findUnique({ where: { id: workspaceId }, include: { members: { include: { user: true } }, goals: true, announcements: true, actionItems: true } }),
+      prisma.workspace.findUnique({ where: { id: workspaceId }, include: { members: { include: { user: { select: publicUser } } }, goals: true, announcements: true, actionItems: true } }),
       prisma.auditLog.findMany({ where: { workspaceId }, orderBy: { createdAt: 'desc' } })
     ]);
 

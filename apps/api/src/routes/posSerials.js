@@ -20,6 +20,7 @@ router.delete('/bank-master/:id', ctrl.deleteBank);
 router.get('/', ctrl.listPosSerials);
 router.post('/', ctrl.createPosSerial);
 router.post('/import', upload.single('file'), ctrl.importPosSerials);
+router.delete('/bulk', ctrl.deletePosSerials);
 router.delete('/:id', ctrl.deletePosSerial);
 
 module.exports = router;

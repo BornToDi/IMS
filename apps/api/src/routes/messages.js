@@ -3,6 +3,7 @@ const auth = require('../middleware/auth');
 const prisma = require('../prismaClient');
 
 const router = express.Router({ mergeParams: true });
+const publicUser = { id: true, name: true, email: true, avatarUrl: true, userRole: true, bankName: true };
 
 function previewText(content, attachmentName) {
   const base = content || (attachmentName ? `📎 ${attachmentName}` : 'Attachment');
@@ -57,7 +58,7 @@ router.post('/', auth, async (req, res) => {
         longitude: longitude === undefined || longitude === null || longitude === '' ? null : Number(longitude),
         locationLabel: locationLabel || null
       },
-      include: { author: true }
+      include: { author: { select: publicUser } }
     });
 
     const io = req.app && req.app.locals && req.app.locals.io;
@@ -89,7 +90,7 @@ router.get('/', auth, async (req, res) => {
 
     const messages = await prisma.message.findMany({
       where: { workspaceId },
-      include: { author: true },
+      include: { author: { select: publicUser } },
       orderBy: { createdAt: 'asc' },
       take: Math.min(parseInt(limit, 10) || 100, 200),
       skip: parseInt(offset, 10) || 0

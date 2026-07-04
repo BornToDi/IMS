@@ -2,6 +2,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuthStore } from '../../store/useAuthStore'
 import { io } from 'socket.io-client'
+import { getCurrentLocationWithPlace, isGenericLocationLabel, resolvePlaceName } from '../../lib/location'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || ''
 
@@ -50,25 +51,18 @@ function isStickerMessage(message) {
   return message?.attachmentType === 'sticker'
 }
 function hasLocation(message) {
-  return typeof message?.latitude === 'number' && typeof message?.longitude === 'number'
+  return message?.latitude !== null && message?.latitude !== undefined && message?.latitude !== '' &&
+    message?.longitude !== null && message?.longitude !== undefined && message?.longitude !== '' &&
+    Number.isFinite(Number(message.latitude)) && Number.isFinite(Number(message.longitude))
+}
+function locationKey(message) {
+  return `${Number(message.latitude)},${Number(message.longitude)}`
 }
 function mapUrl(message) {
-  return `https://www.google.com/maps?q=${message.latitude},${message.longitude}`
-}
-function locationText(message) {
-  return message.locationLabel || `Lat ${Number(message.latitude).toFixed(5)}, Lng ${Number(message.longitude).toFixed(5)}`
+  return `https://www.google.com/maps?q=${Number(message.latitude)},${Number(message.longitude)}`
 }
 async function requestCurrentLocation() {
-  if (typeof window === 'undefined' || !navigator.geolocation) {
-    throw new Error('Location is not supported on this browser')
-  }
-  return new Promise((resolve, reject) => {
-    navigator.geolocation.getCurrentPosition(
-      (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude, locationLabel: 'Shared live location' }),
-      (err) => reject(new Error(err?.message || 'Location permission denied')),
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 }
-    )
-  })
+  return getCurrentLocationWithPlace()
 }
 
 const STICKERS = [
@@ -97,6 +91,7 @@ export default function CompanyChat() {
   const [locationStatus, setLocationStatus] = useState('')
   const [stickerTrayOpen, setStickerTrayOpen] = useState(false)
   const [lightbox, setLightbox] = useState(null)
+  const [placeNames, setPlaceNames] = useState({})
   const messagesEndRef = useRef(null)
   const fileInputRef = useRef(null)
 
@@ -123,7 +118,7 @@ export default function CompanyChat() {
     loadInitialMessages()
 
     // Initialize Socket.IO
-    const newSocket = io(API_BASE_URL, {
+    const newSocket = io(API_BASE_URL || undefined, {
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
@@ -232,6 +227,17 @@ export default function CompanyChat() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  useEffect(() => {
+    messages.forEach((message) => {
+      if (!hasLocation(message)) return
+      const key = locationKey(message)
+      if (placeNames[key]) return
+      resolvePlaceName(Number(message.latitude), Number(message.longitude)).then((place) => {
+        setPlaceNames((current) => current[key] ? current : { ...current, [key]: place })
+      })
+    })
+  }, [messages, placeNames])
 
   async function buildLocationPayload() {
     if (!locationEnabled) return {}
@@ -526,8 +532,9 @@ export default function CompanyChat() {
                             </div>
                           ) : null}
                           {hasLocation(message) ? (
-                            <a href={mapUrl(message)} target="_blank" rel="noreferrer" className={`mt-2 flex items-center gap-2 rounded-2xl px-3 py-2 text-xs font-semibold ${isMine ? 'bg-white/10 text-blue-100' : 'bg-black/20 text-blue-200'}`}>
-                              <span>📍</span><span className="truncate">{locationText(message)}</span>
+                            <a href={mapUrl(message)} target="_blank" rel="noreferrer" className={`mt-2 block rounded-2xl px-3 py-2 ${isMine ? 'bg-white/10 text-blue-100' : 'bg-black/20 text-blue-200'}`}>
+                              <div className="text-xs font-black">📍 Live location</div>
+                              <div className="mt-0.5 truncate text-[11px] font-semibold opacity-80">{placeNames[locationKey(message)] || (isGenericLocationLabel(message.locationLabel) ? 'Finding place name…' : message.locationLabel)}</div>
                             </a>
                           ) : null}
                           <div className={`mt-1.5 flex items-center justify-end text-[11px] ${isMine ? 'text-emerald-100/75' : 'text-slate-400'}`}>

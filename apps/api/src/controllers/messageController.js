@@ -1,4 +1,5 @@
 const prisma = require('../prismaClient');
+const publicUser = { id: true, name: true, email: true, avatarUrl: true, userRole: true, bankName: true };
 
 async function createMessage(req, res) {
   try {
@@ -25,7 +26,7 @@ async function createMessage(req, res) {
         content
       },
       include: {
-        author: true
+        author: { select: publicUser }
       }
     });
 
@@ -52,7 +53,7 @@ async function getMessages(req, res) {
 
     const messages = await prisma.message.findMany({
       where: { workspaceId },
-      include: { author: true },
+      include: { author: { select: publicUser } },
       orderBy: { createdAt: 'asc' },
       take: parseInt(limit),
       skip: parseInt(offset)

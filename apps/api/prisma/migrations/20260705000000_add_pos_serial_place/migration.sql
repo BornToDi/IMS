@@ -1,0 +1,1 @@
+ALTER TABLE "PosSerial" ADD COLUMN "place" TEXT;

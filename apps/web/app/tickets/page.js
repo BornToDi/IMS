@@ -50,6 +50,7 @@ export default function TicketsPage() {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState('ALL')
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
@@ -294,7 +295,7 @@ export default function TicketsPage() {
                       >
                         <span>{pos.serialNumber}</span>
                         <span className="truncate text-xs font-semibold text-black/45">
-                          {[pos.model, pos.location].filter(Boolean).join(' · ') || 'No details'}
+                          {[pos.model, pos.location, pos.place].filter(Boolean).join(' · ') || 'No details'}
                         </span>
                       </button>
                     ))}
@@ -373,7 +374,11 @@ export default function TicketsPage() {
         )}
 
         <section className="rounded-3xl border border-slate-200 bg-white p-3 shadow-sm">
-          <div className="grid gap-2 md:grid-cols-[1fr_180px_auto]">
+          <button type="button" onClick={() => setFiltersOpen((open) => !open)} aria-expanded={filtersOpen} aria-controls="ticket-filters" className="flex w-full items-center justify-between rounded-2xl bg-slate-900 px-4 py-3 text-sm font-black text-white md:hidden">
+            <span>Filter{query || status !== 'ALL' ? ' (active)' : ''}</span>
+            <span aria-hidden="true">{filtersOpen ? '▲' : '▼'}</span>
+          </button>
+          <div id="ticket-filters" className={`${filtersOpen ? 'grid' : 'hidden'} mt-2 gap-2 md:mt-0 md:grid md:grid-cols-[1fr_180px_auto]`}>
             <input
               value={query}
               onChange={e => setQuery(e.target.value)}

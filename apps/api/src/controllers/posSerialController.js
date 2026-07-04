@@ -1,5 +1,6 @@
 const fs = require('fs');
 const { randomUUID } = require('crypto');
+const ExcelJS = require('exceljs');
 const prisma = require('../prismaClient');
 const { isAdminRole, isBankRole, getUser } = require('../utils/workflow');
 
@@ -12,35 +13,43 @@ async function currentUser(req, res) {
   return user;
 }
 
-let locationColumnReady = false;
-async function ensurePosSerialLocationColumn() {
-  if (locationColumnReady) return;
+let extraColumnsReady = false;
+async function ensurePosSerialExtraColumns() {
+  if (extraColumnsReady) return;
   const columns = await prisma.$queryRawUnsafe('PRAGMA table_info("PosSerial")').catch(() => []);
   const hasLocation = Array.isArray(columns) && columns.some((col) => col.name === 'location');
+  const hasPlace = Array.isArray(columns) && columns.some((col) => col.name === 'place');
   if (!hasLocation) {
     await prisma.$executeRawUnsafe('ALTER TABLE "PosSerial" ADD COLUMN "location" TEXT').catch((e) => {
       if (!String(e?.message || '').includes('duplicate column')) throw e;
     });
   }
-  locationColumnReady = true;
+  if (!hasPlace) {
+    await prisma.$executeRawUnsafe('ALTER TABLE "PosSerial" ADD COLUMN "place" TEXT').catch((e) => {
+      if (!String(e?.message || '').includes('duplicate column')) throw e;
+    });
+  }
+  extraColumnsReady = true;
 }
 
-async function upsertPosSerialRaw({ bankName, serialNumber, model = null, location = null }) {
-  await ensurePosSerialLocationColumn();
+async function upsertPosSerialRaw({ bankName, serialNumber, model = null, location = null, place = null }) {
+  await ensurePosSerialExtraColumns();
   await prisma.$executeRawUnsafe(
-    `INSERT INTO "PosSerial" ("id", "bankName", "serialNumber", "model", "location", "status", "createdAt", "updatedAt")
-     VALUES (?, ?, ?, ?, ?, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    `INSERT INTO "PosSerial" ("id", "bankName", "serialNumber", "model", "location", "place", "status", "createdAt", "updatedAt")
+     VALUES (?, ?, ?, ?, ?, ?, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
      ON CONFLICT("serialNumber") DO UPDATE SET
        "bankName" = excluded."bankName",
        "model" = excluded."model",
        "location" = excluded."location",
+       "place" = excluded."place",
        "status" = 'ACTIVE',
        "updatedAt" = CURRENT_TIMESTAMP`,
     randomUUID(),
     bankName,
     serialNumber,
     model,
-    location
+    location,
+    place
   );
   const rows = await prisma.$queryRawUnsafe('SELECT * FROM "PosSerial" WHERE "serialNumber" = ? LIMIT 1', serialNumber);
   return Array.isArray(rows) ? rows[0] : rows;
@@ -70,12 +79,14 @@ function parseImportText(text) {
   let serialIndex = 1;
   let modelIndex = -1;
   let locationIndex = -1;
+  let placeIndex = -1;
   const start = hasHeader ? 1 : 0;
   if (hasHeader) {
     bankIndex = first.findIndex((x) => ['bankname', 'bank', 'bank_name'].includes(x));
     serialIndex = first.findIndex((x) => ['serialnumber', 'serial', 'posserial', 'pos_serial', 'pos serial'].includes(x));
     modelIndex = first.findIndex((x) => ['model', 'device', 'terminalmodel'].includes(x));
     locationIndex = first.findIndex((x) => ['location', 'poslocation', 'pos_location', 'pos location', 'area', 'branch'].includes(x));
+    placeIndex = first.findIndex((x) => ['place', 'building', 'buildingname', 'building_name', 'building name', 'tower', 'site'].includes(x));
     if (bankIndex < 0) bankIndex = 0;
     if (serialIndex < 0) serialIndex = 1;
   }
@@ -83,8 +94,85 @@ function parseImportText(text) {
     bankName: clean(cols[bankIndex]),
     serialNumber: clean(cols[serialIndex]),
     model: modelIndex >= 0 ? clean(cols[modelIndex]) || null : null,
-    location: locationIndex >= 0 ? clean(cols[locationIndex]) || null : null
+    location: locationIndex >= 0 ? clean(cols[locationIndex]) || null : null,
+    place: placeIndex >= 0 ? clean(cols[placeIndex]) || null : null
   })).filter((r) => r.bankName && r.serialNumber);
+}
+
+function normalizedHeader(value) {
+  return clean(value).toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function isSerialHeader(value) {
+  return ['posserialno', 'posserialnumber', 'posserial', 'serialnumber', 'serialno'].includes(normalizedHeader(value));
+}
+
+function excelCellText(cell) {
+  if (!cell) return '';
+  if (cell.text) return clean(cell.text);
+  if (cell.value && typeof cell.value === 'object') {
+    if (Array.isArray(cell.value.richText)) return clean(cell.value.richText.map((part) => part.text).join(''));
+    if (cell.value.result !== undefined) return clean(cell.value.result);
+  }
+  return clean(cell.value);
+}
+
+async function parseExcelFile(filePath, bankName) {
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.readFile(filePath);
+  const rows = [];
+
+  workbook.eachSheet((sheet) => {
+    let headerRowNumber = 0;
+    let serialColumns = [];
+    let modelColumn = 0;
+    let locationColumn = 0;
+    let placeColumn = 0;
+    const scanUntil = Math.min(sheet.rowCount, 20);
+
+    for (let rowNumber = 1; rowNumber <= scanUntil; rowNumber += 1) {
+      const row = sheet.getRow(rowNumber);
+      const matches = [];
+      row.eachCell({ includeEmpty: false }, (cell, columnNumber) => {
+        const header = normalizedHeader(excelCellText(cell));
+        if (isSerialHeader(header)) {
+          matches.push(columnNumber);
+        }
+      });
+      if (matches.length) {
+        headerRowNumber = rowNumber;
+        serialColumns = matches;
+        row.eachCell({ includeEmpty: false }, (cell, columnNumber) => {
+          const header = normalizedHeader(excelCellText(cell));
+          if (['model', 'device', 'terminalmodel'].includes(header)) modelColumn = columnNumber;
+          if (['location', 'poslocation', 'area', 'branch'].includes(header)) locationColumn = columnNumber;
+          if (['place', 'building', 'buildingname', 'tower', 'site'].includes(header)) placeColumn = columnNumber;
+        });
+        break;
+      }
+    }
+
+    if (!headerRowNumber) return;
+    for (let rowNumber = headerRowNumber + 1; rowNumber <= sheet.rowCount; rowNumber += 1) {
+      const row = sheet.getRow(rowNumber);
+      for (const columnNumber of serialColumns) {
+        const serialNumber = excelCellText(row.getCell(columnNumber));
+        if (serialNumber && !isSerialHeader(serialNumber)) {
+          rows.push({
+            bankName,
+            serialNumber,
+            model: modelColumn ? excelCellText(row.getCell(modelColumn)) || null : null,
+            location: locationColumn ? excelCellText(row.getCell(locationColumn)) || null : null,
+            place: placeColumn ? excelCellText(row.getCell(placeColumn)) || null : null
+          });
+        }
+      }
+    }
+  });
+
+  const unique = new Map();
+  for (const row of rows) unique.set(row.serialNumber, row);
+  return [...unique.values()];
 }
 
 async function bankNamesFromMasterAndSerials() {
@@ -174,10 +262,13 @@ async function deleteBank(req, res) {
 
 async function listPosSerials(req, res) {
   const user = await currentUser(req, res); if (!user) return;
-  await ensurePosSerialLocationColumn();
+  await ensurePosSerialExtraColumns();
   const q = clean(req.query.q);
   const bankQuery = clean(req.query.bankName);
   const take = Math.min(Math.max(Number(req.query.take) || 20, 1), 500);
+  const paginated = String(req.query.paginated || '') === 'true';
+  const page = Math.max(Number(req.query.page) || 1, 1);
+  const offset = (page - 1) * take;
   const ownBank = bankOfUser(user);
 
   const where = ['"status" = ?'];
@@ -191,16 +282,25 @@ async function listPosSerials(req, res) {
     values.push(bankQuery);
   }
   if (q) {
-    where.push('("serialNumber" LIKE ? OR "bankName" LIKE ? OR "model" LIKE ? OR "location" LIKE ?)');
-    values.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`);
+    where.push('("serialNumber" LIKE ? OR "bankName" LIKE ? OR "model" LIKE ? OR "location" LIKE ? OR "place" LIKE ?)');
+    values.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`);
   }
 
+  const whereSql = where.join(' AND ');
   const rows = await prisma.$queryRawUnsafe(
-    `SELECT * FROM "PosSerial" WHERE ${where.join(' AND ')} ORDER BY "bankName" ASC, "serialNumber" ASC LIMIT ?`,
+    `SELECT * FROM "PosSerial" WHERE ${whereSql} ORDER BY "bankName" ASC, "serialNumber" ASC LIMIT ? OFFSET ?`,
     ...values,
-    take
+    take,
+    paginated ? offset : 0
   );
-  res.json(rows);
+  if (!paginated) return res.json(rows);
+
+  const countRows = await prisma.$queryRawUnsafe(
+    `SELECT COUNT(*) AS "total" FROM "PosSerial" WHERE ${whereSql}`,
+    ...values
+  );
+  const total = Number(countRows?.[0]?.total || 0);
+  res.json({ rows, total, page, pageSize: take, totalPages: Math.max(Math.ceil(total / take), 1) });
 }
 
 async function createPosSerial(req, res) {
@@ -210,51 +310,73 @@ async function createPosSerial(req, res) {
   const serialNumber = clean(req.body.serialNumber);
   const model = clean(req.body.model) || null;
   const location = clean(req.body.location) || null;
+  const place = clean(req.body.place) || null;
   if (!bankName || !serialNumber) return res.status(400).json({ error: 'Bank name and serial number are required' });
   await prisma.bankMaster.upsert({ where: { name: bankName }, update: { name: bankName }, create: { name: bankName } }).catch(() => null);
-  const row = await upsertPosSerialRaw({ bankName, serialNumber, model, location });
+  const row = await upsertPosSerialRaw({ bankName, serialNumber, model, location, place });
   res.status(201).json(row);
 }
 
 async function importPosSerials(req, res) {
   const user = await currentUser(req, res); if (!user) return;
   if (!isAdminRole(user.userRole)) return res.status(403).json({ error: 'Only admin can import POS serials' });
-  if (!req.file) return res.status(400).json({ error: 'CSV file is required' });
-  const text = fs.readFileSync(req.file.path, 'utf8');
-  const rows = parseImportText(text);
-  if (!rows.length) return res.status(400).json({ error: 'No valid rows found. Use columns: bankName,serialNumber,model,location' });
+  if (!req.file) return res.status(400).json({ error: 'Excel or CSV file is required' });
 
-  let inserted = 0;
-  const chunkSize = 500;
-  await ensurePosSerialLocationColumn();
-  for (let i = 0; i < rows.length; i += chunkSize) {
-    const chunk = rows.slice(i, i + chunkSize);
-    await prisma.$transaction(async (tx) => {
-      for (const name of [...new Set(chunk.map((r) => r.bankName))]) {
-        await tx.bankMaster.upsert({ where: { name }, update: { name }, create: { name } });
-      }
-      for (const item of chunk) {
-        await tx.$executeRawUnsafe(
-          `INSERT INTO "PosSerial" ("id", "bankName", "serialNumber", "model", "location", "status", "createdAt", "updatedAt")
-           VALUES (?, ?, ?, ?, ?, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-           ON CONFLICT("serialNumber") DO UPDATE SET
-             "bankName" = excluded."bankName",
-             "model" = excluded."model",
-             "location" = excluded."location",
-             "status" = 'ACTIVE',
-             "updatedAt" = CURRENT_TIMESTAMP`,
-          randomUUID(),
-          item.bankName,
-          item.serialNumber,
-          item.model,
-          item.location
-        );
-      }
-    });
-    inserted += chunk.length;
+  try {
+    const selectedBank = clean(req.body.bankName);
+    const extension = String(req.file.originalname || '').toLowerCase().split('.').pop();
+    let rows = [];
+
+    if (extension === 'xlsx') {
+      if (!selectedBank) return res.status(400).json({ error: 'Select a bank before uploading Excel' });
+      rows = await parseExcelFile(req.file.path, selectedBank);
+    } else if (extension === 'csv') {
+      const text = fs.readFileSync(req.file.path, 'utf8');
+      rows = parseImportText(text);
+      if (selectedBank) rows = rows.map((row) => ({ ...row, bankName: selectedBank }));
+    } else {
+      return res.status(400).json({ error: 'Only .xlsx and .csv files are supported' });
+    }
+
+    if (!rows.length) {
+      return res.status(400).json({ error: 'No POS serial found. Excel must contain a POS Serial NO column.' });
+    }
+
+    let inserted = 0;
+    const chunkSize = 500;
+    await ensurePosSerialExtraColumns();
+    for (let i = 0; i < rows.length; i += chunkSize) {
+      const chunk = rows.slice(i, i + chunkSize);
+      await prisma.$transaction(async (tx) => {
+        for (const name of [...new Set(chunk.map((r) => r.bankName))]) {
+          await tx.bankMaster.upsert({ where: { name }, update: { name }, create: { name } });
+        }
+        for (const item of chunk) {
+          await tx.$executeRawUnsafe(
+            `INSERT INTO "PosSerial" ("id", "bankName", "serialNumber", "model", "location", "place", "status", "createdAt", "updatedAt")
+             VALUES (?, ?, ?, ?, ?, ?, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+             ON CONFLICT("serialNumber") DO UPDATE SET
+               "bankName" = excluded."bankName",
+               "model" = COALESCE(excluded."model", "PosSerial"."model"),
+               "location" = COALESCE(excluded."location", "PosSerial"."location"),
+               "place" = COALESCE(excluded."place", "PosSerial"."place"),
+               "status" = 'ACTIVE',
+               "updatedAt" = CURRENT_TIMESTAMP`,
+            randomUUID(),
+            item.bankName,
+            item.serialNumber,
+            item.model,
+            item.location,
+            item.place
+          );
+        }
+      });
+      inserted += chunk.length;
+    }
+    res.json({ ok: true, bankName: selectedBank || null, processed: inserted, imported: inserted, skipped: 0 });
+  } finally {
+    fs.unlink(req.file.path, () => {});
   }
-  fs.unlink(req.file.path, () => {});
-  res.json({ ok: true, processed: inserted, imported: inserted, skipped: 0 });
 }
 
 async function deletePosSerial(req, res) {
@@ -264,4 +386,21 @@ async function deletePosSerial(req, res) {
   res.json({ ok: true });
 }
 
-module.exports = { listPublicBanks, listBanks, createBank, updateBank, deleteBank, listPosSerials, createPosSerial, importPosSerials, deletePosSerials: deletePosSerial, deletePosSerial };
+async function deletePosSerials(req, res) {
+  const user = await currentUser(req, res); if (!user) return;
+  if (!isAdminRole(user.userRole)) return res.status(403).json({ error: 'Only admin can delete POS serials' });
+  const bankName = clean(req.body.bankName);
+  const ids = Array.isArray(req.body.ids) ? [...new Set(req.body.ids.map(clean).filter(Boolean))] : [];
+  const deleteAll = req.body.all === true;
+
+  if (!bankName) return res.status(400).json({ error: 'Bank name is required' });
+  if (!deleteAll && !ids.length) return res.status(400).json({ error: 'Select at least one POS serial' });
+
+  const where = deleteAll
+    ? { bankName }
+    : { bankName, id: { in: ids } };
+  const result = await prisma.posSerial.deleteMany({ where });
+  res.json({ ok: true, deleted: result.count, bankName });
+}
+
+module.exports = { listPublicBanks, listBanks, createBank, updateBank, deleteBank, listPosSerials, createPosSerial, importPosSerials, deletePosSerials, deletePosSerial };

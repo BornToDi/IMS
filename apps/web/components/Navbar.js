@@ -3,7 +3,7 @@ import React from 'react'
 import { useAuthStore } from '../store/useAuthStore'
 import NotificationBell from './NotificationBell'
 
-export default function Navbar() {
+export default function Navbar({ navigationOpen = true, onToggleNavigation }) {
   const user = useAuthStore((s) => s.user)
   const clearAuth = useAuthStore((s) => s.clearAuth)
 
@@ -23,6 +23,17 @@ export default function Navbar() {
     <header className="sticky top-0 z-40 w-full border-b border-slate-700/60 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-800 text-white shadow-[0_12px_30px_rgba(15,23,42,0.35)] backdrop-blur">
       <div className="mx-auto flex h-16 items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={onToggleNavigation}
+            className="grid h-10 w-10 place-items-center rounded-xl border border-cyan-300/60 bg-gradient-to-br from-cyan-400 to-blue-600 text-xl font-black text-white shadow-lg shadow-cyan-950/40 transition hover:scale-105 hover:from-cyan-300 hover:to-indigo-500"
+            aria-label={navigationOpen ? 'Close navigation menu' : 'Open navigation menu'}
+            aria-expanded={navigationOpen}
+            title={navigationOpen ? 'Close navigation' : 'Open navigation'}
+          >
+            <span className="md:hidden" aria-hidden="true">{navigationOpen ? '×' : '☰'}</span>
+            <span className="hidden md:inline" aria-hidden="true">{navigationOpen ? '←' : '→'}</span>
+          </button>
           <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/10">
             <span className="text-sm font-bold tracking-wide">TH</span>
           </div>
