@@ -1,6 +1,7 @@
 const prisma = require('../prismaClient');
 const path = require('path');
 const fs = require('fs');
+const { sendPushForUser } = require('../utils/push');
 
 const UPLOAD_DIR = path.join(__dirname, '../../uploads');
 
@@ -63,6 +64,7 @@ async function uploadFile(req, res) {
         }
       })));
       if (io) notes.forEach((note) => io.to(`user:${note.userId}`).emit('notification:new', note));
+      notes.forEach((note) => sendPushForUser(note.userId, note).catch((error) => console.error('[push/file]', error)));
     }
 
     res.status(201).json(dbFile);

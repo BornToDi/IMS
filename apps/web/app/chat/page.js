@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuthStore } from '../../store/useAuthStore'
 import { io } from 'socket.io-client'
 import { getCurrentLocationWithPlace, isGenericLocationLabel, resolvePlaceName } from '../../lib/location'
+import Layout from '../../components/Layout'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || ''
 
@@ -356,7 +357,8 @@ export default function CompanyChat() {
   if (loading) return <div className="p-6">Loading chat...</div>
 
   return (
-    <>
+    <Layout>
+      <>
       {lightbox ? (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 p-3" onClick={() => setLightbox(null)}>
           <button type="button" className="absolute right-4 top-4 rounded-full bg-white/10 px-4 py-2 text-sm font-black text-white">Close</button>
@@ -445,14 +447,6 @@ export default function CompanyChat() {
         <section className="flex min-h-0 flex-1 min-w-0 flex-col bg-[#0b141a]">
           <div className="flex-none flex items-center justify-between border-b border-white/10 bg-[#202c33] px-3 py-3 sm:px-6">
             <div className="flex min-w-0 items-center gap-3">
-              <button
-                type="button"
-                className="grid h-10 w-10 place-items-center rounded-full bg-white/5 text-base text-white transition hover:bg-white/10 md:hidden"
-                aria-label="Open chats"
-                onClick={() => setMobileContactsOpen(true)}
-              >
-                ☰
-              </button>
               <div className="grid h-11 w-11 place-items-center rounded-full bg-emerald-500/20 text-sm font-semibold text-emerald-200 ring-1 ring-emerald-400/20">
                 {getInitials('Company')}
               </div>
@@ -641,6 +635,7 @@ export default function CompanyChat() {
         </section>
       </div>
     </div>
-    </>
+      </>
+    </Layout>
   )
 }

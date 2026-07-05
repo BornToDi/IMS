@@ -46,6 +46,24 @@ export default function NotificationBell() {
   }, [accessToken])
 
   useEffect(() => {
+    if (!('setAppBadge' in navigator)) return
+
+    const syncBadge = async () => {
+      try {
+        if (unreadCount > 0) {
+          await navigator.setAppBadge(unreadCount)
+        } else if ('clearAppBadge' in navigator) {
+          await navigator.clearAppBadge()
+        }
+      } catch (error) {
+        console.debug('App icon badge is unavailable:', error)
+      }
+    }
+
+    syncBadge()
+  }, [unreadCount])
+
+  useEffect(() => {
     function handleClickOutside(event) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) setShowDropdown(false)
     }
@@ -67,6 +85,60 @@ export default function NotificationBell() {
     if (url) { setShowDropdown(false); router.push(url) }
   }
 
+  function urlBase64ToUint8Array(value) {
+    const padding = '='.repeat((4 - value.length % 4) % 4)
+    const base64 = (value + padding).replace(/-/g, '+').replace(/_/g, '/')
+    const bytes = window.atob(base64)
+    return Uint8Array.from(bytes, (character) => character.charCodeAt(0))
+  }
+
+  async function enablePushNotifications() {
+    if (
+      !accessToken ||
+      !('serviceWorker' in navigator) ||
+      !('PushManager' in window) ||
+      typeof Notification === 'undefined'
+    ) return
+
+    let permission = Notification.permission
+    if (permission === 'default') permission = await Notification.requestPermission()
+    if (permission !== 'granted') return
+
+    const registration = await navigator.serviceWorker.register('/sw.js')
+    await navigator.serviceWorker.ready
+    const { publicKey } = await apiFetch('/api/notifications/push/public-key', accessToken)
+    let subscription = await registration.pushManager.getSubscription()
+    if (!subscription) {
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey)
+      })
+    }
+    await apiFetch('/api/notifications/push/subscribe', accessToken, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(subscription.toJSON())
+    })
+  }
+
+  async function toggleNotifications() {
+    setShowDropdown((current) => !current)
+
+    try {
+      await enablePushNotifications()
+      if (
+        typeof Notification !== 'undefined' &&
+        Notification.permission === 'granted' &&
+        'setAppBadge' in navigator
+      ) {
+        if (unreadCount > 0) await navigator.setAppBadge(unreadCount)
+        else if ('clearAppBadge' in navigator) await navigator.clearAppBadge()
+      }
+    } catch (error) {
+      console.debug('Push notifications are unavailable:', error)
+    }
+  }
+
   async function markRead(id) {
     try {
       await apiFetch(`/api/notifications/${id}/read`, accessToken, { method: 'PATCH' })
@@ -79,7 +151,7 @@ export default function NotificationBell() {
   return (
     <div className="relative" ref={dropdownRef}>
       <button
-        onClick={() => setShowDropdown((current) => !current)}
+        onClick={toggleNotifications}
         className={`relative flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-100 transition hover:bg-white/10 hover:text-white ${pulse ? 'scale-110 ring-4 ring-emerald-400/40' : ''}`}
         title="Notifications"
       >

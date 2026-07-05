@@ -1,4 +1,5 @@
 const prisma = require('../prismaClient');
+const { enabled: pushEnabled, publicKey } = require('../utils/push');
 
 async function listNotifications(req, res) {
   try {
@@ -29,4 +30,40 @@ async function markRead(req, res) {
   }
 }
 
-module.exports = { listNotifications, markRead };
+function getPushPublicKey(req, res) {
+  if (!pushEnabled) return res.status(503).json({ error: 'Push notifications are not configured' });
+  res.json({ publicKey });
+}
+
+async function subscribePush(req, res) {
+  try {
+    const { endpoint, keys } = req.body || {};
+    if (!endpoint || !keys?.p256dh || !keys?.auth) {
+      return res.status(400).json({ error: 'Invalid push subscription' });
+    }
+    const subscription = await prisma.pushSubscription.upsert({
+      where: { endpoint },
+      update: { userId: req.userId, p256dh: keys.p256dh, auth: keys.auth },
+      create: { userId: req.userId, endpoint, p256dh: keys.p256dh, auth: keys.auth }
+    });
+    res.status(201).json({ id: subscription.id });
+  } catch (err) {
+    console.error('[notifications/subscribePush]', err);
+    res.status(500).json({ error: 'Failed to save push subscription' });
+  }
+}
+
+async function unsubscribePush(req, res) {
+  try {
+    const endpoint = String(req.body?.endpoint || '');
+    if (endpoint) {
+      await prisma.pushSubscription.deleteMany({ where: { endpoint, userId: req.userId } });
+    }
+    res.status(204).end();
+  } catch (err) {
+    console.error('[notifications/unsubscribePush]', err);
+    res.status(500).json({ error: 'Failed to remove push subscription' });
+  }
+}
+
+module.exports = { listNotifications, markRead, getPushPublicKey, subscribePush, unsubscribePush };

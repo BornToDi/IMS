@@ -1,6 +1,7 @@
 const express = require('express');
 const auth = require('../middleware/auth');
 const prisma = require('../prismaClient');
+const { sendPushForUser } = require('../utils/push');
 
 const router = express.Router({ mergeParams: true });
 const publicUser = { id: true, name: true, email: true, avatarUrl: true, userRole: true, bankName: true };
@@ -28,6 +29,7 @@ async function notifyWorkspace({ req, workspaceId, senderId, type, message }) {
   if (io) {
     created.forEach((note) => io.to(`user:${note.userId}`).emit('notification:new', note));
   }
+  created.forEach((note) => sendPushForUser(note.userId, note).catch((error) => console.error('[push/message]', error)));
 }
 
 router.post('/', auth, async (req, res) => {

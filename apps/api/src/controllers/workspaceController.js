@@ -1,4 +1,5 @@
 const prisma = require('../prismaClient');
+const { sendPushForUser } = require('../utils/push');
 
 function isAssignableEmployee(role) {
   const r = String(role || '').toUpperCase();
@@ -46,6 +47,7 @@ async function createNotification(req, { userId, workspaceId, type, message, tar
   const note = await prisma.notification.create({ data: { userId, workspaceId, type, message, targetUrl, isRead: false } });
   const io = req.app && req.app.locals && req.app.locals.io;
   if (io) io.to(`user:${note.userId}`).emit('notification:new', note);
+  sendPushForUser(note.userId, note).catch((error) => console.error('[push/workspace]', error));
   return note;
 }
 

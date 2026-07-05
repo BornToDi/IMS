@@ -1,6 +1,7 @@
 const prisma = require('../prismaClient');
 const path = require('path');
 const fs = require('fs');
+const { notifyGlobalChatRecipients } = require('../utils/globalChatNotifications');
 const publicUser = { id: true, name: true, email: true, avatarUrl: true, userRole: true, bankName: true };
 
 async function postGlobalMessage(req, res) {
@@ -21,6 +22,7 @@ async function postGlobalMessage(req, res) {
       include: { author: { select: publicUser } }
     });
 
+    await notifyGlobalChatRecipients(req.app, message);
     res.status(201).json(message);
   } catch (err) {
     console.error('[globalChat] post error:', err);
@@ -82,6 +84,7 @@ async function uploadGlobalFile(req, res) {
     if (io) {
       io.to('global-chat-room').emit('new-global-message', message);
     }
+    await notifyGlobalChatRecipients(req.app, message);
 
     res.status(201).json({ file: fileRecord, message });
   } catch (err) {

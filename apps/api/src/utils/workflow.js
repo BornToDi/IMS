@@ -1,5 +1,6 @@
 
 const prisma = require('../prismaClient');
+const { sendPushForUser } = require('./push');
 
 function isAdminRole(role) {
   return ['ADMIN', 'MANAGEMENT'].includes(String(role || '').toUpperCase());
@@ -16,6 +17,7 @@ async function createNotification(req, { userId, workspaceId = null, type, messa
   const note = await prisma.notification.create({ data: { userId, workspaceId, type, message, targetUrl, isRead: false } });
   const io = req.app && req.app.locals && req.app.locals.io;
   if (io) io.to(`user:${userId}`).emit('notification:new', note);
+  sendPushForUser(userId, note).catch((error) => console.error('[push/notification]', error));
   return note;
 }
 async function notifyAdmins(req, message, exceptUserId = null) {

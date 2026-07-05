@@ -1,4 +1,5 @@
 const prisma = require('../prismaClient');
+const { sendPushForUser } = require('../utils/push');
 
 async function assertWorkspaceAccess(workspaceId, userId) {
   const workspace = await prisma.workspace.findUnique({ where: { id: workspaceId } });
@@ -77,6 +78,7 @@ async function createGoal(req, res) {
     })))
     const io = req.app && req.app.locals && req.app.locals.io
     if (io) notes.forEach((note) => io.to(`user:${note.userId}`).emit('notification:new', note))
+    notes.forEach((note) => sendPushForUser(note.userId, note).catch((error) => console.error('[push/goal]', error)))
 
     res.status(201).json(goal)
   } catch (err) {

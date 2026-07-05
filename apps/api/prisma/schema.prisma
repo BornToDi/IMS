@@ -35,6 +35,7 @@ model User {
   announcementComments AnnouncementComment[]
   assignedActionItems ActionItem[]
   notifications Notification[]
+  pushSubscriptions PushSubscription[]
   auditLogs AuditLog[]
   messages     Message[]
   files        File[]
@@ -233,6 +234,19 @@ model Notification {
   targetUrl   String?
   isRead      Boolean          @default(false)
   createdAt   DateTime         @default(now())
+}
+
+model PushSubscription {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 model AuditLog {

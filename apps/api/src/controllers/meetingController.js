@@ -1,4 +1,5 @@
 const prisma = require('../prismaClient');
+const { sendPushForUser } = require('../utils/push');
 
 async function createMeeting(req, res) {
   try {
@@ -277,7 +278,7 @@ async function updateInviteStatus(req, res) {
     });
     const user = await prisma.user.findUnique({ where: { id: userId } });
 
-    await prisma.notification.create({
+    const responseNote = await prisma.notification.create({
       data: {
         userId: meeting.organizerId,
         workspaceId: meeting.workspaceId,
@@ -285,6 +286,7 @@ async function updateInviteStatus(req, res) {
         message: `${user.name} ${status.toLowerCase()} your meeting invitation for "${meeting.title}"`
       }
     });
+    sendPushForUser(responseNote.userId, responseNote).catch((error) => console.error('[push/meeting-response]', error));
 
     res.json(updated);
   } catch (err) {
@@ -391,6 +393,7 @@ async function createMeetingNotifications(meeting, type, app) {
   if (io) {
     created.forEach((note) => io.to(`user:${note.userId}`).emit('notification:new', note));
   }
+  created.forEach((note) => sendPushForUser(note.userId, note).catch((error) => console.error('[push/meeting]', error)));
 }
 
 module.exports = { 

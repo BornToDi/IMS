@@ -7,6 +7,7 @@ const cookieParser = require('cookie-parser');
 const http = require('http');
 const { Server } = require('socket.io');
 const { verify } = require('./utils/jwt');
+const { notifyGlobalChatRecipients } = require('./utils/globalChatNotifications');
 
 const app = express();
 const server = http.createServer(app);
@@ -150,6 +151,7 @@ io.on('connection', async (socket) => {
       });
 
       io.to('global-chat-room').emit('new-global-message', message);
+      await notifyGlobalChatRecipients(app, message);
     } catch (err) {
       console.error('[socket] send-global-message error:', err);
       socket.emit('global-message-error', { message: 'Failed to send message' });
