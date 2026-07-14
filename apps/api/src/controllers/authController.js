@@ -10,7 +10,7 @@ function sendTokens(res, user) {
     httpOnly: true,
     secure,
     sameSite: secure ? 'none' : 'lax',
-    path: '/api/auth/refresh',
+    path: '/api',
     maxAge: 7 * 24 * 60 * 60 * 1000
   });
   return access;
@@ -49,7 +49,7 @@ async function login(req, res) {
 }
 
 async function logout(req, res) {
-  res.clearCookie('refreshToken', { path: '/api/auth/refresh' });
+  res.clearCookie('refreshToken', { path: '/api' });
   res.json({ ok: true });
 }
 
