@@ -5,14 +5,14 @@ import { usePathname } from 'next/navigation'
 import { useAuthStore } from '../store/useAuthStore'
 
 const allItems = [
-  { href: '/dashboard', label: 'Dashboard', hint: 'Overview', icon: '⌁', roles: ['ADMIN', 'MANAGEMENT', 'EMPLOYEE'] },
-  { href: '/tickets', label: 'Bank Tickets', hint: 'Client requests', icon: '▣', roles: ['BANK', 'ADMIN', 'MANAGEMENT'] },
-  { href: '/workspaces', label: 'Field Tasks', hint: 'POS jobs', icon: '▦', roles: ['ADMIN', 'MANAGEMENT', 'EMPLOYEE'] },
+  { href: '/dashboard', label: 'Dashboard', hint: 'Overview', icon: '⌁', roles: ['ADMIN', 'MANAGEMENT', 'ASSISTANT', 'EMPLOYEE'] },
+  { href: '/tickets', label: 'Bank Tickets', hint: 'Client requests', icon: '▣', roles: ['BANK', 'ADMIN', 'MANAGEMENT', 'ASSISTANT'] },
+  { href: '/workspaces', label: 'Field Tasks', hint: 'POS jobs', icon: '▦', roles: ['ADMIN', 'MANAGEMENT', 'ASSISTANT', 'EMPLOYEE'] },
   { href: '/pos-serials', label: 'POS Serials', hint: 'Master list', icon: '▤', roles: ['ADMIN', 'MANAGEMENT'] },
-  { href: '/hardware', label: 'Hardware', hint: 'POS repair', icon: '▧', roles: ['BANK', 'ADMIN', 'MANAGEMENT', 'EMPLOYEE'] },
-  { href: '/meetings', label: 'Meetings', hint: 'Schedule', icon: '◷', roles: ['ADMIN', 'MANAGEMENT', 'EMPLOYEE'] },
-  { href: '/announcements', label: 'Announcements', hint: 'Updates', icon: '✦', roles: ['ADMIN', 'MANAGEMENT', 'EMPLOYEE'] },
-  { href: '/chat', label: 'Company Chat', hint: 'Global room', icon: '◉', roles: ['ADMIN', 'MANAGEMENT', 'EMPLOYEE'] }
+  { href: '/hardware', label: 'Hardware', hint: 'POS repair', icon: '▧', roles: ['BANK', 'ADMIN', 'MANAGEMENT', 'ASSISTANT', 'EMPLOYEE'] },
+  { href: '/meetings', label: 'Meetings', hint: 'Schedule', icon: '◷', roles: ['ADMIN', 'MANAGEMENT', 'ASSISTANT', 'EMPLOYEE'] },
+  { href: '/announcements', label: 'Announcements', hint: 'Updates', icon: '✦', roles: ['ADMIN', 'MANAGEMENT', 'ASSISTANT', 'EMPLOYEE'] },
+  { href: '/chat', label: 'Company Chat', hint: 'Global room', icon: '◉', roles: ['ADMIN', 'MANAGEMENT', 'ASSISTANT', 'EMPLOYEE'] }
 ]
 
 export default function Sidebar({ open = true, onClose }){
