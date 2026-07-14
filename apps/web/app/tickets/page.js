@@ -40,7 +40,7 @@ export default function TicketsPage() {
   const token = useAuthStore(s => s.accessToken)
   const user = useAuthStore(s => s.user)
   const role = String(user?.userRole || '').toUpperCase()
-  const canCreate = role === 'BANK' || role === 'ADMIN' || role === 'MANAGEMENT'
+  const canCreate = role === 'BANK' || role === 'ADMIN' || role === 'MANAGEMENT' || role === 'ASSISTANT'
 
   const [tickets, setTickets] = useState([])
   const [options, setOptions] = useState({ banks: [], posSerials: [], serviceTypes: [] })

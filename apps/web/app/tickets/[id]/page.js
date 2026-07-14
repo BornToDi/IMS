@@ -14,7 +14,7 @@ export default function TicketDetail(){
   const { id } = useParams()
   const token = useAuthStore(s=>s.accessToken)
   const user = useAuthStore(s=>s.user)
-  const isAdmin = ['ADMIN','MANAGEMENT'].includes(String(user?.userRole||'').toUpperCase())
+  const isAdmin = ['ADMIN','MANAGEMENT','ASSISTANT'].includes(String(user?.userRole||'').toUpperCase())
   const [ticket,setTicket]=useState(null)
   const [employees,setEmployees]=useState([])
   const [assign,setAssign]=useState({employeeId:'', serviceType:'', note:'', isImportant:false})

@@ -24,7 +24,7 @@ async function register(req, res) {
   const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
   if (existing) return res.status(409).json({ error: 'Email already exists' });
   const requestedRole = String(req.body.userRole || 'EMPLOYEE').toUpperCase();
-  const allowedRoles = ['BANK', 'ADMIN', 'EMPLOYEE'];
+  const allowedRoles = ['BANK', 'ADMIN', 'EMPLOYEE', 'ASSISTANT'];
   let userRole = allowedRoles.includes(requestedRole) ? requestedRole : 'EMPLOYEE';
   if (userRole === 'ADMIN') {
     const adminCount = await prisma.user.count({ where: { userRole: { in: ['ADMIN', 'MANAGEMENT'] } } });

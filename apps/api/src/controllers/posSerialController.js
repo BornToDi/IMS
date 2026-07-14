@@ -2,7 +2,7 @@ const fs = require('fs');
 const { randomUUID } = require('crypto');
 const ExcelJS = require('exceljs');
 const prisma = require('../prismaClient');
-const { isAdminRole, isBankRole, getUser } = require('../utils/workflow');
+const { isAdminRole, isFullAdminRole, isBankRole, getUser } = require('../utils/workflow');
 
 function clean(v) { return String(v || '').trim(); }
 function bankOfUser(user) { return clean(user?.bankName) || (isBankRole(user?.userRole) ? clean(user?.name) : ''); }
@@ -216,7 +216,7 @@ async function listBanks(req, res) {
 
 async function createBank(req, res) {
   const user = await currentUser(req, res); if (!user) return;
-  if (!isAdminRole(user.userRole)) return res.status(403).json({ error: 'Only admin can create bank' });
+  if (!isFullAdminRole(user.userRole)) return res.status(403).json({ error: 'Only admin can create bank' });
   const name = clean(req.body.name || req.body.bankName);
   if (!name) return res.status(400).json({ error: 'Bank name is required' });
   const row = await prisma.bankMaster.upsert({ where: { name }, update: { name }, create: { name } });
@@ -225,7 +225,7 @@ async function createBank(req, res) {
 
 async function updateBank(req, res) {
   const user = await currentUser(req, res); if (!user) return;
-  if (!isAdminRole(user.userRole)) return res.status(403).json({ error: 'Only admin can edit bank' });
+  if (!isFullAdminRole(user.userRole)) return res.status(403).json({ error: 'Only admin can edit bank' });
   const oldName = clean(req.params.id);
   const name = clean(req.body.name || req.body.bankName);
   if (!oldName || !name) return res.status(400).json({ error: 'Old and new bank name are required' });
@@ -247,7 +247,7 @@ async function updateBank(req, res) {
 
 async function deleteBank(req, res) {
   const user = await currentUser(req, res); if (!user) return;
-  if (!isAdminRole(user.userRole)) return res.status(403).json({ error: 'Only admin can delete bank' });
+  if (!isFullAdminRole(user.userRole)) return res.status(403).json({ error: 'Only admin can delete bank' });
   const name = clean(req.params.id);
   if (!name) return res.status(400).json({ error: 'Bank name is required' });
 
@@ -305,7 +305,7 @@ async function listPosSerials(req, res) {
 
 async function createPosSerial(req, res) {
   const user = await currentUser(req, res); if (!user) return;
-  if (!isAdminRole(user.userRole)) return res.status(403).json({ error: 'Only admin can add POS serials' });
+  if (!isFullAdminRole(user.userRole)) return res.status(403).json({ error: 'Only admin can add POS serials' });
   const bankName = clean(req.body.bankName);
   const serialNumber = clean(req.body.serialNumber);
   const model = clean(req.body.model) || null;
@@ -319,7 +319,7 @@ async function createPosSerial(req, res) {
 
 async function importPosSerials(req, res) {
   const user = await currentUser(req, res); if (!user) return;
-  if (!isAdminRole(user.userRole)) return res.status(403).json({ error: 'Only admin can import POS serials' });
+  if (!isFullAdminRole(user.userRole)) return res.status(403).json({ error: 'Only admin can import POS serials' });
   if (!req.file) return res.status(400).json({ error: 'Excel or CSV file is required' });
 
   try {
@@ -381,14 +381,14 @@ async function importPosSerials(req, res) {
 
 async function deletePosSerial(req, res) {
   const user = await currentUser(req, res); if (!user) return;
-  if (!isAdminRole(user.userRole)) return res.status(403).json({ error: 'Only admin can delete POS serials' });
+  if (!isFullAdminRole(user.userRole)) return res.status(403).json({ error: 'Only admin can delete POS serials' });
   await prisma.posSerial.delete({ where: { id: req.params.id } });
   res.json({ ok: true });
 }
 
 async function deletePosSerials(req, res) {
   const user = await currentUser(req, res); if (!user) return;
-  if (!isAdminRole(user.userRole)) return res.status(403).json({ error: 'Only admin can delete POS serials' });
+  if (!isFullAdminRole(user.userRole)) return res.status(403).json({ error: 'Only admin can delete POS serials' });
   const bankName = clean(req.body.bankName);
   const ids = Array.isArray(req.body.ids) ? [...new Set(req.body.ids.map(clean).filter(Boolean))] : [];
   const deleteAll = req.body.all === true;

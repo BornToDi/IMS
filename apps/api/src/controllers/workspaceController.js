@@ -6,7 +6,7 @@ function isAssignableEmployee(role) {
   return r === 'EMPLOYEE' || r === 'FIELD_EMPLOYEE';
 }
 function isAdminRole(role) {
-  return ['ADMIN', 'MANAGEMENT'].includes(String(role || '').toUpperCase());
+  return ['ADMIN', 'MANAGEMENT', 'ASSISTANT'].includes(String(role || '').toUpperCase());
 }
 
 const workspaceInclude = {

@@ -12,7 +12,7 @@ export default function PosSerialsPage() {
   const token = useAuthStore((s) => s.accessToken)
   const user = useAuthStore((s) => s.user)
   const role = String(user?.userRole || '').toUpperCase()
-  const isAdmin = role === 'ADMIN' || role === 'MANAGEMENT'
+  const isFullAdmin = role === 'ADMIN' || role === 'MANAGEMENT'
   const fileRef = useRef(null)
 
   const [banks, setBanks] = useState([])
@@ -239,8 +239,8 @@ export default function PosSerialsPage() {
   const allVisibleSelected = rows.length > 0 && rows.every((row) => selectedIds.includes(row.id))
   const sampleCsv = useMemo(() => 'bankName,serialNumber,model,location,place\nAB Bank,AB001,PAX A920,Gulshan 1,Uday Tower\nEBL,EBL001,Verifone VX520,Uttara,Rajuk Commercial Complex', [])
 
-  if (!isAdmin) {
-    return <Layout><div className="rounded-3xl border border-red-200 bg-red-50 p-6 text-sm font-bold text-red-700">Only admin can manage POS serials.</div></Layout>
+  if (!isFullAdmin) {
+    return <Layout><div className="rounded-3xl border border-red-200 bg-red-50 p-6 text-sm font-bold text-red-700">Only full admin can manage POS serials.</div></Layout>
   }
 
   return (

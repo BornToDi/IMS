@@ -3,10 +3,13 @@ const prisma = require('../prismaClient');
 const { sendPushForUser } = require('./push');
 
 function isAdminRole(role) {
-  return ['ADMIN', 'MANAGEMENT'].includes(String(role || '').toUpperCase());
+  return ['ADMIN', 'MANAGEMENT', 'ASSISTANT'].includes(String(role || '').toUpperCase());
 }
 function isBankRole(role) {
   return String(role || '').toUpperCase() === 'BANK';
+}
+function isFullAdminRole(role) {
+  return ['ADMIN', 'MANAGEMENT'].includes(String(role || '').toUpperCase());
 }
 async function getUser(userId) {
   if (!userId) return null;
@@ -38,4 +41,4 @@ function parseMentionIds(value) {
   return String(value).split(',').map((x) => x.trim()).filter(Boolean);
 }
 
-module.exports = { isAdminRole, isBankRole, getUser, createNotification, notifyAdmins, nextCode, parseMentionIds };
+module.exports = { isAdminRole, isFullAdminRole, isBankRole, getUser, createNotification, notifyAdmins, nextCode, parseMentionIds };

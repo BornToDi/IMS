@@ -76,6 +76,7 @@ export default function AuthForm({ mode = 'login', onSubmit, fixedRole = null, d
               <select id="userRole" value={userRole} onChange={(e) => { setUserRole(e.target.value); if (e.target.value !== 'BANK') setBankName('') }} className={selectClass}>
                 <option value="BANK">Bank user</option>
                 <option value="ADMIN">Admin / Sir</option>
+                <option value="ASSISTANT">Assistant (Admin without POS access)</option>
                 <option value="EMPLOYEE">Employee / Engineer</option>
               </select>
             </div>

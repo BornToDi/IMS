@@ -35,7 +35,7 @@ export default function HardwarePage() {
   const token = useAuthStore(s => s.accessToken)
   const user = useAuthStore(s => s.user)
   const role = String(user?.userRole || '').toUpperCase()
-  const isAdmin = ['ADMIN', 'MANAGEMENT'].includes(role)
+  const isAdmin = ['ADMIN', 'MANAGEMENT', 'ASSISTANT'].includes(role)
   const isBank = role === 'BANK'
   const canCreate = isAdmin || isBank
   const userBankName = clean(user?.bankName) || (isBank ? clean(user?.name) : '')
@@ -119,7 +119,7 @@ export default function HardwarePage() {
       setRows(await apiFetch('/api/hardware', token))
       if (canCreate) {
         const allUsers = await apiFetch('/api/auth/users', token)
-        setUsers(allUsers.filter(u => isBank ? ['ADMIN', 'MANAGEMENT'].includes(String(u.userRole).toUpperCase()) : String(u.userRole).toUpperCase() !== 'BANK'))
+        setUsers(allUsers.filter(u => isBank ? ['ADMIN', 'MANAGEMENT', 'ASSISTANT'].includes(String(u.userRole).toUpperCase()) : String(u.userRole).toUpperCase() !== 'BANK'))
         setTickets(await apiFetch('/api/tickets', token))
         await loadPosBanks()
       }
