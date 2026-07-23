@@ -12,7 +12,8 @@ const allItems = [
   { href: '/hardware', label: 'Hardware', hint: 'POS repair', icon: '▧', roles: ['BANK', 'ADMIN', 'MANAGEMENT', 'ASSISTANT', 'EMPLOYEE'] },
   { href: '/meetings', label: 'Meetings', hint: 'Schedule', icon: '◷', roles: ['ADMIN', 'MANAGEMENT', 'ASSISTANT', 'EMPLOYEE'] },
   { href: '/announcements', label: 'Announcements', hint: 'Updates', icon: '✦', roles: ['ADMIN', 'MANAGEMENT', 'ASSISTANT', 'EMPLOYEE'] },
-  { href: '/chat', label: 'Company Chat', hint: 'Global room', icon: '◉', roles: ['ADMIN', 'MANAGEMENT', 'ASSISTANT', 'EMPLOYEE'] }
+  { href: '/chat', label: 'Company Chat', hint: 'Global room', icon: '◉', roles: ['ADMIN', 'MANAGEMENT', 'ASSISTANT', 'EMPLOYEE'] },
+  { href: '/pdf-to-png', label: 'PDF to PNG', hint: 'Transparent 500 × 500', icon: '⇩', roles: ['ADMIN', 'MANAGEMENT', 'ASSISTANT', 'EMPLOYEE'] }
 ]
 
 export default function Sidebar({ open = true, onClose }){
