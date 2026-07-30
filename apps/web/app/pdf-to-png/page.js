@@ -5,6 +5,9 @@ import Layout from '../../components/Layout'
 
 const OUTPUT_SIZE = 500
 const CONTENT_PADDING = 16
+const QR_FRAME_PADDING = 8
+const QR_FRAME_WIDTH = 2
+const QR_FRAME_COLOR = '#0C6F3A'
 
 function safeName(name) {
   return String(name || 'document').replace(/\.pdf$/i, '').replace(/[^a-z0-9_-]+/gi, '-').replace(/^-|-$/g, '') || 'document'
@@ -58,6 +61,50 @@ function makeBackgroundTransparent(context, width, height) {
   return right >= left ? { x: left, y: top, width: right - left + 1, height: bottom - top + 1 } : null
 }
 
+function findQrBounds(context, content) {
+  const { data } = context.getImageData(content.x, content.y, content.width, content.height)
+  const occupiedRows = new Array(content.height).fill(false)
+
+  for (let y = 0; y < content.height; y += 1) {
+    for (let x = 0; x < content.width; x += 1) {
+      if (data[(y * content.width + x) * 4 + 3] > 12) {
+        occupiedRows[y] = true
+        break
+      }
+    }
+  }
+
+  const bands = []
+  let start = -1
+  for (let y = 0; y <= content.height; y += 1) {
+    if (y < content.height && occupiedRows[y]) {
+      if (start < 0) start = y
+    } else if (start >= 0) {
+      bands.push({ top: start, bottom: y - 1 })
+      start = -1
+    }
+  }
+
+  const candidates = bands.map(({ top, bottom }) => {
+    let left = content.width
+    let right = -1
+    for (let y = top; y <= bottom; y += 1) {
+      for (let x = 0; x < content.width; x += 1) {
+        if (data[(y * content.width + x) * 4 + 3] > 12) {
+          left = Math.min(left, x)
+          right = Math.max(right, x)
+        }
+      }
+    }
+    const width = right - left + 1
+    const height = bottom - top + 1
+    const ratio = width / height
+    return { x: content.x + left, y: content.y + top, width, height, ratio }
+  }).filter((candidate) => candidate.width > 0 && candidate.ratio >= 0.75 && candidate.ratio <= 1.33)
+
+  return candidates.sort((a, b) => (b.width * b.height) - (a.width * a.height))[0] || null
+}
+
 export default function PdfToPngPage() {
   const inputRef = useRef(null)
   const canvasRef = useRef(null)
@@ -85,6 +132,7 @@ export default function PdfToPngPage() {
       await page.render({ canvasContext: sourceContext, viewport, background: 'rgb(255,255,255)' }).promise
       const content = makeBackgroundTransparent(sourceContext, sourceCanvas.width, sourceCanvas.height)
       if (!content) throw new Error('No visible QR code or text was found on this page.')
+      const qrBounds = findQrBounds(sourceContext, content)
 
       const canvas = canvasRef.current
       canvas.width = OUTPUT_SIZE
@@ -93,11 +141,29 @@ export default function PdfToPngPage() {
       context.clearRect(0, 0, OUTPUT_SIZE, OUTPUT_SIZE)
       context.imageSmoothingEnabled = true
       context.imageSmoothingQuality = 'high'
-      const availableSize = OUTPUT_SIZE - CONTENT_PADDING * 2
+      const frameSpace = (QR_FRAME_PADDING + QR_FRAME_WIDTH) * 2
+      const availableSize = OUTPUT_SIZE - CONTENT_PADDING * 2 - frameSpace
       const scale = Math.min(availableSize / content.width, availableSize / content.height)
       const width = content.width * scale
       const height = content.height * scale
-      context.drawImage(sourceCanvas, content.x, content.y, content.width, content.height, (OUTPUT_SIZE - width) / 2, (OUTPUT_SIZE - height) / 2, width, height)
+      const drawX = (OUTPUT_SIZE - width) / 2
+      const drawY = (OUTPUT_SIZE - height) / 2
+      context.drawImage(sourceCanvas, content.x, content.y, content.width, content.height, drawX, drawY, width, height)
+
+      if (qrBounds) {
+        const qrX = drawX + (qrBounds.x - content.x) * scale
+        const qrY = drawY + (qrBounds.y - content.y) * scale
+        const qrWidth = qrBounds.width * scale
+        const qrHeight = qrBounds.height * scale
+        context.strokeStyle = QR_FRAME_COLOR
+        context.lineWidth = QR_FRAME_WIDTH
+        context.strokeRect(
+          qrX - QR_FRAME_PADDING - QR_FRAME_WIDTH / 2,
+          qrY - QR_FRAME_PADDING - QR_FRAME_WIDTH / 2,
+          qrWidth + (QR_FRAME_PADDING * 2) + QR_FRAME_WIDTH,
+          qrHeight + (QR_FRAME_PADDING * 2) + QR_FRAME_WIDTH
+        )
+      }
       setPageNumber(requestedPage)
       setReady(true)
       page.cleanup()
