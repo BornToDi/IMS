@@ -8,6 +8,9 @@ const CONTENT_PADDING = 16
 const QR_FRAME_PADDING = 8
 const QR_FRAME_WIDTH = 2
 const QR_FRAME_COLOR = '#0C6F3A'
+const PRINT_DPI = 300
+const QR_SIZE_INCHES = 1.2
+const QR_TARGET_SIZE = Math.round(PRINT_DPI * QR_SIZE_INCHES)
 
 function safeName(name) {
   return String(name || 'document').replace(/\.pdf$/i, '').replace(/[^a-z0-9_-]+/gi, '-').replace(/^-|-$/g, '') || 'document'
@@ -105,6 +108,34 @@ function findQrBounds(context, content) {
   return candidates.sort((a, b) => (b.width * b.height) - (a.width * a.height))[0] || null
 }
 
+function crc32(bytes) {
+  let crc = 0xffffffff
+  for (const byte of bytes) {
+    crc ^= byte
+    for (let bit = 0; bit < 8; bit += 1) crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1))
+  }
+  return (crc ^ 0xffffffff) >>> 0
+}
+
+async function addPngDpi(blob, dpi) {
+  const png = new Uint8Array(await blob.arrayBuffer())
+  const pixelsPerMeter = Math.round(dpi / 0.0254)
+  const chunk = new Uint8Array(21)
+  const view = new DataView(chunk.buffer)
+  view.setUint32(0, 9)
+  chunk.set([112, 72, 89, 115], 4)
+  view.setUint32(8, pixelsPerMeter)
+  view.setUint32(12, pixelsPerMeter)
+  chunk[16] = 1
+  view.setUint32(17, crc32(chunk.slice(4, 17)))
+
+  const output = new Uint8Array(png.length + chunk.length)
+  output.set(png.slice(0, 33), 0)
+  output.set(chunk, 33)
+  output.set(png.slice(33), 33 + chunk.length)
+  return new Blob([output], { type: 'image/png' })
+}
+
 export default function PdfToPngPage() {
   const inputRef = useRef(null)
   const canvasRef = useRef(null)
@@ -143,7 +174,9 @@ export default function PdfToPngPage() {
       context.imageSmoothingQuality = 'high'
       const frameSpace = (QR_FRAME_PADDING + QR_FRAME_WIDTH) * 2
       const availableSize = OUTPUT_SIZE - CONTENT_PADDING * 2 - frameSpace
-      const scale = Math.min(availableSize / content.width, availableSize / content.height)
+      const fitScale = Math.min(availableSize / content.width, availableSize / content.height)
+      const qrScale = qrBounds ? Math.min(QR_TARGET_SIZE / qrBounds.width, QR_TARGET_SIZE / qrBounds.height) : fitScale
+      const scale = qrScale
       const width = content.width * scale
       const height = content.height * scale
       const drawX = (OUTPUT_SIZE - width) / 2
@@ -202,9 +235,10 @@ export default function PdfToPngPage() {
 
   function downloadPng() {
     if (!ready || !canvasRef.current) return
-    canvasRef.current.toBlob((blob) => {
+    canvasRef.current.toBlob(async (blob) => {
       if (!blob) return
-      const url = URL.createObjectURL(blob)
+      const printReadyBlob = await addPngDpi(blob, PRINT_DPI)
+      const url = URL.createObjectURL(printReadyBlob)
       const link = document.createElement('a')
       link.href = url
       link.download = `${safeName(fileName)}-page-${pageNumber}-500x500.png`
