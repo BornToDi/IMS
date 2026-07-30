@@ -8,8 +8,8 @@ const CONTENT_PADDING = 16
 const QR_FRAME_PADDING = 8
 const QR_FRAME_WIDTH = 2
 const QR_FRAME_COLOR = '#0C6F3A'
-const PRINT_DPI = 300
-const QR_SIZE_INCHES = 1.2
+const PRINT_DPI = 200
+const QR_SIZE_INCHES = 1.5
 const QR_TARGET_SIZE = Math.round(PRINT_DPI * QR_SIZE_INCHES)
 
 function safeName(name) {
@@ -172,22 +172,13 @@ export default function PdfToPngPage() {
       context.clearRect(0, 0, OUTPUT_SIZE, OUTPUT_SIZE)
       context.imageSmoothingEnabled = true
       context.imageSmoothingQuality = 'high'
-      const frameSpace = (QR_FRAME_PADDING + QR_FRAME_WIDTH) * 2
-      const availableSize = OUTPUT_SIZE - CONTENT_PADDING * 2 - frameSpace
-      const fitScale = Math.min(availableSize / content.width, availableSize / content.height)
-      const qrScale = qrBounds ? Math.min(QR_TARGET_SIZE / qrBounds.width, QR_TARGET_SIZE / qrBounds.height) : fitScale
-      const scale = qrScale
-      const width = content.width * scale
-      const height = content.height * scale
-      const drawX = (OUTPUT_SIZE - width) / 2
-      const drawY = (OUTPUT_SIZE - height) / 2
-      context.drawImage(sourceCanvas, content.x, content.y, content.width, content.height, drawX, drawY, width, height)
-
       if (qrBounds) {
-        const qrX = drawX + (qrBounds.x - content.x) * scale
-        const qrY = drawY + (qrBounds.y - content.y) * scale
-        const qrWidth = qrBounds.width * scale
-        const qrHeight = qrBounds.height * scale
+        const qrWidth = QR_TARGET_SIZE
+        const qrHeight = QR_TARGET_SIZE
+        const qrX = (OUTPUT_SIZE - qrWidth) / 2
+        const qrY = CONTENT_PADDING + QR_FRAME_PADDING + QR_FRAME_WIDTH
+        context.drawImage(sourceCanvas, qrBounds.x, qrBounds.y, qrBounds.width, qrBounds.height, qrX, qrY, qrWidth, qrHeight)
+
         context.strokeStyle = QR_FRAME_COLOR
         context.lineWidth = QR_FRAME_WIDTH
         context.strokeRect(
@@ -196,6 +187,24 @@ export default function PdfToPngPage() {
           qrWidth + (QR_FRAME_PADDING * 2) + QR_FRAME_WIDTH,
           qrHeight + (QR_FRAME_PADDING * 2) + QR_FRAME_WIDTH
         )
+
+        const textY = qrBounds.y + qrBounds.height
+        const textHeight = (content.y + content.height) - textY
+        if (textHeight > 0) {
+          const textDrawY = qrY + qrHeight + QR_FRAME_PADDING + QR_FRAME_WIDTH + CONTENT_PADDING
+          const textAvailableWidth = OUTPUT_SIZE - CONTENT_PADDING * 2
+          const textAvailableHeight = OUTPUT_SIZE - textDrawY - CONTENT_PADDING
+          const textScale = Math.min(textAvailableWidth / content.width, textAvailableHeight / textHeight)
+          const textWidth = content.width * textScale
+          const fittedTextHeight = textHeight * textScale
+          context.drawImage(sourceCanvas, content.x, textY, content.width, textHeight, (OUTPUT_SIZE - textWidth) / 2, textDrawY, textWidth, fittedTextHeight)
+        }
+      } else {
+        const availableSize = OUTPUT_SIZE - CONTENT_PADDING * 2
+        const scale = Math.min(availableSize / content.width, availableSize / content.height)
+        const width = content.width * scale
+        const height = content.height * scale
+        context.drawImage(sourceCanvas, content.x, content.y, content.width, content.height, (OUTPUT_SIZE - width) / 2, (OUTPUT_SIZE - height) / 2, width, height)
       }
       setPageNumber(requestedPage)
       setReady(true)
