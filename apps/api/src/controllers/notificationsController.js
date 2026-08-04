@@ -7,7 +7,9 @@ async function listNotifications(req, res) {
     if (!userId) return res.status(401).json({ error: 'Not authenticated' });
     const { workspaceId } = req.params;
     const where = workspaceId ? { userId, workspaceId } : { userId };
-    const notes = await prisma.notification.findMany({ where, orderBy: { createdAt: 'desc' } });
+    const requestedLimit = Number.parseInt(req.query.limit, 10);
+    const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(requestedLimit, 1), 200) : 100;
+    const notes = await prisma.notification.findMany({ where, orderBy: { createdAt: 'desc' }, take: limit });
     res.json(notes);
   } catch (err) {
     console.error('[notifications/list]', err);
@@ -19,9 +21,8 @@ async function markRead(req, res) {
   try {
     const userId = req.userId;
     const { id } = req.params;
-    const note = await prisma.notification.findUnique({ where: { id } });
+    const note = await prisma.notification.findFirst({ where: { id, userId } });
     if (!note) return res.status(404).json({ error: 'Not found' });
-    if (note.userId !== userId) return res.status(403).json({ error: 'Access denied' });
     const updated = await prisma.notification.update({ where: { id }, data: { isRead: true } });
     res.json(updated);
   } catch (err) {

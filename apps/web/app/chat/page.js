@@ -234,6 +234,10 @@ export default function CompanyChat() {
       if (!hasLocation(message)) return
       const key = locationKey(message)
       if (placeNames[key]) return
+      if (!isGenericLocationLabel(message.locationLabel)) {
+        setPlaceNames((current) => current[key] ? current : { ...current, [key]: message.locationLabel })
+        return
+      }
       resolvePlaceName(Number(message.latitude), Number(message.longitude)).then((place) => {
         setPlaceNames((current) => current[key] ? current : { ...current, [key]: place })
       })
@@ -256,17 +260,35 @@ export default function CompanyChat() {
   }
 
   async function sendMessage() {
-    if (!newMessage.trim() || !socket || !user) return
+    if (!newMessage.trim() || !user) return
 
     const content = newMessage
     setNewMessage('')
     const locationPayload = await buildLocationPayload()
 
-    socket.emit('send-global-message', {
-      authorId: user.id,
-      content,
-      ...locationPayload
-    })
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/chat`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify({ content, ...locationPayload })
+      })
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}))
+        throw new Error(body.error || 'Failed to send message')
+      }
+
+      const message = await response.json()
+      setMessages((current) => current.some((item) => item.id === message.id) ? current : [...current, message])
+    } catch (error) {
+      setNewMessage(content)
+      setLocationStatus(error.message || 'Failed to send message')
+      setTimeout(() => setLocationStatus(''), 3000)
+    }
   }
 
   async function sendSticker(sticker) {
@@ -528,7 +550,7 @@ export default function CompanyChat() {
                           {hasLocation(message) ? (
                             <a href={mapUrl(message)} target="_blank" rel="noreferrer" className={`mt-2 block rounded-2xl px-3 py-2 ${isMine ? 'bg-white/10 text-blue-100' : 'bg-black/20 text-blue-200'}`}>
                               <div className="text-xs font-black">📍 Live location</div>
-                              <div className="mt-0.5 truncate text-[11px] font-semibold opacity-80">{placeNames[locationKey(message)] || (isGenericLocationLabel(message.locationLabel) ? 'Finding place name…' : message.locationLabel)}</div>
+                              <div className="mt-0.5 break-words text-[11px] font-semibold leading-4 opacity-80">{placeNames[locationKey(message)] || (isGenericLocationLabel(message.locationLabel) ? 'Finding place name…' : message.locationLabel)}</div>
                             </a>
                           ) : null}
                           <div className={`mt-1.5 flex items-center justify-end text-[11px] ${isMine ? 'text-emerald-100/75' : 'text-slate-400'}`}>

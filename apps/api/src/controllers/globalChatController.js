@@ -22,7 +22,11 @@ async function postGlobalMessage(req, res) {
       include: { author: { select: publicUser } }
     });
 
-    await notifyGlobalChatRecipients(req.app, message);
+    const io = req.app?.locals?.io;
+    if (io) io.to('global-chat-room').emit('new-global-message', message);
+    notifyGlobalChatRecipients(req.app, message).catch((error) => {
+      console.error('[globalChat] notification error:', error);
+    });
     res.status(201).json(message);
   } catch (err) {
     console.error('[globalChat] post error:', err);
@@ -33,13 +37,17 @@ async function postGlobalMessage(req, res) {
 async function getGlobalMessages(req, res) {
   try {
     const { limit = 100, offset = 0 } = req.query;
+    const parsedLimit = Number.parseInt(limit, 10);
+    const parsedOffset = Number.parseInt(offset, 10);
+    const take = Number.isFinite(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 200) : 100;
+    const skip = Number.isFinite(parsedOffset) ? Math.max(parsedOffset, 0) : 0;
     const messages = await prisma.globalMessage.findMany({
       include: { author: { select: publicUser } },
-      orderBy: { createdAt: 'asc' },
-      take: parseInt(limit),
-      skip: parseInt(offset)
+      orderBy: { createdAt: 'desc' },
+      take,
+      skip
     });
-    res.json(messages);
+    res.json(messages.reverse());
   } catch (err) {
     console.error('[globalChat] get error:', err);
     res.status(500).json({ error: 'Failed to fetch global messages' });
@@ -84,7 +92,9 @@ async function uploadGlobalFile(req, res) {
     if (io) {
       io.to('global-chat-room').emit('new-global-message', message);
     }
-    await notifyGlobalChatRecipients(req.app, message);
+    notifyGlobalChatRecipients(req.app, message).catch((error) => {
+      console.error('[globalChat] notification error:', error);
+    });
 
     res.status(201).json({ file: fileRecord, message });
   } catch (err) {

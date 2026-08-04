@@ -27,7 +27,7 @@ export default function NotificationBell() {
   useEffect(() => {
     load()
     if (!accessToken) return
-    const timer = setInterval(load, 10000)
+    const timer = setInterval(load, 60000)
     return () => clearInterval(timer)
   }, [accessToken])
 

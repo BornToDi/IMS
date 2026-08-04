@@ -40,4 +40,15 @@ async function sendPushForUser(userId, notification) {
   }));
 }
 
-module.exports = { enabled, publicKey, sendPushForUser };
+async function sendPushForNotifications(notifications, concurrency = 10) {
+  if (!enabled || !notifications?.length) return;
+
+  for (let index = 0; index < notifications.length; index += concurrency) {
+    const batch = notifications.slice(index, index + concurrency);
+    await Promise.all(batch.map((notification) => (
+      sendPushForUser(notification.userId, notification)
+    )));
+  }
+}
+
+module.exports = { enabled, publicKey, sendPushForUser, sendPushForNotifications };

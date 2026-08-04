@@ -1,7 +1,7 @@
 const express = require('express');
 const auth = require('../middleware/auth');
 const prisma = require('../prismaClient');
-const { sendPushForUser } = require('../utils/push');
+const { sendPushForNotifications } = require('../utils/push');
 
 const router = express.Router({ mergeParams: true });
 const publicUser = { id: true, name: true, email: true, avatarUrl: true, userRole: true, bankName: true };
@@ -21,15 +21,15 @@ async function notifyWorkspace({ req, workspaceId, senderId, type, message }) {
   const recipientIds = workspace.members.map((m) => m.userId).filter((id) => id !== senderId);
   if (recipientIds.length === 0) return;
 
-  const created = await Promise.all(recipientIds.map((userId) => prisma.notification.create({
-    data: { userId, workspaceId, type, message, isRead: false }
-  })));
+  const created = await prisma.notification.createManyAndReturn({
+    data: recipientIds.map((userId) => ({ userId, workspaceId, type, message, isRead: false }))
+  });
 
   const io = req.app && req.app.locals && req.app.locals.io;
   if (io) {
     created.forEach((note) => io.to(`user:${note.userId}`).emit('notification:new', note));
   }
-  created.forEach((note) => sendPushForUser(note.userId, note).catch((error) => console.error('[push/message]', error)));
+  sendPushForNotifications(created).catch((error) => console.error('[push/message]', error));
 }
 
 router.post('/', auth, async (req, res) => {
@@ -66,13 +66,13 @@ router.post('/', auth, async (req, res) => {
     const io = req.app && req.app.locals && req.app.locals.io;
     if (io) io.to(`workspace:${workspaceId}`).emit('workspace:message:new', message);
 
-    await notifyWorkspace({
+    notifyWorkspace({
       req,
       workspaceId,
       senderId: userId,
       type: 'MESSAGE',
       message: `${member.user.name || member.user.email} messaged in ${member.workspace.name}: ${previewText(content, attachmentName)}`
-    });
+    }).catch((error) => console.error('[messages] notification error:', error));
 
     res.status(201).json(message);
   } catch (err) {
@@ -90,15 +90,17 @@ router.get('/', auth, async (req, res) => {
     const member = await prisma.workspaceMember.findFirst({ where: { workspaceId, userId } });
     if (!member) return res.status(403).json({ error: 'Not a member of this workspace' });
 
+    const parsedLimit = Number.parseInt(limit, 10);
+    const parsedOffset = Number.parseInt(offset, 10);
     const messages = await prisma.message.findMany({
       where: { workspaceId },
       include: { author: { select: publicUser } },
-      orderBy: { createdAt: 'asc' },
-      take: Math.min(parseInt(limit, 10) || 100, 200),
-      skip: parseInt(offset, 10) || 0
+      orderBy: { createdAt: 'desc' },
+      take: Number.isFinite(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 200) : 100,
+      skip: Number.isFinite(parsedOffset) ? Math.max(parsedOffset, 0) : 0
     });
 
-    res.json(messages);
+    res.json(messages.reverse());
   } catch (err) {
     console.error('[messages GET] error:', err);
     res.status(500).json({ error: 'Failed to fetch messages' });

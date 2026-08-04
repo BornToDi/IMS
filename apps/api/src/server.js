@@ -76,6 +76,7 @@ app.use('/api/workspaces/:workspaceId/files', require('./routes/files'));
 app.use('/api/workspaces/:workspaceId/meetings', require('./routes/meetings'));
 app.use('/api/meetings', require('./routes/meetings'));
 app.use('/api/chat', require('./routes/globalChat'));
+app.use('/api/location', require('./routes/location'));
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok', allowedOrigins }));
 
@@ -151,7 +152,9 @@ io.on('connection', async (socket) => {
       });
 
       io.to('global-chat-room').emit('new-global-message', message);
-      await notifyGlobalChatRecipients(app, message);
+      notifyGlobalChatRecipients(app, message).catch((error) => {
+        console.error('[socket] global notification error:', error);
+      });
     } catch (err) {
       console.error('[socket] send-global-message error:', err);
       socket.emit('global-message-error', { message: 'Failed to send message' });

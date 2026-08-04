@@ -1,17 +1,20 @@
 const placeCache = new Map()
-const PLACE_CACHE_VERSION = 'v2'
+const pendingPlaces = new Map()
+const PLACE_CACHE_VERSION = 'v6'
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || ''
 
 function cacheKey(latitude, longitude) {
   return `${Number(latitude).toFixed(5)},${Number(longitude).toFixed(5)}`
 }
 
 export function isGenericLocationLabel(label) {
-  return !label || ['Update location', 'Shared live location', 'Live location'].includes(label)
+  return !label || ['Update location', 'Shared live location', 'Live location', 'Place name unavailable', 'Tap to view exact location'].includes(label)
 }
 
 export async function resolvePlaceName(latitude, longitude) {
   const key = cacheKey(latitude, longitude)
   if (placeCache.has(key)) return placeCache.get(key)
+  if (pendingPlaces.has(key)) return pendingPlaces.get(key)
 
   try {
     const stored = window.localStorage.getItem(`place:${PLACE_CACHE_VERSION}:${key}`)
@@ -21,39 +24,25 @@ export async function resolvePlaceName(latitude, longitude) {
     }
   } catch {}
 
-  try {
-    const params = new URLSearchParams({
-      format: 'jsonv2',
-      lat: String(latitude),
-      lon: String(longitude),
-      zoom: '18',
-      addressdetails: '1'
-    })
-    const response = await fetch(`https://nominatim.openstreetmap.org/reverse?${params.toString()}`)
-    if (!response.ok) throw new Error('Place lookup failed')
-    const data = await response.json()
-    const address = data?.address || {}
-    const specificPlace = [
-      address.building,
-      address.amenity,
-      address.office,
-      address.shop,
-      address.tourism
-    ].find(Boolean)
-    const locality = address.quarter || address.neighbourhood || address.suburb || address.borough
-    const parts = [
-      specificPlace,
-      locality,
-      address.road,
-      address.city || address.town || address.village
-    ].filter(Boolean)
-    const place = [...new Set(parts)].slice(0, 3).join(', ') || data?.name || data?.display_name || 'Place name unavailable'
-    placeCache.set(key, place)
-    try { window.localStorage.setItem(`place:${PLACE_CACHE_VERSION}:${key}`, place) } catch {}
-    return place
-  } catch {
-    return 'Place name unavailable'
-  }
+  const lookup = (async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/location/reverse?lat=${encodeURIComponent(latitude)}&lon=${encodeURIComponent(longitude)}&language=${encodeURIComponent(navigator.language || 'en')}`)
+      if (!response.ok) throw new Error('Place lookup failed')
+      const data = await response.json()
+      const place = data?.name
+      if (!place) throw new Error('Place name missing')
+      placeCache.set(key, place)
+      try { window.localStorage.setItem(`place:${PLACE_CACHE_VERSION}:${key}`, place) } catch {}
+      return place
+    } catch {
+      return 'Tap to view exact location'
+    } finally {
+      pendingPlaces.delete(key)
+    }
+  })()
+
+  pendingPlaces.set(key, lookup)
+  return lookup
 }
 
 export async function getCurrentLocationWithPlace() {

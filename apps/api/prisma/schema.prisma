@@ -234,6 +234,9 @@ model Notification {
   targetUrl   String?
   isRead      Boolean          @default(false)
   createdAt   DateTime         @default(now())
+
+  @@index([userId, isRead, createdAt])
+  @@index([workspaceId, createdAt])
 }
 
 model PushSubscription {

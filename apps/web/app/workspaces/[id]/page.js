@@ -77,6 +77,10 @@ export default function WorkspaceDetailPage() {
       if (!update?.latitude || !update?.longitude) return
       const key = `${update.latitude},${update.longitude}`
       if (placeNames[key]) return
+      if (!isGenericLocationLabel(update.locationLabel)) {
+        setPlaceNames((current) => current[key] ? current : { ...current, [key]: update.locationLabel })
+        return
+      }
       resolvePlaceName(update.latitude, update.longitude).then((place) => {
         setPlaceNames((current) => current[key] ? current : { ...current, [key]: place })
       })
@@ -289,7 +293,7 @@ export default function WorkspaceDetailPage() {
                     {(u.latitude && u.longitude) && (
                       <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-3">
                         <div className="text-xs font-black text-black">📍 Update location</div>
-                        <div className="mt-1 text-[11px] font-semibold text-black/55">{placeNames[`${u.latitude},${u.longitude}`] || (isGenericLocationLabel(u.locationLabel) ? 'Finding place name…' : u.locationLabel)}</div>
+                        <div className="mt-1 break-words text-[11px] font-semibold leading-4 text-black/55">{placeNames[`${u.latitude},${u.longitude}`] || (isGenericLocationLabel(u.locationLabel) ? 'Finding place name…' : u.locationLabel)}</div>
                         <a href={`https://www.google.com/maps?q=${u.latitude},${u.longitude}`} target="_blank" rel="noreferrer" className="mt-2 inline-flex rounded-full bg-black px-3 py-2 text-xs font-black text-white">Open live location</a>
                       </div>
                     )}
