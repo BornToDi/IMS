@@ -135,7 +135,12 @@ sudo -u netfield git pull --ff-only
 sudo -u netfield npm ci
 sudo -u netfield bash -c 'set -a; source /etc/netfield/api.env; set +a; cd /opt/netfield; npm run migrate:server'
 sudo -u netfield npm run build:server
+sudo cp deploy/oracle-linux/netfield-api.service /etc/systemd/system/
+sudo systemctl daemon-reload
 sudo systemctl restart netfield-api netfield-web
 ```
+
+Always load `/etc/netfield/api.env` for manual migration commands. Running Prisma
+without it can migrate a checkout-local SQLite file instead of the production database.
 
 Back up `/var/lib/netfield/prod.db` and `/var/lib/netfield/uploads` before each update. SQLite is suitable for one application server and moderate traffic; use PostgreSQL before horizontal scaling or heavy concurrent writes.

@@ -78,7 +78,15 @@ app.use('/api/meetings', require('./routes/meetings'));
 app.use('/api/chat', require('./routes/globalChat'));
 app.use('/api/location', require('./routes/location'));
 
-app.get('/api/health', (req, res) => res.json({ status: 'ok', allowedOrigins }));
+app.get('/api/health', async (req, res) => {
+  try {
+    await prisma.globalMessage.findFirst({ select: { id: true, replyToId: true } });
+    res.json({ status: 'ok', database: 'ok', allowedOrigins });
+  } catch (error) {
+    console.error('[health] database schema check failed:', error);
+    res.status(503).json({ status: 'error', database: 'migration-required' });
+  }
+});
 
 app.use((err, req, res, next) => {
   if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
@@ -177,9 +185,21 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 5000;
 const HOST = process.env.HOST || '0.0.0.0';
-server.listen(PORT, HOST, () => {
-  console.log(`API server listening on ${HOST}:${PORT}`);
-  console.log('[cors] allowed origins:', allowedOrigins.join(', '));
-});
+
+async function startServer() {
+  try {
+    await prisma.globalMessage.findFirst({ select: { id: true, replyToId: true } });
+  } catch (error) {
+    console.error('[startup] Database schema is not current. Run prisma migrate deploy with the production DATABASE_URL.', error);
+    process.exit(1);
+  }
+
+  server.listen(PORT, HOST, () => {
+    console.log(`API server listening on ${HOST}:${PORT}`);
+    console.log('[cors] allowed origins:', allowedOrigins.join(', '));
+  });
+}
+
+startServer();
 
 module.exports = { app, server, io };

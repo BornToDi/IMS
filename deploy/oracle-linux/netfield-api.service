@@ -9,6 +9,7 @@ User=netfield
 Group=netfield
 WorkingDirectory=/opt/netfield/apps/api
 EnvironmentFile=/etc/netfield/api.env
+ExecStartPre=/usr/bin/npm run migrate:deploy
 ExecStart=/usr/bin/npm start
 Restart=always
 RestartSec=5

@@ -515,9 +515,9 @@ export default function CompanyChat() {
                     const stickerMessage = isStickerMessage(message)
                     return (
                       <div id={`message-${message.id}`} key={message.id} className={`flex scroll-mt-24 ${isMine ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`${stickerMessage ? 'max-w-[6rem] rounded-2xl bg-transparent px-0 py-0 shadow-none' : `max-w-[86%] rounded-2xl px-3 py-2.5 shadow-lg sm:max-w-[70%] sm:px-3.5 sm:py-3 ${isMine ? 'bg-[#005c4b] rounded-br-sm text-white' : 'bg-[#202c33] rounded-bl-sm text-slate-100'}`}`}>
+                        <div className={`${stickerMessage ? 'max-w-[6rem] rounded-2xl bg-transparent px-0 py-0 text-white shadow-none' : `max-w-[86%] rounded-2xl px-3 py-2.5 text-white shadow-lg sm:max-w-[70%] sm:px-3.5 sm:py-3 ${isMine ? 'bg-[#005c4b] rounded-br-sm' : 'bg-[#202c33] rounded-bl-sm'}`}`}>
                           {!isMine && !stickerMessage ? (
-                            <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-300/80">{message.author?.name || 'Unknown'}</p>
+                            <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white">{message.author?.name || 'Unknown'}</p>
                           ) : null}
                           {message.replyTo ? (
                             <button
@@ -525,8 +525,8 @@ export default function CompanyChat() {
                               onClick={() => document.getElementById(`message-${message.replyTo.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
                               className={`mb-2 block w-full border-l-4 px-3 py-2 text-left ${isMine ? 'border-emerald-300 bg-black/15' : 'border-emerald-400 bg-black/20'}`}
                             >
-                              <span className="block text-[11px] font-bold text-emerald-300">{message.replyTo.author?.name || 'Unknown'}</span>
-                              <span className="mt-0.5 block truncate text-xs opacity-80">{messagePreview(message.replyTo)}</span>
+                              <span className="block text-[11px] font-bold text-white">{message.replyTo.author?.name || 'Unknown'}</span>
+                              <span className="mt-0.5 block truncate text-xs text-white">{messagePreview(message.replyTo)}</span>
                             </button>
                           ) : null}
                           {stickerMessage ? (
@@ -558,22 +558,22 @@ export default function CompanyChat() {
                                 </div>
                                 <div className="min-w-0 flex-1">
                                   <p className="truncate text-sm font-semibold text-white">{message.attachmentName || 'Attachment'}</p>
-                                  <p className="truncate text-xs text-slate-400">
+                                  <p className="truncate text-xs text-white">
                                     {message.attachmentType || 'File'}
                                     {message.attachmentSize ? ` • ${(message.attachmentSize / 1024).toFixed(1)} KB` : ''}
                                   </p>
                                 </div>
-                                <span className="text-xs font-medium text-emerald-200">Open</span>
+                                <span className="text-xs font-medium text-white">Open</span>
                               </a>
                             </div>
                           ) : null}
                           {hasLocation(message) ? (
-                            <a href={mapUrl(message)} target="_blank" rel="noreferrer" className={`mt-2 block rounded-2xl px-3 py-2 ${isMine ? 'bg-white/10 text-blue-100' : 'bg-black/20 text-blue-200'}`}>
+                            <a href={mapUrl(message)} target="_blank" rel="noreferrer" className={`mt-2 block rounded-2xl px-3 py-2 text-white ${isMine ? 'bg-white/10' : 'bg-black/20'}`}>
                               <div className="text-xs font-black">📍 Live location</div>
                               <div className="mt-0.5 break-words text-[11px] font-semibold leading-4 opacity-80">{placeNames[locationKey(message)] || (isGenericLocationLabel(message.locationLabel) ? 'Finding place name…' : message.locationLabel)}</div>
                             </a>
                           ) : null}
-                          <div className={`mt-1.5 flex items-center justify-end gap-3 text-[11px] ${isMine ? 'text-emerald-100/75' : 'text-slate-400'}`}>
+                          <div className="mt-1.5 flex items-center justify-end gap-3 text-[11px] text-white">
                             <button type="button" onClick={() => setReplyingTo(message)} className="font-semibold text-white hover:text-white" title="Reply to message">Reply</button>
                             <span>{formatMessageTime(message.createdAt)}</span>
                           </div>
@@ -593,10 +593,10 @@ export default function CompanyChat() {
               <input ref={fileInputRef} type="file" onChange={handleFileChange} className="sr-only" />
 
               {replyingTo ? (
-                <div className="mb-2 flex items-center gap-3 border-l-4 border-emerald-400 bg-[#111b21] px-3 py-2 text-left text-slate-200">
+                <div className="mb-2 flex items-center gap-3 border-l-4 border-emerald-400 bg-[#111b21] px-3 py-2 text-left text-white">
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs font-bold text-emerald-300">Replying to {replyingTo.author?.name || 'Unknown'}</p>
-                    <p className="mt-0.5 truncate text-xs text-slate-400">{messagePreview(replyingTo)}</p>
+                    <p className="text-xs font-bold text-white">Replying to {replyingTo.author?.name || 'Unknown'}</p>
+                    <p className="mt-0.5 truncate text-xs text-white">{messagePreview(replyingTo)}</p>
                   </div>
                   <button type="button" onClick={() => setReplyingTo(null)} className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/5 text-lg hover:bg-white/10" title="Cancel reply">&times;</button>
                 </div>
