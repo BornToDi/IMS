@@ -346,10 +346,14 @@ model GlobalMessage {
   latitude       Float?
   longitude      Float?
   locationLabel  String?
+  replyTo        GlobalMessage? @relation("GlobalMessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replyToId      String?
+  replies        GlobalMessage[] @relation("GlobalMessageReplies")
   createdAt      DateTime @default(now())
 
   @@index([createdAt])
   @@index([authorId])
+  @@index([replyToId])
 }
 
 model GlobalFile {

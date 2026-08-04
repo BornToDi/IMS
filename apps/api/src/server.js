@@ -130,7 +130,7 @@ io.on('connection', async (socket) => {
 
   socket.on('send-global-message', async (data = {}) => {
     try {
-      const { content, attachmentUrl, attachmentType, attachmentName, attachmentSize, latitude, longitude, locationLabel } = data;
+      const { content, attachmentUrl, attachmentType, attachmentName, attachmentSize, latitude, longitude, locationLabel, replyToId } = data;
       if (!content && !attachmentUrl) return socket.emit('global-message-error', { message: 'Content required' });
 
       const user = await prisma.user.findUnique({ where: { id: userId } });
@@ -146,9 +146,13 @@ io.on('connection', async (socket) => {
           attachmentSize: attachmentSize || null,
           latitude: latitude === undefined || latitude === null || latitude === '' ? null : Number(latitude),
           longitude: longitude === undefined || longitude === null || longitude === '' ? null : Number(longitude),
-          locationLabel: locationLabel || null
+          locationLabel: locationLabel || null,
+          replyToId: replyToId || null
         },
-        include: { author: { select: { id: true, name: true, email: true, avatarUrl: true, userRole: true, bankName: true } } }
+        include: {
+          author: { select: { id: true, name: true, email: true, avatarUrl: true, userRole: true, bankName: true } },
+          replyTo: { select: { id: true, content: true, attachmentName: true, author: { select: { id: true, name: true, email: true } } } }
+        }
       });
 
       io.to('global-chat-room').emit('new-global-message', message);

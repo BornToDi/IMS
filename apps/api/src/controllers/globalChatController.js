@@ -3,11 +3,12 @@ const path = require('path');
 const fs = require('fs');
 const { notifyGlobalChatRecipients } = require('../utils/globalChatNotifications');
 const publicUser = { id: true, name: true, email: true, avatarUrl: true, userRole: true, bankName: true };
+const replyInclude = { select: { id: true, content: true, attachmentName: true, author: { select: publicUser } } };
 
 async function postGlobalMessage(req, res) {
   try {
     const userId = req.userId;
-    const { content, latitude, longitude, locationLabel } = req.body;
+    const { content, latitude, longitude, locationLabel, replyToId } = req.body;
     if (!userId) return res.status(401).json({ error: 'Not authenticated' });
     if (!content) return res.status(400).json({ error: 'Content required' });
 
@@ -17,9 +18,10 @@ async function postGlobalMessage(req, res) {
         content,
         latitude: latitude === undefined || latitude === null || latitude === '' ? null : Number(latitude),
         longitude: longitude === undefined || longitude === null || longitude === '' ? null : Number(longitude),
-        locationLabel: locationLabel || null
+        locationLabel: locationLabel || null,
+        replyToId: replyToId || null
       },
-      include: { author: { select: publicUser } }
+      include: { author: { select: publicUser }, replyTo: replyInclude }
     });
 
     const io = req.app?.locals?.io;
@@ -42,7 +44,7 @@ async function getGlobalMessages(req, res) {
     const take = Number.isFinite(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 200) : 100;
     const skip = Number.isFinite(parsedOffset) ? Math.max(parsedOffset, 0) : 0;
     const messages = await prisma.globalMessage.findMany({
-      include: { author: { select: publicUser } },
+      include: { author: { select: publicUser }, replyTo: replyInclude },
       orderBy: { createdAt: 'desc' },
       take,
       skip
@@ -61,7 +63,7 @@ async function uploadGlobalFile(req, res) {
     if (!file) return res.status(400).json({ error: 'No file provided' });
 
     const fileUrl = `/uploads/${file.filename}`;
-    const { content, latitude, longitude, locationLabel } = req.body || {};
+    const { content, latitude, longitude, locationLabel, replyToId } = req.body || {};
 
     const fileRecord = await prisma.globalFile.create({
       data: {
@@ -83,9 +85,10 @@ async function uploadGlobalFile(req, res) {
         attachmentUrl: fileUrl,
         latitude: latitude === undefined || latitude === null || latitude === '' ? null : Number(latitude),
         longitude: longitude === undefined || longitude === null || longitude === '' ? null : Number(longitude),
-        locationLabel: locationLabel || null
+        locationLabel: locationLabel || null,
+        replyToId: replyToId || null
       },
-      include: { author: { select: publicUser } }
+      include: { author: { select: publicUser }, replyTo: replyInclude }
     });
 
     const io = req.app?.locals?.io;

@@ -51,6 +51,10 @@ function isImageAttachment(message) {
 function isStickerMessage(message) {
   return message?.attachmentType === 'sticker'
 }
+function messagePreview(message) {
+  const text = String(message?.content || message?.attachmentName || 'Message').trim()
+  return text.length > 90 ? `${text.slice(0, 87)}...` : text
+}
 function hasLocation(message) {
   return message?.latitude !== null && message?.latitude !== undefined && message?.latitude !== '' &&
     message?.longitude !== null && message?.longitude !== undefined && message?.longitude !== '' &&
@@ -93,6 +97,7 @@ export default function CompanyChat() {
   const [stickerTrayOpen, setStickerTrayOpen] = useState(false)
   const [lightbox, setLightbox] = useState(null)
   const [placeNames, setPlaceNames] = useState({})
+  const [replyingTo, setReplyingTo] = useState(null)
   const messagesEndRef = useRef(null)
   const fileInputRef = useRef(null)
 
@@ -274,7 +279,7 @@ export default function CompanyChat() {
           'Content-Type': 'application/json'
         },
         credentials: 'include',
-        body: JSON.stringify({ content, ...locationPayload })
+        body: JSON.stringify({ content, replyToId: replyingTo?.id || null, ...locationPayload })
       })
 
       if (!response.ok) {
@@ -284,6 +289,7 @@ export default function CompanyChat() {
 
       const message = await response.json()
       setMessages((current) => current.some((item) => item.id === message.id) ? current : [...current, message])
+      setReplyingTo(null)
     } catch (error) {
       setNewMessage(content)
       setLocationStatus(error.message || 'Failed to send message')
@@ -303,11 +309,13 @@ export default function CompanyChat() {
       attachmentType: 'sticker',
       attachmentUrl: '',
       attachmentSize: 0,
+      replyToId: replyingTo?.id || null,
       ...locationPayload
     })
 
     setStickerTrayOpen(false)
     setMobileContactsOpen(false)
+    setReplyingTo(null)
   }
 
   async function uploadSelectedFile(file) {
@@ -316,6 +324,7 @@ export default function CompanyChat() {
     const formData = new FormData()
     formData.append('file', file)
     if (newMessage.trim()) formData.append('content', newMessage.trim())
+    if (replyingTo?.id) formData.append('replyToId', replyingTo.id)
     const locationPayload = await buildLocationPayload()
     Object.entries(locationPayload).forEach(([key, value]) => formData.append(key, value))
 
@@ -334,6 +343,7 @@ export default function CompanyChat() {
           setMessages((prev) => prev.some((m) => m.id === data.message.id) ? prev : [...prev, data.message])
         }
         setNewMessage('')
+        setReplyingTo(null)
         if (fileInputRef.current) fileInputRef.current.value = ''
         return true
       }
@@ -504,10 +514,20 @@ export default function CompanyChat() {
                     const isMine = message.authorId === user.id
                     const stickerMessage = isStickerMessage(message)
                     return (
-                      <div key={message.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
+                      <div id={`message-${message.id}`} key={message.id} className={`flex scroll-mt-24 ${isMine ? 'justify-end' : 'justify-start'}`}>
                         <div className={`${stickerMessage ? 'max-w-[6rem] rounded-2xl bg-transparent px-0 py-0 shadow-none' : `max-w-[86%] rounded-2xl px-3 py-2.5 shadow-lg sm:max-w-[70%] sm:px-3.5 sm:py-3 ${isMine ? 'bg-[#005c4b] rounded-br-sm text-white' : 'bg-[#202c33] rounded-bl-sm text-slate-100'}`}`}>
                           {!isMine && !stickerMessage ? (
                             <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-300/80">{message.author?.name || 'Unknown'}</p>
+                          ) : null}
+                          {message.replyTo ? (
+                            <button
+                              type="button"
+                              onClick={() => document.getElementById(`message-${message.replyTo.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+                              className={`mb-2 block w-full border-l-4 px-3 py-2 text-left ${isMine ? 'border-emerald-300 bg-black/15' : 'border-emerald-400 bg-black/20'}`}
+                            >
+                              <span className="block text-[11px] font-bold text-emerald-300">{message.replyTo.author?.name || 'Unknown'}</span>
+                              <span className="mt-0.5 block truncate text-xs opacity-80">{messagePreview(message.replyTo)}</span>
+                            </button>
                           ) : null}
                           {stickerMessage ? (
                             <div className="flex justify-center text-[3.25rem] leading-none drop-shadow-lg sm:text-[4rem]">
@@ -553,8 +573,9 @@ export default function CompanyChat() {
                               <div className="mt-0.5 break-words text-[11px] font-semibold leading-4 opacity-80">{placeNames[locationKey(message)] || (isGenericLocationLabel(message.locationLabel) ? 'Finding place name…' : message.locationLabel)}</div>
                             </a>
                           ) : null}
-                          <div className={`mt-1.5 flex items-center justify-end text-[11px] ${isMine ? 'text-emerald-100/75' : 'text-slate-400'}`}>
-                            {formatMessageTime(message.createdAt)}
+                          <div className={`mt-1.5 flex items-center justify-end gap-3 text-[11px] ${isMine ? 'text-emerald-100/75' : 'text-slate-400'}`}>
+                            <button type="button" onClick={() => setReplyingTo(message)} className="font-semibold text-white hover:text-white" title="Reply to message">Reply</button>
+                            <span>{formatMessageTime(message.createdAt)}</span>
                           </div>
                         </div>
                       </div>
@@ -570,6 +591,16 @@ export default function CompanyChat() {
           <div className="sticky bottom-0 z-20 border-t border-white/10 bg-[#202c33] px-3 py-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:px-4 sm:pb-3">
             <form onSubmit={handleSend} className="mx-auto w-full max-w-4xl">
               <input ref={fileInputRef} type="file" onChange={handleFileChange} className="sr-only" />
+
+              {replyingTo ? (
+                <div className="mb-2 flex items-center gap-3 border-l-4 border-emerald-400 bg-[#111b21] px-3 py-2 text-left text-slate-200">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-bold text-emerald-300">Replying to {replyingTo.author?.name || 'Unknown'}</p>
+                    <p className="mt-0.5 truncate text-xs text-slate-400">{messagePreview(replyingTo)}</p>
+                  </div>
+                  <button type="button" onClick={() => setReplyingTo(null)} className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/5 text-lg hover:bg-white/10" title="Cancel reply">&times;</button>
+                </div>
+              ) : null}
 
               {stickerTrayOpen ? (
                 <div className="mb-2 flex gap-2 overflow-x-auto rounded-[24px] border border-white/10 bg-[#111b21] p-2 chat-scroll">
