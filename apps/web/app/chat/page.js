@@ -55,6 +55,22 @@ function messagePreview(message) {
   const text = String(message?.content || message?.attachmentName || 'Message').trim()
   return text.length > 90 ? `${text.slice(0, 87)}...` : text
 }
+function renderMessageContent(content, users) {
+  const names = users
+    .map((candidate) => String(candidate?.name || '').trim())
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length)
+  if (!names.length) return content
+
+  const escapedNames = names.map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  const pattern = new RegExp(`(@(?:${escapedNames.join('|')}))`, 'i')
+
+  return String(content).split(pattern).map((part, index) => (
+    pattern.test(part)
+      ? <strong key={`${part}-${index}`} className="font-bold text-cyan-300">{part}</strong>
+      : <React.Fragment key={`${part}-${index}`}>{part}</React.Fragment>
+  ))
+}
 function hasLocation(message) {
   return message?.latitude !== null && message?.latitude !== undefined && message?.latitude !== '' &&
     message?.longitude !== null && message?.longitude !== undefined && message?.longitude !== '' &&
@@ -98,8 +114,12 @@ export default function CompanyChat() {
   const [lightbox, setLightbox] = useState(null)
   const [placeNames, setPlaceNames] = useState({})
   const [replyingTo, setReplyingTo] = useState(null)
+  const [mentionUsers, setMentionUsers] = useState([])
+  const [mentionOpen, setMentionOpen] = useState(false)
+  const [mentionQuery, setMentionQuery] = useState('')
   const messagesEndRef = useRef(null)
   const fileInputRef = useRef(null)
+  const messageInputRef = useRef(null)
 
   // Initialize Socket.IO connection and load initial messages
   useEffect(() => {
@@ -165,6 +185,27 @@ export default function CompanyChat() {
       newSocket.disconnect()
     }
   }, [accessToken, user])
+
+  useEffect(() => {
+    if (!accessToken) return
+    fetch(`${API_BASE_URL}/api/auth/users`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      credentials: 'include'
+    })
+      .then((response) => response.ok ? response.json() : [])
+      .then((users) => {
+        const candidates = Array.isArray(users) ? users : []
+        setMentionUsers(user ? [user, ...candidates.filter((candidate) => candidate.id !== user.id)] : candidates)
+      })
+      .catch(() => setMentionUsers([]))
+  }, [accessToken, user])
+
+  useEffect(() => {
+    const input = messageInputRef.current
+    if (!input) return
+    input.style.height = 'auto'
+    input.style.height = `${Math.min(input.scrollHeight, 120)}px`
+  }, [newMessage])
 
   // Ensure the page background is dark while on chat page to avoid light corners
   useEffect(() => {
@@ -294,6 +335,59 @@ export default function CompanyChat() {
       setNewMessage(content)
       setLocationStatus(error.message || 'Failed to send message')
       setTimeout(() => setLocationStatus(''), 3000)
+    }
+  }
+
+  const filteredMentionUsers = mentionUsers
+    .filter((candidate) => candidate.id !== user?.id)
+    .filter((candidate) => {
+      const query = mentionQuery.trim().toLowerCase()
+      if (!query) return true
+      return String(candidate.name || '').toLowerCase().includes(query) ||
+        String(candidate.email || '').toLowerCase().includes(query)
+    })
+    .slice(0, 8)
+
+  function handleMessageChange(event) {
+    const value = event.target.value
+    const cursor = event.target.selectionStart ?? value.length
+    const match = value.slice(0, cursor).match(/@([^@\s]*)$/)
+    setNewMessage(value)
+    setMentionOpen(Boolean(match))
+    setMentionQuery(match?.[1] || '')
+  }
+
+  function selectMention(candidate) {
+    const input = messageInputRef.current
+    const cursor = input?.selectionStart ?? newMessage.length
+    const before = newMessage.slice(0, cursor)
+    const match = before.match(/@([^@\s]*)$/)
+    const start = match ? cursor - match[0].length : cursor
+    const mention = `@${candidate.name || candidate.email} `
+    const next = `${newMessage.slice(0, start)}${mention}${newMessage.slice(cursor)}`
+    setNewMessage(next)
+    setMentionOpen(false)
+    setMentionQuery('')
+    requestAnimationFrame(() => {
+      const position = start + mention.length
+      input?.focus()
+      input?.setSelectionRange(position, position)
+    })
+  }
+
+  function handleMessageKeyDown(event) {
+    if (mentionOpen && event.key === 'Escape') {
+      setMentionOpen(false)
+      return
+    }
+    if (mentionOpen && event.key === 'Enter' && filteredMentionUsers[0]) {
+      event.preventDefault()
+      selectMention(filteredMentionUsers[0])
+      return
+    }
+    if (event.key === 'Enter' && !event.shiftKey && !mentionOpen) {
+      event.preventDefault()
+      handleSend(event)
     }
   }
 
@@ -534,7 +628,7 @@ export default function CompanyChat() {
                               {message.content}
                             </div>
                           ) : (
-                            <p className="whitespace-pre-wrap break-words text-[13px] leading-5 sm:text-sm sm:leading-6">{message.content}</p>
+                            <p className="whitespace-pre-wrap break-words text-[13px] leading-5 sm:text-sm sm:leading-6">{renderMessageContent(message.content, mentionUsers)}</p>
                           )}
                           {message.attachmentUrl ? (
                             <div className="mt-2 overflow-hidden rounded-2xl border border-white/10 bg-black/20">
@@ -665,13 +759,33 @@ export default function CompanyChat() {
                   📍
                 </button>
 
-                <div className="flex min-w-0 flex-1 items-end gap-2 rounded-[20px] border border-white/10 bg-[#111b21] px-3 py-2 sm:rounded-[24px] sm:px-4 sm:py-2.5">
-                  <input
-                    type="text"
+                <div className="relative flex min-w-0 flex-1 items-end gap-2 rounded-[20px] border border-white/10 bg-[#111b21] px-3 py-2 sm:rounded-[24px] sm:px-4 sm:py-2.5">
+                  {mentionOpen ? (
+                    <div className="absolute inset-x-0 bottom-[calc(100%+0.5rem)] z-30 max-h-64 overflow-y-auto border border-white/10 bg-[#111b21] py-1 shadow-2xl chat-scroll">
+                      {filteredMentionUsers.length ? filteredMentionUsers.map((candidate) => (
+                        <button
+                          key={candidate.id}
+                          type="button"
+                          onClick={() => selectMention(candidate)}
+                          className="flex w-full items-center gap-3 px-3 py-2 text-left text-white hover:bg-white/10"
+                        >
+                          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-emerald-500/20 text-xs font-bold">{getInitials(candidate.name || candidate.email)}</span>
+                          <span className="min-w-0">
+                            <span className="block truncate text-sm font-semibold">{candidate.name || candidate.email}</span>
+                            <span className="block truncate text-xs text-white/70">{candidate.email}</span>
+                          </span>
+                        </button>
+                      )) : <p className="px-3 py-4 text-sm text-white/70">No matching user</p>}
+                    </div>
+                  ) : null}
+                  <textarea
+                    ref={messageInputRef}
+                    rows={1}
                     value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
+                    onChange={handleMessageChange}
+                    onKeyDown={handleMessageKeyDown}
                     placeholder="Type a message"
-                    className="min-w-0 flex-1 bg-transparent py-1.5 text-[13px] text-white outline-none placeholder:text-slate-400 sm:py-2 sm:text-sm"
+                    className="max-h-[120px] min-h-9 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent py-1.5 text-[13px] leading-5 text-white outline-none placeholder:text-slate-400 sm:text-sm"
                   />
                   <button
                     type="submit"
