@@ -7,7 +7,7 @@ This is the recommended single-server layout:
 - Nginx: public ports 80/443
 - Next.js: `127.0.0.1:3000`
 - Express and Socket.IO: `127.0.0.1:5000`
-- SQLite and uploads: `/var/lib/netfield`
+- SQLite and uploads: `/var/lib/trackfield`
 - systemd: automatic startup and restart
 
 The repository templates are in `deploy/oracle-linux`.
@@ -28,36 +28,36 @@ Use Node 22 LTS. Do not use Node 20 because it is end-of-life.
 ### 2. Create the service user and directories
 
 ```bash
-sudo useradd --system --create-home --shell /bin/bash netfield
-sudo mkdir -p /opt/netfield /var/lib/netfield/uploads /etc/netfield
-sudo chown -R netfield:netfield /opt/netfield /var/lib/netfield
-sudo chmod 750 /etc/netfield
+sudo useradd --system --create-home --shell /bin/bash trackfield
+sudo mkdir -p /opt/trackfield /var/lib/trackfield/uploads /etc/trackfield
+sudo chown -R trackfield:trackfield /opt/trackfield /var/lib/trackfield
+sudo chmod 750 /etc/trackfield
 ```
 
 Clone the repository:
 
 ```bash
-sudo -u netfield git clone https://github.com/BornToDi/IMS.git /opt/netfield
-cd /opt/netfield
-sudo -u netfield npm ci
+sudo -u trackfield git clone https://github.com/BornToDi/IMS.git /opt/trackfield
+cd /opt/trackfield
+sudo -u trackfield npm ci
 ```
 
 Keep uploaded files outside the Git checkout:
 
 ```bash
-sudo -u netfield ln -sfn /var/lib/netfield/uploads /opt/netfield/apps/api/uploads
+sudo -u trackfield ln -sfn /var/lib/trackfield/uploads /opt/trackfield/apps/api/uploads
 ```
 
 ### 3. Configure production environment
 
 ```bash
-sudo cp deploy/oracle-linux/api.env.example /etc/netfield/api.env
-sudo cp deploy/oracle-linux/web.env.example /etc/netfield/web.env
-sudo chmod 640 /etc/netfield/api.env /etc/netfield/web.env
-sudo chown root:netfield /etc/netfield/api.env /etc/netfield/web.env
+sudo cp deploy/oracle-linux/api.env.example /etc/trackfield/api.env
+sudo cp deploy/oracle-linux/web.env.example /etc/trackfield/web.env
+sudo chmod 640 /etc/trackfield/api.env /etc/trackfield/web.env
+sudo chown root:trackfield /etc/trackfield/api.env /etc/trackfield/web.env
 ```
 
-Edit `/etc/netfield/api.env`. Replace `YOUR_DOMAIN` and generate two different secrets:
+Edit `/etc/trackfield/api.env`. Replace `YOUR_DOMAIN` and generate two different secrets:
 
 ```bash
 openssl rand -hex 64
@@ -68,9 +68,9 @@ An IP-only HTTP check can confirm that the page responds, but authenticated sess
 ### 4. Migrate and build
 
 ```bash
-sudo -u netfield bash -c 'set -a; source /etc/netfield/api.env; set +a; cd /opt/netfield; npm run migrate:server'
-cd /opt/netfield
-sudo -u netfield npm run build:server
+sudo -u trackfield bash -c 'set -a; source /etc/trackfield/api.env; set +a; cd /opt/trackfield; npm run migrate:server'
+cd /opt/trackfield
+sudo -u trackfield bash -c 'set -a; source /etc/trackfield/web.env; set +a; cd /opt/trackfield; npm run build:server'
 ```
 
 `prisma migrate deploy` applies committed migrations without resetting production data.
@@ -78,17 +78,17 @@ sudo -u netfield npm run build:server
 ### 5. Install systemd services
 
 ```bash
-sudo cp deploy/oracle-linux/netfield-api.service /etc/systemd/system/
-sudo cp deploy/oracle-linux/netfield-web.service /etc/systemd/system/
+sudo cp deploy/oracle-linux/trackfield-api.service /etc/systemd/system/
+sudo cp deploy/oracle-linux/trackfield-web.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now netfield-api netfield-web
-sudo systemctl status netfield-api netfield-web
+sudo systemctl enable --now trackfield-api trackfield-web
+sudo systemctl status trackfield-api trackfield-web
 ```
 
 Logs:
 
 ```bash
-sudo journalctl -u netfield-api -u netfield-web -f
+sudo journalctl -u trackfield-api -u trackfield-web -f
 ```
 
 ### 6. Configure Nginx
@@ -96,8 +96,8 @@ sudo journalctl -u netfield-api -u netfield-web -f
 Copy the template and replace `YOUR_DOMAIN`:
 
 ```bash
-sudo cp deploy/oracle-linux/nginx.conf /etc/nginx/conf.d/netfield.conf
-sudo vi /etc/nginx/conf.d/netfield.conf
+sudo cp deploy/oracle-linux/nginx.conf /etc/nginx/conf.d/trackfield.conf
+sudo vi /etc/nginx/conf.d/trackfield.conf
 sudo setsebool -P httpd_can_network_connect 1
 sudo nginx -t
 sudo systemctl enable --now nginx
@@ -130,17 +130,17 @@ Test login, file upload, notifications, and Company Chat. WebSocket support is i
 ### Updating later
 
 ```bash
-cd /opt/netfield
-sudo -u netfield git pull --ff-only
-sudo -u netfield npm ci
-sudo -u netfield bash -c 'set -a; source /etc/netfield/api.env; set +a; cd /opt/netfield; npm run migrate:server'
-sudo -u netfield npm run build:server
-sudo cp deploy/oracle-linux/netfield-api.service /etc/systemd/system/
+cd /opt/trackfield
+sudo -u trackfield git pull --ff-only
+sudo -u trackfield npm ci
+sudo -u trackfield bash -c 'set -a; source /etc/trackfield/api.env; set +a; cd /opt/trackfield; npm run migrate:server'
+sudo -u trackfield bash -c 'set -a; source /etc/trackfield/web.env; set +a; cd /opt/trackfield; npm run build:server'
+sudo cp deploy/oracle-linux/trackfield-api.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl restart netfield-api netfield-web
+sudo systemctl restart trackfield-api trackfield-web
 ```
 
-Always load `/etc/netfield/api.env` for manual migration commands. Running Prisma
+Always load `/etc/trackfield/api.env` for manual migration commands. Running Prisma
 without it can migrate a checkout-local SQLite file instead of the production database.
 
-Back up `/var/lib/netfield/prod.db` and `/var/lib/netfield/uploads` before each update. SQLite is suitable for one application server and moderate traffic; use PostgreSQL before horizontal scaling or heavy concurrent writes.
+Back up `/var/lib/trackfield/prod.db` and `/var/lib/trackfield/uploads` before each update. SQLite is suitable for one application server and moderate traffic; use PostgreSQL before horizontal scaling or heavy concurrent writes.

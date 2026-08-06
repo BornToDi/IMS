@@ -3,7 +3,7 @@ const prisma = require('../prismaClient');
 
 const publicKey = String(process.env.VAPID_PUBLIC_KEY || '').trim();
 const privateKey = String(process.env.VAPID_PRIVATE_KEY || '').trim();
-const subject = String(process.env.VAPID_SUBJECT || 'mailto:admin@netfield.local').trim();
+const subject = String(process.env.VAPID_SUBJECT || 'mailto:admin@trackfield.local').trim();
 const enabled = Boolean(publicKey && privateKey);
 
 if (enabled) webpush.setVapidDetails(subject, publicKey, privateKey);
@@ -17,7 +17,7 @@ async function sendPushForUser(userId, notification) {
   ]);
 
   const payload = JSON.stringify({
-    title: 'NetField',
+    title: 'TrackField',
     body: notification.message,
     url: notification.targetUrl || '/',
     tag: notification.id,

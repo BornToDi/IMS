@@ -1,18 +1,18 @@
 import './globals.css'
 
 export const metadata = {
-  title: 'NetField',
+  title: 'TrackField',
   description: 'Field tasks, bank tickets, hardware flow, and team chat in one place',
-  applicationName: 'NetField',
+  applicationName: 'TrackField',
   manifest: '/manifest.webmanifest',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'NetField',
+    title: 'TrackField',
   },
   icons: {
-    icon: '/netfield-icon.png',
-    apple: '/netfield-icon.png',
+    icon: '/trackfield-icon.png',
+    apple: '/trackfield-icon.png',
   },
 }
 

@@ -1,14 +1,14 @@
 [Unit]
-Description=NetField API
+Description=TrackField API
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-User=netfield
-Group=netfield
-WorkingDirectory=/opt/netfield/apps/api
-EnvironmentFile=/etc/netfield/api.env
+User=trackfield
+Group=trackfield
+WorkingDirectory=/opt/trackfield/apps/api
+EnvironmentFile=/etc/trackfield/api.env
 ExecStartPre=/usr/bin/npm run migrate:deploy
 ExecStart=/usr/bin/npm start
 Restart=always
@@ -19,7 +19,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=full
 ProtectHome=true
-ReadWritePaths=/var/lib/netfield
+ReadWritePaths=/var/lib/trackfield
 
 [Install]
 WantedBy=multi-user.target

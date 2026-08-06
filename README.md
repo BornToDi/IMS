@@ -1,6 +1,6 @@
-# NetField
+# TrackField
 
-Monorepo scaffold for NetField.
+Monorepo scaffold for TrackField.
 
 Structure:
 

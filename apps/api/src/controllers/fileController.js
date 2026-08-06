@@ -20,11 +20,19 @@ async function uploadFile(req, res) {
       return res.status(400).json({ error: 'No file provided' });
     }
 
-    // Check if user is member of workspace
-    const member = await prisma.workspaceMember.findFirst({
-      where: { workspaceId, userId }
+    const workspace = await prisma.workspace.findFirst({
+      where: {
+        id: workspaceId,
+        OR: [
+          { ownerId: userId },
+          { assignedEmployeeId: userId },
+          { members: { some: { userId } } }
+        ]
+      },
+      select: { id: true, name: true, members: { select: { userId: true } } }
     });
-    if (!member) {
+
+    if (!workspace) {
       return res.status(403).json({ error: 'Not a member of this workspace' });
     }
 
@@ -44,11 +52,6 @@ async function uploadFile(req, res) {
           select: { id: true, name: true, email: true }
         }
       }
-    });
-
-    const workspace = await prisma.workspace.findUnique({
-      where: { id: workspaceId },
-      select: { name: true, members: { select: { userId: true } } }
     });
 
     const io = req.app && req.app.locals && req.app.locals.io;
@@ -79,11 +82,19 @@ async function getFiles(req, res) {
     const userId = req.userId;
     const { workspaceId } = req.params;
 
-    // Check if user is member of workspace
-    const member = await prisma.workspaceMember.findFirst({
-      where: { workspaceId, userId }
+    const workspace = await prisma.workspace.findFirst({
+      where: {
+        id: workspaceId,
+        OR: [
+          { ownerId: userId },
+          { assignedEmployeeId: userId },
+          { members: { some: { userId } } }
+        ]
+      },
+      select: { id: true }
     });
-    if (!member) {
+
+    if (!workspace) {
       return res.status(403).json({ error: 'Not a member of this workspace' });
     }
 

@@ -21,6 +21,7 @@ const workspaceInclude = {
     orderBy: { createdAt: 'desc' }
   },
   taskAttachments: { include: { uploadedBy: { select: { id: true, name: true, email: true } } }, orderBy: { createdAt: 'desc' } },
+  files: { include: { user: { select: { id: true, name: true, email: true } } }, orderBy: { uploadedAt: 'desc' } },
   ticket: { select: { id: true, ticketNo: true, title: true, bankUserId: true, bankName: true, status: true } }
 };
 
@@ -305,36 +306,6 @@ async function addTaskUpdate(req, res) {
   res.status(201).json(update);
 }
 
-async function uploadTaskAttachment(req, res) {
-  const userId = req.userId;
-  const { id } = req.params;
-  const files = req.files || (req.file ? [req.file] : []);
-  const { updateId } = req.body || {};
-  if (!files.length) return res.status(400).json({ error: 'No files provided' });
-  const access = await ensureWorkspaceAccess(id, userId);
-  if (access.error) return res.status(access.status).json({ error: access.error });
-
-  const rows = await Promise.all(files.map((file) => prisma.workspaceAttachment.create({
-    data: {
-      workspaceId: id,
-      updateId: updateId || null,
-      uploadedById: userId,
-      name: file.originalname,
-      type: file.mimetype,
-      size: file.size,
-      url: `/uploads/${file.filename}`
-    },
-    include: { uploadedBy: { select: { id: true, name: true, email: true } } }
-  })));
-
-  const workspace = await prisma.workspace.findUnique({ where: { id }, include: workspaceInclude });
-  await emitWorkspaceUpdate(req, id, workspace);
-  if (workspace && workspace.ownerId !== userId) {
-    await createNotification(req, { userId: workspace.ownerId, workspaceId: id, type: 'TASK_FILE', message: `${rows.length} field image/file uploaded for ${workspace.tidNumber || workspace.name}`, targetUrl: `/workspaces/${id}` });
-  }
-  res.status(201).json(rows);
-}
-
 async function recomputeWorkspaceTaskState(workspaceId) {
   const updates = await prisma.workspaceUpdate.findMany({
     where: { workspaceId },
@@ -471,7 +442,6 @@ module.exports = {
   addTaskUpdate,
   updateTaskUpdate,
   deleteTaskUpdate,
-  uploadTaskAttachment,
   inviteMember,
   listMembers,
   updateMemberRole,

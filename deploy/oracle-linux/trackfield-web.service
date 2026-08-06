@@ -1,14 +1,14 @@
 [Unit]
-Description=NetField web application
-After=network-online.target netfield-api.service
+Description=TrackField web application
+After=network-online.target trackfield-api.service
 Wants=network-online.target
 
 [Service]
 Type=simple
-User=netfield
-Group=netfield
-WorkingDirectory=/opt/netfield/apps/web
-EnvironmentFile=/etc/netfield/web.env
+User=trackfield
+Group=trackfield
+WorkingDirectory=/opt/trackfield/apps/web
+EnvironmentFile=/etc/trackfield/web.env
 ExecStart=/usr/bin/npm start -- -H 127.0.0.1 -p 3000
 Restart=always
 RestartSec=5
@@ -18,7 +18,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=full
 ProtectHome=true
-ReadWritePaths=/opt/netfield/apps/web/.next
+ReadWritePaths=/opt/trackfield/apps/web/.next
 
 [Install]
 WantedBy=multi-user.target

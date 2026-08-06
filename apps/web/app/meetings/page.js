@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import Layout from '../../components/Layout'
 import MeetingForm from '../../components/MeetingForm'
-import { API_BASE_URL, apiFetch } from '../../lib/api'
+import { apiFetch } from '../../lib/api'
 import { useAuthStore } from '../../store/useAuthStore'
 
 export default function MeetingsPage() {

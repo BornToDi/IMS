@@ -1,5 +1,6 @@
 "use client"
 import React from 'react'
+import Link from 'next/link'
 import { useAuthStore } from '../store/useAuthStore'
 import NotificationBell from './NotificationBell'
 
@@ -38,7 +39,7 @@ export default function Navbar({ navigationOpen = true, onToggleNavigation }) {
             <span className="text-sm font-bold tracking-wide">TH</span>
           </div>
           <div>
-            <div className="text-lg font-semibold tracking-tight">NetField</div>
+            <div className="text-lg font-semibold tracking-tight">TrackField</div>
             {/* <div className="text-xs text-slate-300">Workspaces, goals, messages, and notifications</div> */}
           </div>
         </div>
@@ -48,10 +49,10 @@ export default function Navbar({ navigationOpen = true, onToggleNavigation }) {
         <div className="flex items-center gap-3 sm:gap-4">
           {user ? (
             <>
-              <div className="hidden text-right sm:block">
+              <Link href="/profile" className="hidden text-right sm:block" aria-label="Open my profile">
                 <div className="text-sm font-medium text-slate-100">{user.name}</div>
                 <div className="text-xs text-slate-300">{user.userRole || 'EMPLOYEE'}</div>
-              </div>
+              </Link>
               <NotificationBell />
               <button
                 onClick={handleLogout}

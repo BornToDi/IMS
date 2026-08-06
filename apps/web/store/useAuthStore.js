@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 
 let refreshPromise = null
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || ''
 
 export const useAuthStore = create((set, get) => ({
   user: null,
@@ -10,7 +11,7 @@ export const useAuthStore = create((set, get) => ({
     if (refreshPromise) return refreshPromise
     refreshPromise = (async () => {
       try {
-        const res = await fetch('/api/auth/refresh', {
+        const res = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
           method: 'POST',
           credentials: 'include'
         })
@@ -55,7 +56,7 @@ export const useAuthStore = create((set, get) => ({
     }
   },
   login: async (email, password) => {
-    const res = await fetch('/api/auth/login', {
+    const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
@@ -71,7 +72,7 @@ export const useAuthStore = create((set, get) => ({
     return data.user
   },
   register: async (name, email, password, userRole = 'EMPLOYEE', bankName = '') => {
-    const res = await fetch('/api/auth/register', {
+    const res = await fetch(`${API_BASE_URL}/api/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, email, password, userRole, bankName }),

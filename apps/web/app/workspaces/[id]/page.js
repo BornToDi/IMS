@@ -42,14 +42,17 @@ export default function WorkspaceDetailPage() {
   const [workUpdate, setWorkUpdate] = useState('')
   const [remarks, setRemarks] = useState('')
   const [finalDone, setFinalDone] = useState(false)
-  const [selectedFiles, setSelectedFiles] = useState([])
   const [editingUpdateId, setEditingUpdateId] = useState(null)
   const [busy, setBusy] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [lightbox, setLightbox] = useState(null)
+  const [proofFile, setProofFile] = useState(null)
+  const [proofUploading, setProofUploading] = useState(false)
+  const [proofMessage, setProofMessage] = useState('')
+  const [proofError, setProofError] = useState('')
+  const proofInputRef = useRef(null)
   const [placeNames, setPlaceNames] = useState({})
-  const fileRef = useRef(null)
 
   const isCreator = workspace?.ownerId === user?.id
   const isAssigned = workspace?.assignedEmployeeId === user?.id
@@ -62,7 +65,7 @@ export default function WorkspaceDetailPage() {
       const w = await apiFetch(`/api/workspaces/${id}`, accessToken)
       setWorkspace(w)
       setUpdates(Array.isArray(w.taskUpdates) ? w.taskUpdates : [])
-      setFiles(Array.isArray(w.taskAttachments) ? w.taskAttachments : [])
+      setFiles(Array.isArray(w.files) ? w.files : [])
     } catch (e) {
       setError(e.message || 'Failed to load task')
     } finally {
@@ -90,15 +93,14 @@ export default function WorkspaceDetailPage() {
   useEffect(() => {
     if (!accessToken || !id) return
     const socket = io(SOCKET_BASE_URL, {
-      auth: { token: accessToken },
-      transports: ['websocket', 'polling']
+      auth: { token: accessToken }
     })
     socket.on('connect', () => socket.emit('join-workspace', id))
     socket.on('workspace:task:updated', (payload) => {
       if (payload?.id === id) {
         setWorkspace(payload)
         setUpdates(Array.isArray(payload.taskUpdates) ? payload.taskUpdates : [])
-        setFiles(Array.isArray(payload.taskAttachments) ? payload.taskAttachments : [])
+        setFiles(Array.isArray(payload.files) ? payload.files : [])
       } else {
         load({ silent: true })
       }
@@ -112,43 +114,38 @@ export default function WorkspaceDetailPage() {
     return 12
   }, [workspace?.taskStatus])
 
+  const proofFiles = useMemo(() => files.filter((file) => isImage(file.type, file.url)), [files])
+
   async function submitUpdate(e) {
     e.preventDefault()
-    if (!workUpdate.trim() && !remarks.trim() && selectedFiles.length === 0) return setError('Write remarks or upload at least one image/file')
+    if (!workUpdate.trim() && !remarks.trim() && !finalDone) return setError('Write remarks or mark the task completed')
     setBusy(true)
     setError('')
     try {
       const loc = await getLocation()
-      if (!loc.latitude || !loc.longitude) {
+      const hasLocation = Number.isFinite(loc.latitude) && Number.isFinite(loc.longitude)
+      if (!hasLocation) {
         setError(loc.error || 'Location is required for every work update')
         setBusy(false)
         return
       }
       let update = null
-      if (workUpdate.trim() || remarks.trim() || selectedFiles.length) {
+      if (workUpdate.trim() || remarks.trim() || finalDone) {
         update = await apiFetch(editingUpdateId ? `/api/workspaces/${id}/task-updates/${editingUpdateId}` : `/api/workspaces/${id}/task-updates`, accessToken, {
           method: editingUpdateId ? 'PATCH' : 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            serviceType: workUpdate.trim() || (selectedFiles.length ? 'Proof file uploaded' : ''),
+            serviceType: workUpdate.trim() || (finalDone ? 'Task completed' : ''),
             remarks: remarks.trim(),
             status: finalDone ? 'COMPLETED' : 'IN_PROGRESS',
-            ...loc
+            ...(hasLocation ? loc : {})
           })
         })
       }
-      if (selectedFiles.length) {
-        const fd = new FormData()
-        selectedFiles.forEach((file) => fd.append('files', file))
-        if (update?.id) fd.append('updateId', update.id)
-        await apiFetch(`/api/workspaces/${id}/task-attachments`, accessToken, { method: 'POST', body: fd })
-      }
       setRemarks('')
       setWorkUpdate('')
-      setSelectedFiles([])
       setFinalDone(false)
       setEditingUpdateId(null)
-      if (fileRef.current) fileRef.current.value = ''
       await load({ silent: true })
     } catch (e) {
       setError(e.message || 'Failed to submit update')
@@ -157,14 +154,11 @@ export default function WorkspaceDetailPage() {
     }
   }
 
-
   function startEditUpdate(update) {
     setEditingUpdateId(update.id)
     setWorkUpdate(update.serviceType || '')
     setRemarks(update.remarks || '')
     setFinalDone(update.status === 'COMPLETED')
-    setSelectedFiles([])
-    if (fileRef.current) fileRef.current.value = ''
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -187,8 +181,42 @@ export default function WorkspaceDetailPage() {
     setWorkUpdate('')
     setRemarks('')
     setFinalDone(false)
-    setSelectedFiles([])
-    if (fileRef.current) fileRef.current.value = ''
+  }
+
+  function handleProofChange(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setProofError('')
+    if (!file.type.startsWith('image/')) {
+      setProofError('Please choose an image file.')
+      e.target.value = ''
+      return
+    }
+    setProofFile(file)
+    uploadProofImage(file)
+  }
+
+  async function uploadProofImage(fileToUpload = proofFile) {
+    if (!fileToUpload || !accessToken) return
+    setProofUploading(true)
+    setProofMessage('')
+    setProofError('')
+    try {
+      const formData = new FormData()
+      formData.append('file', fileToUpload)
+      await apiFetch(`/api/workspaces/${id}/files`, accessToken, {
+        method: 'POST',
+        body: formData
+      })
+      setProofFile(null)
+      setProofMessage('Image uploaded.')
+      if (proofInputRef.current) proofInputRef.current.value = ''
+      await load({ silent: true })
+    } catch (e) {
+      setProofError(e.message || 'Failed to upload proof image')
+    } finally {
+      setProofUploading(false)
+    }
   }
 
   if (loading) return <Layout><div className="rounded-3xl border border-slate-200 bg-white p-6 text-black">Loading field task...</div></Layout>
@@ -221,14 +249,14 @@ export default function WorkspaceDetailPage() {
               <p className="mt-2 text-sm leading-6 text-black/70">{workspace?.description || ''}</p>
               <div className="mt-5 h-3 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-black" style={{ width: `${progress}%` }} /></div>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-2 gap-2 sm:gap-3">
               <Info label="POS Serial" value={workspace?.posSerial || 'N/A'} />
               <Info label="Zone" value={workspace?.zoneName || 'N/A'} />
               <Info label="Assigned service" value={workspace?.serviceType || 'N/A'} />
               <Info label="Created" value={niceDate(workspace?.createdAt)} />
               <Info label="Assigned employee" value={workspace?.assignedEmployee?.name || workspace?.assignedEmployee?.email || 'Unassigned'} />
               <Info label="Started" value={niceDate(workspace?.startedAt)} />
-              <div className="sm:col-span-2"><Info label="Merchant address" value={workspace?.merchantAddress || 'No address'} /></div>
+              <div className="col-span-2"><Info label="Merchant address" value={workspace?.merchantAddress || 'No address'} /></div>
             </div>
           </div>
         </section>
@@ -249,14 +277,12 @@ export default function WorkspaceDetailPage() {
                   placeholder="Work update, example: Deployment done / SIM active / Merchant signed"
                 />
                 <textarea value={remarks} onChange={(e) => setRemarks(e.target.value)} className="min-h-32 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-black outline-none focus:border-black" placeholder="Additional remarks, issues, or merchant feedback" />
-                <input ref={fileRef} type="file" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" onChange={(e) => setSelectedFiles(Array.from(e.target.files || []))} className="w-full rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-4 text-sm font-bold text-black" />
-                {selectedFiles.length > 0 && <div className="rounded-2xl bg-slate-50 p-3 text-xs font-bold text-black">{selectedFiles.length} file(s) selected</div>}
                 <label className="flex items-center gap-2 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold text-black">
                   <input type="checkbox" checked={finalDone} onChange={(e) => setFinalDone(e.target.checked)} /> Mark task completed
                 </label>
                 <div className="grid gap-2 sm:grid-cols-2">
                   {editingUpdateId && <button type="button" onClick={cancelEditUpdate} className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-black text-black">Cancel edit</button>}
-                  <button disabled={busy} className="rounded-2xl bg-black px-5 py-3 text-sm font-black text-white disabled:opacity-60">{busy ? 'Submitting...' : editingUpdateId ? 'Save update' : 'Submit update'}</button>
+                  <button type="submit" disabled={busy} className="rounded-2xl bg-black px-5 py-3 text-sm font-black text-white disabled:opacity-60">{busy ? 'Submitting...' : editingUpdateId ? 'Save update' : 'Submit update'}</button>
                 </div>
               </form>
             ) : (
@@ -304,11 +330,33 @@ export default function WorkspaceDetailPage() {
             </div>
 
             <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="flex items-center justify-between"><h2 className="text-2xl font-black text-black">Uploaded proof</h2><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-black">{files.length}</span></div>
-              <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {files.map((f) => <Attachment key={f.id} file={f} onOpen={setLightbox} large />)}
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h2 className="text-2xl font-black text-black">Uploaded proof</h2>
+                  <p className="text-sm text-black/60">Upload an image and keep the proof gallery attached to this task.</p>
+                </div>
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-black">{proofFiles.length}</span>
               </div>
-              {files.length === 0 && <div className="mt-4 rounded-2xl border border-dashed border-slate-300 p-6 text-center text-sm font-bold text-black/60">No image uploaded yet.</div>}
+              <div className="mt-4 rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-4">
+                <input ref={proofInputRef} type="file" accept="image/*" onChange={handleProofChange} className="hidden" />
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <button type="button" onClick={() => proofInputRef.current?.click()} className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-black">
+                    Choose image
+                  </button>
+                  <div className="min-w-0 flex-1 text-sm font-bold text-black/60">
+                    {proofUploading ? 'Uploading image...' : (proofFile ? proofFile.name : 'PNG, JPG, WEBP or GIF')}
+                  </div>
+                  <button type="button" onClick={uploadProofImage} disabled={!proofFile || proofUploading} className="rounded-2xl bg-black px-5 py-3 text-sm font-black text-white disabled:opacity-60">
+                    {proofUploading ? 'Uploading...' : 'Upload image'}
+                  </button>
+                </div>
+                {proofError && <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{proofError}</div>}
+                {proofMessage && <div className="mt-3 text-sm font-bold text-emerald-700">{proofMessage}</div>}
+              </div>
+              <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {proofFiles.map((f) => <Attachment key={f.id} file={f} onOpen={setLightbox} large />)}
+              </div>
+              {proofFiles.length === 0 && <div className="mt-4 rounded-2xl border border-dashed border-slate-300 p-6 text-center text-sm font-bold text-black/60">No image uploaded yet.</div>}
             </div>
           </section>
         </div>
@@ -318,7 +366,7 @@ export default function WorkspaceDetailPage() {
 }
 
 function Info({ label, value }) {
-  return <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4"><div className="text-[11px] font-black uppercase tracking-wider text-black/50">{label}</div><div className="mt-1 break-words text-sm font-black text-black">{value}</div></div>
+  return <div className="h-full min-w-0 rounded-3xl border border-slate-200 bg-slate-50 p-3 sm:p-4"><div className="text-[10px] font-black uppercase tracking-wide text-black/50 sm:text-[11px] sm:tracking-wider">{label}</div><div className="mt-1 break-all text-xs font-black text-black sm:break-words sm:text-sm">{value}</div></div>
 }
 
 function Attachment({ file, onOpen, large = false }) {
@@ -327,6 +375,6 @@ function Attachment({ file, onOpen, large = false }) {
   return <button type="button" onClick={() => img ? onOpen(fileUrl(file.url)) : window.open(fileUrl(file.url), '_blank')} className="rounded-3xl border border-slate-200 bg-slate-50 p-2 text-left hover:bg-white">
     {content}
     <div className="mt-2 truncate px-1 text-xs font-black text-black">{file.name}</div>
-    <div className="px-1 text-[11px] font-semibold text-black/50">{niceDate(file.createdAt)}</div>
+    <div className="px-1 text-[11px] font-semibold text-black/50">{niceDate(file.createdAt || file.uploadedAt)}</div>
   </button>
 }

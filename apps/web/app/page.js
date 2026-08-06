@@ -6,7 +6,7 @@ export default function Home() {
       <div className="container flex min-h-screen items-center py-10">
         <div className="shell-panel grid gap-10 overflow-hidden lg:grid-cols-[1.1fr_0.9fr]">
           <div className="p-8 lg:p-12">
-            <div className="section-title">NetField operations suite</div>
+            <div className="section-title">TrackField operations suite</div>
             <h1 className="mt-4 max-w-2xl text-4xl font-black tracking-tight text-slate-950 sm:text-5xl lg:text-6xl">
               One place for bank tickets, field tasks, hardware flow, and team discussion.
             </h1>

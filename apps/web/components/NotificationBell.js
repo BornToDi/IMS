@@ -34,8 +34,7 @@ export default function NotificationBell() {
   useEffect(() => {
     if (!accessToken) return
     const socket = io(SOCKET_BASE_URL, {
-      auth: { token: accessToken },
-      transports: ['websocket', 'polling']
+      auth: { token: accessToken }
     })
     socket.on('notification:new', (note) => {
       setNotes((current) => [note, ...current.filter((n) => n.id !== note.id)])

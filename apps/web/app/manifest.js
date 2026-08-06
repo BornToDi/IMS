@@ -1,8 +1,8 @@
 export default function manifest() {
   return {
     id: '/',
-    name: 'NetField',
-    short_name: 'NetField',
+    name: 'TrackField',
+    short_name: 'TrackField',
     description: 'Field tasks, bank tickets, hardware flow, and team chat in one place',
     start_url: '/',
     display: 'standalone',
@@ -10,7 +10,7 @@ export default function manifest() {
     theme_color: '#020617',
     icons: [
       {
-        src: '/netfield-icon.png',
+        src: '/trackfield-icon.png',
         sizes: 'any',
         type: 'image/png',
         purpose: 'any',

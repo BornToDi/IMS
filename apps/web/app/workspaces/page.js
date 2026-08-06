@@ -514,6 +514,7 @@ export default function WorkspacesPage() {
                 onChange={(e) => update('description', e.target.value)}
                 placeholder="Internal note / instruction"
               />
+
             </div>
 
             <div className="mt-4 flex justify-end gap-2">

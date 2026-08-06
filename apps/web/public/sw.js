@@ -8,11 +8,11 @@ self.addEventListener('push', (event) => {
       else if ('clearAppBadge' in self.navigator) await self.navigator.clearAppBadge();
     }
 
-    await self.registration.showNotification(data.title || 'NetField', {
+    await self.registration.showNotification(data.title || 'TrackField', {
       body: data.body || 'You have a new notification',
-      icon: '/netfield-icon.png',
-      badge: '/netfield-icon.png',
-      tag: data.tag || 'netfield-notification',
+      icon: '/trackfield-icon.png',
+      badge: '/trackfield-icon.png',
+      tag: data.tag || 'trackfield-notification',
       data: { url: data.url || '/' }
     });
   })());
