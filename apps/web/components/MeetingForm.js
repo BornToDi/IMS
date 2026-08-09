@@ -56,7 +56,8 @@ export default function MeetingForm({ workspaceId, onSuccess, onCancel }) {
 
     setLoading(true)
     try {
-      const meeting = await apiFetch(`/api/workspaces/${workspaceId}/meetings`, accessToken, {
+      const endpoint = workspaceId ? `/api/workspaces/${workspaceId}/meetings` : `/api/meetings`
+      const meeting = await apiFetch(endpoint, accessToken, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)

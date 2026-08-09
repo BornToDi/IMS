@@ -31,6 +31,18 @@ async function markRead(req, res) {
   }
 }
 
+async function markAllRead(req, res) {
+  try {
+    const userId = req.userId;
+    if (!userId) return res.status(401).json({ error: 'Not authenticated' });
+    await prisma.notification.updateMany({ where: { userId, isRead: false }, data: { isRead: true } });
+    res.status(204).end();
+  } catch (err) {
+    console.error('[notifications/markAllRead]', err);
+    res.status(500).json({ error: 'Failed to mark all read' });
+  }
+}
+
 function getPushPublicKey(req, res) {
   if (!pushEnabled) return res.status(503).json({ error: 'Push notifications are not configured' });
   res.json({ publicKey });
@@ -67,4 +79,4 @@ async function unsubscribePush(req, res) {
   }
 }
 
-module.exports = { listNotifications, markRead, getPushPublicKey, subscribePush, unsubscribePush };
+module.exports = { listNotifications, markRead, markAllRead, getPushPublicKey, subscribePush, unsubscribePush };

@@ -25,7 +25,8 @@ export default function MeetingsPage() {
       try {
         const data = await apiFetch('/api/workspaces', accessToken)
         setWorkspaces(Array.isArray(data) ? data : [])
-        if (Array.isArray(data) && data.length > 0) setSelectedWorkspace(data[0])
+        // default to no workspace selected so users can create global meetings
+        setSelectedWorkspace(null)
       } catch (error) {
         console.error('Failed to load workspaces:', error)
       }
@@ -47,10 +48,11 @@ export default function MeetingsPage() {
   }, [accessToken])
 
   async function loadMeetings() {
-    if (!selectedWorkspace || !accessToken) return
+    if (!accessToken) return
     try {
       setLoading(true)
-      const data = await apiFetch(`/api/workspaces/${selectedWorkspace.id}/meetings`, accessToken)
+      const endpoint = selectedWorkspace ? `/api/workspaces/${selectedWorkspace.id}/meetings` : '/api/meetings'
+      const data = await apiFetch(endpoint, accessToken)
       setMeetings(Array.isArray(data) ? data : [])
     } catch (error) {
       console.error('Failed to load meetings:', error)
@@ -155,38 +157,36 @@ export default function MeetingsPage() {
           </div>
         </div>
 
-        {workspaces.length > 1 && (
-          <div className="rounded-2xl border border-black/10 bg-white p-4">
-            <label className="mb-2 block text-sm font-bold text-black">Workspace</label>
-            <select
-              value={selectedWorkspace?.id || ''}
-              onChange={(event) => setSelectedWorkspace(workspaces.find((workspace) => workspace.id === event.target.value) || null)}
-              className="input text-black"
-            >
-              {workspaces.map((workspace) => <option key={workspace.id} value={workspace.id}>{workspace.name}</option>)}
-            </select>
-          </div>
-        )}
+        <div className="rounded-2xl border border-black/10 bg-white p-4">
+          <label className="mb-2 block text-sm font-bold text-black">Workspace</label>
+          <select
+            value={selectedWorkspace?.id || ''}
+            onChange={(event) => setSelectedWorkspace(workspaces.find((workspace) => workspace.id === event.target.value) || null)}
+            className="input text-black"
+          >
+            <option value="">No workspace (Personal / Global)</option>
+            {workspaces.map((workspace) => <option key={workspace.id} value={workspace.id}>{workspace.name}</option>)}
+          </select>
+        </div>
 
-        {selectedWorkspace ? (
-          <>
-            {showForm ? (
-              <MeetingForm
-                workspaceId={selectedWorkspace.id}
-                onSuccess={() => {
-                  setShowForm(false)
-                  loadMeetings()
-                }}
-                onCancel={() => setShowForm(false)}
-              />
-            ) : (
-              <button
-                onClick={() => setShowForm(true)}
-                className="rounded-lg bg-black px-5 py-3 font-bold text-white transition hover:bg-black/80"
-              >
-                + Schedule New Meeting
-              </button>
-            )}
+        <>
+          {showForm ? (
+            <MeetingForm
+              workspaceId={selectedWorkspace?.id || null}
+              onSuccess={() => {
+                setShowForm(false)
+                loadMeetings()
+              }}
+              onCancel={() => setShowForm(false)}
+            />
+          ) : (
+            <button
+              onClick={() => setShowForm(true)}
+              className="rounded-lg bg-black px-5 py-3 font-bold text-white transition hover:bg-black/80"
+            >
+              + Schedule New Meeting
+            </button>
+          )}
 
             {loading ? (
               <div className="rounded-2xl border border-black/10 bg-white p-8 text-center font-bold text-black">Loading meetings...</div>
@@ -325,9 +325,6 @@ export default function MeetingsPage() {
               </div>
             )}
           </>
-        ) : (
-          <div className="rounded-2xl border border-black/10 bg-white p-8 text-center font-bold text-black">No workspace found.</div>
-        )}
       </div>
     </Layout>
   )

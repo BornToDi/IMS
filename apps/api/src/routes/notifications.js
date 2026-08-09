@@ -10,5 +10,6 @@ router.get('/push/public-key', ctrl.getPushPublicKey);
 router.post('/push/subscribe', ctrl.subscribePush);
 router.delete('/push/subscribe', ctrl.unsubscribePush);
 router.patch('/:id/read', ctrl.markRead);
+router.patch('/read-all', ctrl.markAllRead);
 
 module.exports = router;

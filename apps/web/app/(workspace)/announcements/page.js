@@ -3,8 +3,8 @@ import React, { useEffect, useState } from 'react'
 import Layout from '../../../components/Layout'
 import AnnouncementEditor from '../../../components/AnnouncementEditor'
 import CommentsList from '../../../components/CommentsList'
-import { useAuthStore } from '../../../store/useAuthStore'
 import { htmlToPlainText } from '../../../lib/plainText'
+import { useAuthStore } from '../../../store/useAuthStore'
 
 export default function AnnouncementsPage() {
   const [announcements, setAnnouncements] = useState([])
@@ -15,6 +15,7 @@ export default function AnnouncementsPage() {
   const [announcementDraft, setAnnouncementDraft] = useState({ title: '', content: '' })
   const [announcementState, setAnnouncementState] = useState({})
   const auth = useAuthStore()
+  
 
   useEffect(() => {
     if (auth.accessToken) {
@@ -77,17 +78,7 @@ export default function AnnouncementsPage() {
     }
   }
 
-  async function handleReact(id, emoji) {
-    try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/announcements/${id}/reactions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${auth.accessToken}` },
-        credentials: 'include',
-        body: JSON.stringify({ emoji })
-      })
-      if (res.ok) await fetchAnnouncements()
-    } catch (e) { console.error(e) }
-  }
+  
 
   async function handleAddComment(id, content) {
     try {
@@ -151,7 +142,8 @@ export default function AnnouncementsPage() {
         )}
 
         <div className="space-y-3">
-          {announcements.map((a) => (
+          {announcements.map((a) => {
+            return (
             <div key={a.id} className="card">
               {editingAnnouncementId === a.id ? (
                 <div className="space-y-3">
@@ -170,29 +162,28 @@ export default function AnnouncementsPage() {
                 <>
                   <div className="flex justify-between items-start">
                     <div>
-                      <h3 className="font-semibold">{a.title}</h3>
+                      <h3 className="font-semibold text-lg">{a.title}</h3>
                       <div className="muted">By {a.author?.name} • {new Date(a.createdAt).toLocaleString()}</div>
                     </div>
                     <div className="flex items-center space-x-2 flex-wrap justify-end">
-                      <button className="btn" onClick={() => handleReact(a.id, '👍')}>👍</button>
-                      <button className="btn" onClick={() => handleReact(a.id, '❤️')}>❤️</button>
-                      <button className="btn" onClick={() => startEditAnnouncement(a)}>Edit</button>
-                      <button className="btn bg-red-600 hover:bg-red-700" onClick={() => deleteAnnouncement(a.id)}>Delete</button>
+                      {auth.user?.id === a.author?.id && (
+                        <>
+                          <button className="btn" onClick={() => startEditAnnouncement(a)}>Edit</button>
+                          <button className="btn bg-red-600 hover:bg-red-700" onClick={() => deleteAnnouncement(a.id)}>Delete</button>
+                        </>
+                      )}
                     </div>
                   </div>
                   <div className="mt-2 whitespace-pre-wrap">{htmlToPlainText(a.content)}</div>
-                  <div className="mt-2 flex items-center space-x-2">
-                    {a.reactions?.map((r) => (
-                      <span key={r.id} className="px-2 py-1 bg-gray-100 rounded">{r.emoji}</span>
-                    ))}
-                  </div>
+                  
                   <div className="mt-3">
                     <CommentsList comments={a.comments || []} onAdd={(c) => handleAddComment(a.id, c)} />
                   </div>
                 </>
               )}
             </div>
-          ))}
+            )
+          })}
         </div>
 
       </div>

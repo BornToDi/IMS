@@ -8,15 +8,33 @@ async function createMeeting(req, res) {
     const { title, description, startTime, endTime, location, meetingLink, inviteeIds = [], reminderMinutes } = req.body;
 
     if (!userId) return res.status(401).json({ error: 'Not authenticated' });
-    if (!workspaceId || !title || !startTime || !endTime) {
+    if (!title || !startTime || !endTime) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    // Check if user is member of workspace
-    const member = await prisma.workspaceMember.findFirst({
-      where: { workspaceId, userId }
-    });
-    if (!member) return res.status(403).json({ error: 'Not a workspace member' });
+    // If workspaceId provided, verify user is member. If not provided, pick or create a personal workspace.
+    let finalWorkspaceId = workspaceId
+    if (workspaceId) {
+      const member = await prisma.workspaceMember.findFirst({ where: { workspaceId, userId } });
+      if (!member) return res.status(403).json({ error: 'Not a workspace member' });
+    } else {
+      // Try to find a workspace owned by the user
+      const owned = await prisma.workspace.findFirst({ where: { ownerId: userId }, select: { id: true } })
+      if (owned) {
+        finalWorkspaceId = owned.id
+      } else {
+        // Try to find any workspace where the user is a member
+        const member = await prisma.workspaceMember.findFirst({ where: { userId }, select: { workspaceId: true } })
+        if (member) {
+          finalWorkspaceId = member.workspaceId
+        } else {
+          // Create a personal workspace for the user
+          const user = await prisma.user.findUnique({ where: { id: userId }, select: { name: true } })
+          const created = await prisma.workspace.create({ data: { name: `${user?.name || 'Personal'}'s meetings`, ownerId: userId } })
+          finalWorkspaceId = created.id
+        }
+      }
+    }
 
     const uniqueInviteeIds = [...new Set((Array.isArray(inviteeIds) ? inviteeIds : []).filter((id) => id && id !== userId))];
     const validInvitees = uniqueInviteeIds.length
@@ -25,21 +43,23 @@ async function createMeeting(req, res) {
     const validInviteeIds = validInvitees.map((user) => user.id);
 
     // Create meeting
+    const meetingData = {
+      title,
+      description,
+      organizerId: userId,
+      startTime: new Date(startTime),
+      endTime: new Date(endTime),
+      location,
+      meetingLink,
+      reminderMinutes: reminderMinutes || 15,
+      invitees: {
+        create: validInviteeIds.map(id => ({ userId: id }))
+      }
+    }
+    if (finalWorkspaceId) meetingData.workspaceId = finalWorkspaceId;
+
     const meeting = await prisma.meeting.create({
-      data: {
-        workspaceId,
-        title,
-        description,
-        organizerId: userId,
-        startTime: new Date(startTime),
-        endTime: new Date(endTime),
-        location,
-        meetingLink,
-        reminderMinutes: reminderMinutes || 15,
-        invitees: {
-          create: validInviteeIds.map(id => ({ userId: id }))
-        }
-      },
+      data: meetingData,
       include: {
         organizer: { select: { id: true, name: true, email: true } },
         invitees: {
@@ -64,24 +84,38 @@ async function listMeetings(req, res) {
     const { workspaceId } = req.params;
 
     if (!userId) return res.status(401).json({ error: 'Not authenticated' });
-    if (!workspaceId) return res.status(400).json({ error: 'workspaceId required' });
 
-    // Check if user is member of workspace
-    const member = await prisma.workspaceMember.findFirst({
-      where: { workspaceId, userId }
-    });
-    if (!member) return res.status(403).json({ error: 'Not a workspace member' });
+    let meetings
+    if (workspaceId) {
+      // workspace-specific meetings: verify user is member
+      const member = await prisma.workspaceMember.findFirst({ where: { workspaceId, userId } });
+      const workspace = await prisma.workspace.findUnique({ where: { id: workspaceId } });
+      if (!member && workspace?.ownerId !== userId) return res.status(403).json({ error: 'Not a member of this workspace' });
 
-    const meetings = await prisma.meeting.findMany({
-      where: { workspaceId },
-      include: {
-        organizer: { select: { id: true, name: true, email: true } },
-        invitees: {
-          include: { user: { select: { id: true, name: true, email: true } } }
-        }
-      },
-      orderBy: { startTime: 'asc' }
-    });
+      meetings = await prisma.meeting.findMany({
+        where: { workspaceId },
+        include: {
+          organizer: { select: { id: true, name: true, email: true } },
+          invitees: { include: { user: { select: { id: true, name: true, email: true } } } }
+        },
+        orderBy: { startTime: 'asc' }
+      });
+    } else {
+      // No workspace provided: return meetings where user is organizer or invitee
+      meetings = await prisma.meeting.findMany({
+        where: {
+          OR: [
+            { organizerId: userId },
+            { invitees: { some: { userId } } }
+          ]
+        },
+        include: {
+          organizer: { select: { id: true, name: true, email: true } },
+          invitees: { include: { user: { select: { id: true, name: true, email: true } } } }
+        },
+        orderBy: { startTime: 'asc' }
+      });
+    }
 
     res.json(meetings);
   } catch (err) {
@@ -371,6 +405,8 @@ async function createMeetingNotifications(meeting, type, app) {
   const notificationData = (meeting.invitees || []).map(invite => ({
     userId: invite.userId,
     workspaceId: meeting.workspaceId,
+    // direct the user to the meetings list or the external meeting link when available
+    targetUrl: meeting.meetingLink ? meeting.meetingLink : '/meetings',
     type,
     message: type === 'MEETING_REMINDER'
       ? `Reminder: ${meeting.title} starts in ${meeting.reminderMinutes} minutes${meeting.meetingLink ? ` - Join: ${meeting.meetingLink}` : ''}`
@@ -381,6 +417,7 @@ async function createMeetingNotifications(meeting, type, app) {
     notificationData.push({
       userId: meeting.organizerId,
       workspaceId: meeting.workspaceId,
+      targetUrl: meeting.meetingLink ? meeting.meetingLink : '/meetings',
       type,
       message: `Reminder: Your meeting ${meeting.title} starts in ${meeting.reminderMinutes} minutes${meeting.meetingLink ? ` - Join: ${meeting.meetingLink}` : ''}`
     });

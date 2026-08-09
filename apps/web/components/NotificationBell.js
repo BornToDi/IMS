@@ -72,6 +72,7 @@ export default function NotificationBell() {
 
   function targetFor(note) {
     if (note?.targetUrl) return note.targetUrl
+    if (String(note?.type || '').includes('MEETING')) return '/meetings'
     if (note?.workspaceId) return `/workspaces/${note.workspaceId}`
     if (String(note?.type || '').includes('TICKET')) return '/tickets'
     if (String(note?.type || '').includes('HARDWARE')) return '/hardware'
@@ -138,6 +139,18 @@ export default function NotificationBell() {
     }
   }
 
+  async function markAllRead() {
+    if (!accessToken) return
+    try {
+      await apiFetch('/api/notifications/read-all', accessToken, { method: 'PATCH' })
+      setNotes((current) => current.map((note) => ({ ...note, isRead: true })))
+      if ('clearAppBadge' in navigator) await navigator.clearAppBadge()
+      setShowDropdown(false)
+    } catch (error) {
+      console.error('Failed to mark all notifications as read:', error)
+    }
+  }
+
   async function markRead(id) {
     try {
       await apiFetch(`/api/notifications/${id}/read`, accessToken, { method: 'PATCH' })
@@ -160,9 +173,14 @@ export default function NotificationBell() {
 
       {showDropdown && (
         <div className="fixed inset-x-4 top-20 z-50 overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-2xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-3 sm:w-[min(340px,calc(100vw-2rem))]">
-          <div className="border-b border-slate-100 bg-slate-50 px-4 py-3">
-            <h3 className="text-sm font-black text-slate-900">Notifications</h3>
-            <p className="text-xs text-slate-500">{unreadCount} unread, updates arrive live</p>
+          <div className="border-b border-slate-100 bg-slate-50 px-4 py-3 flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-black text-slate-900">Notifications</h3>
+              <p className="text-xs text-slate-500">{unreadCount} unread, updates arrive live</p>
+            </div>
+            <div>
+              <button onClick={markAllRead} className="rounded-md bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-200">Mark all read</button>
+            </div>
           </div>
           <div className="max-h-96 divide-y divide-slate-100 overflow-y-auto">
             {notes.length === 0 ? <div className="px-4 py-8 text-center text-sm text-slate-500">No notifications yet</div> : notes.map((note) => (
