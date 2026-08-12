@@ -226,14 +226,14 @@ export default function WorkspaceDetailPage() {
     setProofFile(file)
   }
 
-  async function uploadProofImage(fileToUpload = proofFile) {
-    if (!fileToUpload || !accessToken) return
+  async function uploadProofImage() {
+    if (!proofFile || !accessToken) return
     setProofUploading(true)
     setProofMessage('')
     setProofError('')
     try {
       const formData = new FormData()
-      formData.append('file', fileToUpload)
+      formData.append('file', proofFile, proofFile.name)
       await apiFetch(`/api/workspaces/${id}/files`, accessToken, {
         method: 'POST',
         body: formData

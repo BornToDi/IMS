@@ -108,7 +108,6 @@ export default function CompanyChat() {
   const [mobileContactsOpen, setMobileContactsOpen] = useState(false)
   const [selectedFile, setSelectedFile] = useState(null)
   const [isUploading, setIsUploading] = useState(false)
-  const [locationEnabled, setLocationEnabled] = useState(false)
   const [locationStatus, setLocationStatus] = useState('')
   const [stickerTrayOpen, setStickerTrayOpen] = useState(false)
   const [lightbox, setLightbox] = useState(null)
@@ -291,7 +290,6 @@ export default function CompanyChat() {
   }, [messages, placeNames])
 
   async function buildLocationPayload() {
-    if (!locationEnabled) return {}
     try {
       setLocationStatus('Getting location...')
       const loc = await requestCurrentLocation()
@@ -750,15 +748,6 @@ export default function CompanyChat() {
                 >
                   ✦
                 </button>
-                <button
-                  type="button"
-                  className={`grid h-10 w-10 shrink-0 place-items-center rounded-full text-lg transition sm:h-11 sm:w-11 ${locationEnabled ? 'bg-blue-500 text-white' : 'bg-white/5 text-slate-200 hover:bg-white/10'}`}
-                  title={locationEnabled ? 'Location ON' : 'Location OFF'}
-                  onClick={() => setLocationEnabled((current) => !current)}
-                >
-                  📍
-                </button>
-
                 <div className="relative flex min-w-0 flex-1 items-end gap-2 rounded-[20px] border border-white/10 bg-[#111b21] px-3 py-2 sm:rounded-[24px] sm:px-4 sm:py-2.5">
                   {mentionOpen ? (
                     <div className="absolute inset-x-0 bottom-[calc(100%+0.5rem)] z-30 max-h-64 overflow-y-auto border border-white/10 bg-[#111b21] py-1 shadow-2xl chat-scroll">
