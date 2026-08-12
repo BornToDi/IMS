@@ -34,8 +34,10 @@ function canViewWorkspace(workspace, userId) {
 async function ensureWorkspaceAccess(id, userId) {
   const workspace = await prisma.workspace.findUnique({ where: { id }, include: { members: true } });
   if (!workspace) return { error: 'Workspace not found', status: 404 };
-  if (!canViewWorkspace(workspace, userId)) return { error: 'Access denied', status: 403 };
-  return { workspace };
+  const actor = await prisma.user.findUnique({ where: { id: userId }, select: { userRole: true } });
+  const isAdmin = isAdminRole(actor?.userRole);
+  if (!isAdmin && !canViewWorkspace(workspace, userId)) return { error: 'Access denied', status: 403 };
+  return { workspace, isAdmin };
 }
 
 async function emitWorkspaceUpdate(req, workspaceId, payload) {
@@ -71,8 +73,9 @@ async function listRegisteredUsers(req, res) {
 async function listWorkspaces(req, res) {
   const userId = req.userId;
   if (!userId) return res.status(401).json({ error: 'Not authenticated' });
+  const actor = await prisma.user.findUnique({ where: { id: userId }, select: { userRole: true } });
   const workspaces = await prisma.workspace.findMany({
-    where: {
+    where: isAdminRole(actor?.userRole) ? {} : {
       OR: [
         { ownerId: userId },
         { assignedEmployeeId: userId },
@@ -168,9 +171,9 @@ async function createWorkspace(req, res) {
 async function getWorkspace(req, res) {
   const userId = req.userId;
   const { id } = req.params;
+  const access = await ensureWorkspaceAccess(id, userId);
+  if (access.error) return res.status(access.status).json({ error: access.error });
   const workspace = await prisma.workspace.findUnique({ where: { id }, include: workspaceInclude });
-  if (!workspace) return res.status(404).json({ error: 'Workspace not found' });
-  if (!canViewWorkspace(workspace, userId)) return res.status(403).json({ error: 'Access denied' });
   res.json(workspace);
 }
 
@@ -180,7 +183,8 @@ async function updateWorkspace(req, res) {
   const { name, description, accentColor, tidNumber, posSerial, zoneName, serviceType, merchantAddress, bankName, assignedEmployeeId, isImportant } = req.body;
   const workspace = await prisma.workspace.findUnique({ where: { id }, include: { members: true } });
   if (!workspace) return res.status(404).json({ error: 'Workspace not found' });
-  if (workspace.ownerId !== userId) return res.status(403).json({ error: 'Only creator can edit this task' });
+  const actor = await prisma.user.findUnique({ where: { id: userId }, select: { userRole: true } });
+  if (workspace.ownerId !== userId && !isAdminRole(actor?.userRole)) return res.status(403).json({ error: 'Only creator or admin can edit this task' });
 
   let newAssigned = null;
   if (assignedEmployeeId) {
@@ -215,7 +219,8 @@ async function deleteWorkspace(req, res) {
   const { id } = req.params;
   const workspace = await prisma.workspace.findUnique({ where: { id } });
   if (!workspace) return res.status(404).json({ error: 'Workspace not found' });
-  if (workspace.ownerId !== userId) return res.status(403).json({ error: 'Only owner can delete workspace' });
+  const actor = await prisma.user.findUnique({ where: { id: userId }, select: { userRole: true } });
+  if (workspace.ownerId !== userId && !isAdminRole(actor?.userRole)) return res.status(403).json({ error: 'Only owner or admin can delete workspace' });
   await prisma.$transaction(async (tx) => {
     const goals = await tx.goal.findMany({ where: { workspaceId: id }, select: { id: true } });
     const goalIds = goals.map((goal) => goal.id);
@@ -250,7 +255,7 @@ async function addTaskUpdate(req, res) {
   if (access.error) return res.status(access.status).json({ error: access.error });
   const workspace = access.workspace;
 
-  if (workspace.assignedEmployeeId && workspace.assignedEmployeeId !== userId && workspace.ownerId !== userId) {
+  if (workspace.assignedEmployeeId && workspace.assignedEmployeeId !== userId && workspace.ownerId !== userId && !access.isAdmin) {
     return res.status(403).json({ error: 'Only assigned employee or creator can update this task' });
   }
 
@@ -333,7 +338,7 @@ async function updateTaskUpdate(req, res) {
   const workspace = access.workspace;
   const existing = await prisma.workspaceUpdate.findUnique({ where: { id: updateId } });
   if (!existing || existing.workspaceId !== id) return res.status(404).json({ error: 'Work update not found' });
-  if (existing.employeeId !== userId && workspace.ownerId !== userId) {
+  if (existing.employeeId !== userId && workspace.ownerId !== userId && !access.isAdmin) {
     return res.status(403).json({ error: 'Only update author or task creator can edit this update' });
   }
   const nextStatus = status === 'COMPLETED' ? 'COMPLETED' : (status === 'PENDING' ? 'PENDING' : 'IN_PROGRESS');
@@ -362,7 +367,7 @@ async function deleteTaskUpdate(req, res) {
   const workspace = access.workspace;
   const existing = await prisma.workspaceUpdate.findUnique({ where: { id: updateId } });
   if (!existing || existing.workspaceId !== id) return res.status(404).json({ error: 'Work update not found' });
-  if (existing.employeeId !== userId && workspace.ownerId !== userId) {
+  if (existing.employeeId !== userId && workspace.ownerId !== userId && !access.isAdmin) {
     return res.status(403).json({ error: 'Only update author or task creator can delete this update' });
   }
   await prisma.workspaceAttachment.deleteMany({ where: { updateId } });

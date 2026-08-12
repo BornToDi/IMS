@@ -20,8 +20,10 @@ async function uploadFile(req, res) {
       return res.status(400).json({ error: 'No file provided' });
     }
 
+    const actor = await prisma.user.findUnique({ where: { id: userId }, select: { userRole: true } });
+    const isAdmin = ['ADMIN', 'MANAGEMENT', 'ASSISTANT'].includes(String(actor?.userRole || '').toUpperCase());
     const workspace = await prisma.workspace.findFirst({
-      where: {
+      where: isAdmin ? { id: workspaceId } : {
         id: workspaceId,
         OR: [
           { ownerId: userId },
@@ -82,8 +84,10 @@ async function getFiles(req, res) {
     const userId = req.userId;
     const { workspaceId } = req.params;
 
+    const actor = await prisma.user.findUnique({ where: { id: userId }, select: { userRole: true } });
+    const isAdmin = ['ADMIN', 'MANAGEMENT', 'ASSISTANT'].includes(String(actor?.userRole || '').toUpperCase());
     const workspace = await prisma.workspace.findFirst({
-      where: {
+      where: isAdmin ? { id: workspaceId } : {
         id: workspaceId,
         OR: [
           { ownerId: userId },
@@ -128,7 +132,10 @@ async function deleteFile(req, res) {
       return res.status(404).json({ error: 'File not found' });
     }
 
-    if (file.userId !== userId) {
+    const actor = await prisma.user.findUnique({ where: { id: userId }, select: { userRole: true } });
+    const isAdmin = ['ADMIN', 'MANAGEMENT', 'ASSISTANT'].includes(String(actor?.userRole || '').toUpperCase());
+    const workspace = await prisma.workspace.findUnique({ where: { id: workspaceId }, select: { ownerId: true } });
+    if (file.userId !== userId && workspace?.ownerId !== userId && !isAdmin) {
       return res.status(403).json({ error: 'Not authorized to delete this file' });
     }
 

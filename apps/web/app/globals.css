@@ -88,7 +88,14 @@ body {
 /* Ensure chat wallpaper container takes full height for scrolling */
 .chat-wallpaper { display: block; height: 100%; }
 
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
 
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
 
 *, *::before, *::after {
   color-scheme: light;

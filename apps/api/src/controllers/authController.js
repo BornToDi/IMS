@@ -4,6 +4,7 @@ const { signAccess, signRefresh, verify } = require('../utils/jwt');
 
 const publicUserSelect = {
   id: true,
+  employeeCode: true,
   name: true,
   email: true,
   avatarUrl: true,
@@ -30,6 +31,7 @@ function sendTokens(res, user) {
 function serializeUser(user) {
   return {
     id: user.id,
+    employeeCode: user.employeeCode,
     name: user.name,
     email: user.email,
     avatarUrl: user.avatarUrl,
@@ -180,18 +182,35 @@ async function adminUpdateUser(req, res) {
 
   const targetId = req.params.id;
   if (!targetId) return res.status(400).json({ error: 'Missing user id' });
-  const { name, bankName } = req.body;
+  const { name, email, employeeCode, bankName, userRole } = req.body;
   const data = {};
   if (name !== undefined) {
     const trimmedName = String(name).trim();
     if (!trimmedName) return res.status(400).json({ error: 'Name is required' });
     data.name = trimmedName;
   }
+  if (email !== undefined) {
+    const normalizedEmail = String(email).trim().toLowerCase();
+    if (!normalizedEmail || !normalizedEmail.includes('@')) return res.status(400).json({ error: 'A valid email is required' });
+    data.email = normalizedEmail;
+  }
+  if (employeeCode !== undefined) data.employeeCode = trimOrNull(employeeCode);
   if (bankName !== undefined) data.bankName = trimOrNull(bankName);
+  if (userRole !== undefined) {
+    const normalizedRole = String(userRole).trim().toUpperCase();
+    const allowedRoles = ['ADMIN', 'MANAGEMENT', 'ASSISTANT', 'EMPLOYEE', 'FIELD_EMPLOYEE', 'BANK'];
+    if (!allowedRoles.includes(normalizedRole)) return res.status(400).json({ error: 'Invalid user role' });
+    data.userRole = normalizedRole;
+  }
   if (Object.keys(data).length === 0) return res.status(400).json({ error: 'Nothing to update' });
 
-  const updated = await prisma.user.update({ where: { id: targetId }, data, select: publicUserSelect });
-  res.json({ user: serializeUser(updated) });
+  try {
+    const updated = await prisma.user.update({ where: { id: targetId }, data, select: publicUserSelect });
+    res.json({ user: serializeUser(updated) });
+  } catch (error) {
+    if (error?.code === 'P2002') return res.status(409).json({ error: 'Email or employee ID is already in use' });
+    throw error;
+  }
 }
 
 async function adminResetPassword(req, res) {

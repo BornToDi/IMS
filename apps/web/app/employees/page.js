@@ -31,6 +31,10 @@ export default function EmployeesPage() {
   const [roleFilter, setRoleFilter] = useState('ALL')
   const [selectedId, setSelectedId] = useState('')
   const [nameDraft, setNameDraft] = useState('')
+  const [emailDraft, setEmailDraft] = useState('')
+  const [employeeCodeDraft, setEmployeeCodeDraft] = useState('')
+  const [bankNameDraft, setBankNameDraft] = useState('')
+  const [roleDraft, setRoleDraft] = useState('EMPLOYEE')
   const [passwordDraft, setPasswordDraft] = useState('')
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
@@ -46,6 +50,10 @@ export default function EmployeesPage() {
       if (!selectedId && list.length > 0) {
         setSelectedId(list[0].id)
         setNameDraft(list[0].name || '')
+        setEmailDraft(list[0].email || '')
+        setEmployeeCodeDraft(list[0].employeeCode || '')
+        setBankNameDraft(list[0].bankName || '')
+        setRoleDraft(list[0].userRole || 'EMPLOYEE')
         setPasswordDraft('')
       }
     } catch (fetchError) {
@@ -65,7 +73,7 @@ export default function EmployeesPage() {
     return employees.filter((employee) => {
       const role = String(employee.userRole || '').toUpperCase()
       const matchesRole = roleFilter === 'ALL' || role === roleFilter
-      const matchesText = !term || [employee.name, employee.email, employee.userRole, employee.bankName].join(' ').toLowerCase().includes(term)
+      const matchesText = !term || [employee.employeeCode, employee.name, employee.email, employee.userRole, employee.bankName].join(' ').toLowerCase().includes(term)
       return matchesRole && matchesText
     })
   }, [employees, query, roleFilter])
@@ -87,6 +95,10 @@ export default function EmployeesPage() {
   useEffect(() => {
     if (!selectedEmployee) return
     setNameDraft(selectedEmployee.name || '')
+    setEmailDraft(selectedEmployee.email || '')
+    setEmployeeCodeDraft(selectedEmployee.employeeCode || '')
+    setBankNameDraft(selectedEmployee.bankName || '')
+    setRoleDraft(selectedEmployee.userRole || 'EMPLOYEE')
     setPasswordDraft('')
   }, [selectedEmployee?.id])
 
@@ -103,12 +115,16 @@ export default function EmployeesPage() {
   function selectEmployee(employee) {
     setSelectedId(employee.id)
     setNameDraft(employee.name || '')
+    setEmailDraft(employee.email || '')
+    setEmployeeCodeDraft(employee.employeeCode || '')
+    setBankNameDraft(employee.bankName || '')
+    setRoleDraft(employee.userRole || 'EMPLOYEE')
     setPasswordDraft('')
     setNotice('')
     setError('')
   }
 
-  async function saveName() {
+  async function saveEmployee() {
     if (!selectedEmployee) return
     setSaving(true)
     setError('')
@@ -117,9 +133,15 @@ export default function EmployeesPage() {
       await apiFetch(`/api/auth/admin/users/${selectedEmployee.id}`, accessToken, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: nameDraft })
+        body: JSON.stringify({
+          name: nameDraft,
+          email: emailDraft,
+          employeeCode: employeeCodeDraft,
+          bankName: bankNameDraft,
+          userRole: roleDraft
+        })
       })
-      setNotice('Employee name updated.')
+      setNotice('Employee details updated.')
       await loadEmployees({ silent: true })
     } catch (updateError) {
       setError(updateError.message || 'Failed to update employee')
@@ -283,6 +305,7 @@ export default function EmployeesPage() {
                         <td className="px-4 py-4">
                           <div className="font-black">{employee.name || 'Unnamed employee'}</div>
                           <div className={`text-xs font-semibold ${active ? 'text-slate-300' : 'text-black/55'}`}>{employee.email}</div>
+                          <div className={`text-[11px] font-bold ${active ? 'text-slate-400' : 'text-black/40'}`}>ID: {employee.employeeCode || 'Not set'}</div>
                         </td>
                         <td className="px-4 py-4"><span className={`inline-flex rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] ${active ? 'border-white/20 bg-white/10 text-white' : roleTone(employee.userRole)}`}>{employee.userRole || 'EMPLOYEE'}</span></td>
                         <td className="px-4 py-4 text-sm font-semibold">{employee.bankName || '—'}</td>
@@ -327,11 +350,19 @@ export default function EmployeesPage() {
 
                 <div className="space-y-4 rounded-[24px] border border-slate-200 p-4">
                   <div>
-                    <h3 className="text-lg font-black text-black">Edit name</h3>
-                    <p className="text-sm font-semibold text-black/55">Change the display name for this employee account.</p>
+                    <h3 className="text-lg font-black text-black">Edit employee details</h3>
+                    <p className="text-sm font-semibold text-black/55">Manage the employee ID, name, login email, role, and bank assignment.</p>
                   </div>
-                  <input value={nameDraft} onChange={(event) => setNameDraft(event.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:border-black" placeholder="Employee name" />
-                  <button type="button" onClick={saveName} disabled={saving || !nameDraft.trim()} className="rounded-2xl bg-black px-5 py-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50">Save name</button>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <input value={employeeCodeDraft} onChange={(event) => setEmployeeCodeDraft(event.target.value)} className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:border-black" placeholder="Employee ID" />
+                    <input value={nameDraft} onChange={(event) => setNameDraft(event.target.value)} className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:border-black" placeholder="Employee name" />
+                    <input type="email" value={emailDraft} onChange={(event) => setEmailDraft(event.target.value)} className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:border-black" placeholder="Login email" />
+                    <select value={roleDraft} onChange={(event) => setRoleDraft(event.target.value)} className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:border-black">
+                      <option value="ADMIN">Admin</option><option value="MANAGEMENT">Management</option><option value="ASSISTANT">Assistant</option><option value="EMPLOYEE">Employee</option><option value="FIELD_EMPLOYEE">Field employee</option><option value="BANK">Bank</option>
+                    </select>
+                    <input value={bankNameDraft} onChange={(event) => setBankNameDraft(event.target.value)} className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:border-black sm:col-span-2" placeholder="Bank name (optional)" />
+                  </div>
+                  <button type="button" onClick={saveEmployee} disabled={saving || !nameDraft.trim() || !emailDraft.trim()} className="rounded-2xl bg-black px-5 py-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50">Save employee</button>
                 </div>
 
                 <div className="space-y-4 rounded-[24px] border border-slate-200 p-4">

@@ -48,6 +48,7 @@ export default function WorkspaceDetailPage() {
   const [error, setError] = useState('')
   const [lightbox, setLightbox] = useState(null)
   const [proofFile, setProofFile] = useState(null)
+  const [proofPreviewUrl, setProofPreviewUrl] = useState('')
   const [proofUploading, setProofUploading] = useState(false)
   const [proofMessage, setProofMessage] = useState('')
   const [proofError, setProofError] = useState('')
@@ -56,7 +57,8 @@ export default function WorkspaceDetailPage() {
 
   const isCreator = workspace?.ownerId === user?.id
   const isAssigned = workspace?.assignedEmployeeId === user?.id
-  const canUpdate = isAssigned || isCreator
+  const isAdmin = ['ADMIN', 'MANAGEMENT', 'ASSISTANT'].includes(String(user?.userRole || '').toUpperCase())
+  const canUpdate = isAssigned || isCreator || isAdmin
 
   async function load({ silent = false } = {}) {
     if (!id || !accessToken) return
@@ -74,6 +76,14 @@ export default function WorkspaceDetailPage() {
   }
 
   useEffect(() => { load() }, [id, accessToken])
+
+  useEffect(() => {
+    return () => {
+      if (proofPreviewUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(proofPreviewUrl)
+      }
+    }
+  }, [proofPreviewUrl])
 
   useEffect(() => {
     updates.forEach((update) => {
@@ -176,6 +186,19 @@ export default function WorkspaceDetailPage() {
     }
   }
 
+  async function deleteProof(file) {
+    if (!confirm(`Delete proof image ${file.name}?`)) return
+    setProofError('')
+    try {
+      await apiFetch(`/api/workspaces/${id}/files/${file.id}`, accessToken, { method: 'DELETE' })
+      if (lightbox === fileUrl(file.url)) setLightbox(null)
+      setProofMessage('Proof image deleted.')
+      await load({ silent: true })
+    } catch (e) {
+      setProofError(e.message || 'Failed to delete proof image')
+    }
+  }
+
   function cancelEditUpdate() {
     setEditingUpdateId(null)
     setWorkUpdate('')
@@ -187,13 +210,20 @@ export default function WorkspaceDetailPage() {
     const file = e.target.files?.[0]
     if (!file) return
     setProofError('')
+    setProofMessage('')
     if (!file.type.startsWith('image/')) {
       setProofError('Please choose an image file.')
       e.target.value = ''
       return
     }
+
+    if (proofPreviewUrl?.startsWith('blob:')) {
+      URL.revokeObjectURL(proofPreviewUrl)
+    }
+
+    const nextPreviewUrl = URL.createObjectURL(file)
+    setProofPreviewUrl(nextPreviewUrl)
     setProofFile(file)
-    uploadProofImage(file)
   }
 
   async function uploadProofImage(fileToUpload = proofFile) {
@@ -208,9 +238,13 @@ export default function WorkspaceDetailPage() {
         method: 'POST',
         body: formData
       })
-      setProofFile(null)
       setProofMessage('Image uploaded.')
       if (proofInputRef.current) proofInputRef.current.value = ''
+      if (proofPreviewUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(proofPreviewUrl)
+      }
+      setProofPreviewUrl('')
+      setProofFile(null)
       await load({ silent: true })
     } catch (e) {
       setProofError(e.message || 'Failed to upload proof image')
@@ -308,7 +342,7 @@ export default function WorkspaceDetailPage() {
                       </div>
                       <div className="flex flex-col items-start gap-2 sm:items-end">
                         <div className="text-xs font-black text-black/50">{niceDate(u.createdAt)}</div>
-                        {(u.employeeId === user?.id || isCreator) && (
+                        {(u.employeeId === user?.id || isCreator || isAdmin) && (
                           <div className="flex gap-2">
                             <button type="button" title="Edit update" onClick={() => startEditUpdate(u)} className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-black text-black">✎ Edit</button>
                             <button type="button" title="Delete update" onClick={() => deleteUpdate(u)} className="rounded-full border border-red-200 bg-white px-3 py-1 text-xs font-black text-red-700">🗑 Delete</button>
@@ -350,11 +384,17 @@ export default function WorkspaceDetailPage() {
                     {proofUploading ? 'Uploading...' : 'Upload image'}
                   </button>
                 </div>
+                {proofPreviewUrl && (
+                  <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-3">
+                    <img src={proofPreviewUrl} alt="Selected proof preview" className="h-40 w-full rounded-2xl object-cover" />
+                    <div className="mt-2 text-xs font-black text-black/60">Selected image: {proofFile?.name || 'Preview'}</div>
+                  </div>
+                )}
                 {proofError && <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{proofError}</div>}
                 {proofMessage && <div className="mt-3 text-sm font-bold text-emerald-700">{proofMessage}</div>}
               </div>
               <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {proofFiles.map((f) => <Attachment key={f.id} file={f} onOpen={setLightbox} large />)}
+                {proofFiles.map((f) => <Attachment key={f.id} file={f} onOpen={setLightbox} onDelete={canUpdate ? deleteProof : null} large />)}
               </div>
               {proofFiles.length === 0 && <div className="mt-4 rounded-2xl border border-dashed border-slate-300 p-6 text-center text-sm font-bold text-black/60">No image uploaded yet.</div>}
             </div>
@@ -369,12 +409,15 @@ function Info({ label, value }) {
   return <div className="h-full min-w-0 rounded-3xl border border-slate-200 bg-slate-50 p-3 sm:p-4"><div className="text-[10px] font-black uppercase tracking-wide text-black/50 sm:text-[11px] sm:tracking-wider">{label}</div><div className="mt-1 break-all text-xs font-black text-black sm:break-words sm:text-sm">{value}</div></div>
 }
 
-function Attachment({ file, onOpen, large = false }) {
+function Attachment({ file, onOpen, onDelete = null, large = false }) {
   const img = isImage(file.type, file.url)
   const content = img ? <img src={fileUrl(file.url)} alt={file.name} className={`${large ? 'h-44' : 'h-24'} w-full rounded-2xl object-cover`} /> : <div className={`${large ? 'h-44' : 'h-24'} grid place-items-center rounded-2xl bg-white text-3xl`}>📎</div>
-  return <button type="button" onClick={() => img ? onOpen(fileUrl(file.url)) : window.open(fileUrl(file.url), '_blank')} className="rounded-3xl border border-slate-200 bg-slate-50 p-2 text-left hover:bg-white">
-    {content}
-    <div className="mt-2 truncate px-1 text-xs font-black text-black">{file.name}</div>
-    <div className="px-1 text-[11px] font-semibold text-black/50">{niceDate(file.createdAt || file.uploadedAt)}</div>
-  </button>
+  return <div className="rounded-3xl border border-slate-200 bg-slate-50 p-2 text-left hover:bg-white">
+    <button type="button" onClick={() => img ? onOpen(fileUrl(file.url)) : window.open(fileUrl(file.url), '_blank')} className="w-full text-left">
+      {content}
+      <div className="mt-2 truncate px-1 text-xs font-black text-black">{file.name}</div>
+      <div className="px-1 text-[11px] font-semibold text-black/50">{niceDate(file.createdAt || file.uploadedAt)}</div>
+    </button>
+    {onDelete && <button type="button" onClick={() => onDelete(file)} className="mt-2 w-full rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-black text-red-700">Delete proof</button>}
+  </div>
 }

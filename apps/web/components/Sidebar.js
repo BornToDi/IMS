@@ -133,38 +133,40 @@ export default function Sidebar({ open = true, onClose }){
           )
         })}
       </nav>
-      <aside className="hidden w-full max-w-[260px] md:block">
-        <div className="shell-panel sticky top-24 p-3">
-          <div className="px-3 py-2">
-            <div className="section-title">Navigation</div>
-            <div className="mt-1 text-sm text-slate-500">Full delivery workflow</div>
+      <aside className="hidden w-full max-w-[260px] md:block md:self-start">
+        <div className="sticky top-24 max-h-[calc(100vh-6rem)] overflow-y-auto pr-1 scrollbar-none">
+          <div className="shell-panel p-3">
+            <div className="px-3 py-2">
+              <div className="section-title">Navigation</div>
+              <div className="mt-1 text-sm text-slate-500">Full delivery workflow</div>
+            </div>
+            {items.map(i=> {
+              const active = pathname === i.href || pathname.startsWith(`${i.href}/`)
+              return (
+                <Link
+                  key={i.href}
+                  href={i.href}
+                  onClick={() => {
+                    if (i.href === '/chat') {
+                      // mark seen immediately on click
+                      lastSeenRef.current = chatTotalRef.current || 0
+                      const userKey = `chat:lastSeen:${user?.id || user?.email || 'anon'}`
+                      try { localStorage.setItem(userKey, String(lastSeenRef.current)) } catch (err) {}
+                      setShowChatBadge(false)
+                      setChatCount(0)
+                    }
+                  }}
+                  className={`relative mb-1 flex items-center gap-3 rounded-2xl px-3 py-3 transition ${active ? 'bg-slate-900 text-white shadow-lg' : 'bg-white/60 text-slate-700 hover:bg-white hover:text-slate-950'}`}>
+                  <span className="grid h-8 w-8 place-items-center rounded-xl bg-white/10 text-sm">{i.icon}</span>
+                  <span>
+                    <span className="block text-sm font-semibold">{i.label}</span>
+                    <span className={`block text-xs ${active ? 'text-slate-300' : 'text-slate-500'}`}>{i.hint}</span>
+                  </span>
+                  {/* badge removed per request: no corner color */}
+                </Link>
+              )
+            })}
           </div>
-          {items.map(i=> {
-            const active = pathname === i.href || pathname.startsWith(`${i.href}/`)
-            return (
-              <Link
-                key={i.href}
-                href={i.href}
-                onClick={() => {
-                  if (i.href === '/chat') {
-                    // mark seen immediately on click
-                    lastSeenRef.current = chatTotalRef.current || 0
-                    const userKey = `chat:lastSeen:${user?.id || user?.email || 'anon'}`
-                    try { localStorage.setItem(userKey, String(lastSeenRef.current)) } catch (err) {}
-                    setShowChatBadge(false)
-                    setChatCount(0)
-                  }
-                }}
-                className={`relative mb-1 flex items-center gap-3 rounded-2xl px-3 py-3 transition ${active ? 'bg-slate-900 text-white shadow-lg' : 'bg-white/60 text-slate-700 hover:bg-white hover:text-slate-950'}`}>
-                <span className="grid h-8 w-8 place-items-center rounded-xl bg-white/10 text-sm">{i.icon}</span>
-                <span>
-                  <span className="block text-sm font-semibold">{i.label}</span>
-                  <span className={`block text-xs ${active ? 'text-slate-300' : 'text-slate-500'}`}>{i.hint}</span>
-                </span>
-                {/* badge removed per request: no corner color */}
-              </Link>
-            )
-          })}
         </div>
       </aside>
     </>
