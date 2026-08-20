@@ -93,7 +93,7 @@ function inDateRange(task, range) {
 export default function DashboardPage() {
   const accessToken = useAuthStore((state) => state.accessToken)
   const [tasks, setTasks] = useState([])
-  const [counts, setCounts] = useState({ tickets: 0, hardware: 0, meetings: 0, announcements: 0, chats: 0 })
+  const [counts, setCounts] = useState({ tickets: 0, hardware: 0, meetings: 0, announcements: 0 })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -124,19 +124,17 @@ export default function DashboardPage() {
   async function loadCounts() {
     if (!accessToken) return
     try {
-      const [ticketsRes, hardwareRes, meetingsRes, announcementsRes, chatRes] = await Promise.allSettled([
+      const [ticketsRes, hardwareRes, meetingsRes, announcementsRes] = await Promise.allSettled([
         apiFetch('/api/tickets', accessToken),
         apiFetch('/api/hardware', accessToken),
         apiFetch('/api/meetings', accessToken),
-        apiFetch('/api/announcements', accessToken),
-        apiFetch('/api/chat', accessToken)
+        apiFetch('/api/announcements', accessToken)
       ])
       setCounts({
         tickets: Array.isArray(ticketsRes.value) ? ticketsRes.value.length : 0,
         hardware: Array.isArray(hardwareRes.value) ? hardwareRes.value.length : 0,
         meetings: Array.isArray(meetingsRes.value) ? meetingsRes.value.length : 0,
-        announcements: Array.isArray(announcementsRes.value) ? announcementsRes.value.length : 0,
-        chats: Array.isArray(chatRes.value) ? chatRes.value.length : 0
+        announcements: Array.isArray(announcementsRes.value) ? announcementsRes.value.length : 0
       })
     } catch (e) {
       // ignore - keep previous counts
@@ -170,7 +168,7 @@ export default function DashboardPage() {
         )}
 
         <section className="rounded-[28px] border border-slate-200 bg-white shadow-sm">
-          <div className="grid grid-cols-2 gap-3 p-5 sm:grid-cols-5">
+          <div className="grid grid-cols-2 gap-3 p-5 sm:grid-cols-4">
             <Link href="/tickets" className="rounded-2xl border border-slate-200 bg-white p-4 text-center">
               <div className="text-xs font-black text-black/55">Field Tasks</div>
               <div className="mt-2 text-2xl font-black text-black">{counts.tickets}</div>
@@ -186,10 +184,6 @@ export default function DashboardPage() {
             <Link href="/announcements" className="rounded-2xl border border-slate-200 bg-white p-4 text-center">
               <div className="text-xs font-black text-black/55">Announcements</div>
               <div className="mt-2 text-2xl font-black text-black">{counts.announcements}</div>
-            </Link>
-            <Link href="/chat" className="rounded-2xl border border-slate-200 bg-white p-4 text-center">
-              <div className="text-xs font-black text-black/55">Company Chat</div>
-              <div className="mt-2 text-2xl font-black text-black">{counts.chats}</div>
             </Link>
           </div>
           <div className="flex flex-col gap-3 border-b border-slate-200 p-5 sm:flex-row sm:items-center sm:justify-between">

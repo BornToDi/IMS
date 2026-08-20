@@ -22,6 +22,15 @@ function formatDateLabel(value) {
   return date.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' })
 }
 
+function localDateKey(value) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 function getInitials(name) {
   return name
     .split(' ')
@@ -104,6 +113,7 @@ export default function CompanyChat() {
   const [newMessage, setNewMessage] = useState('')
   const [socket, setSocket] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
+  const [selectedDate, setSelectedDate] = useState('')
   const [connectionState, setConnectionState] = useState('connecting')
   const [mobileContactsOpen, setMobileContactsOpen] = useState(false)
   const [selectedFile, setSelectedFile] = useState(null)
@@ -130,13 +140,30 @@ export default function CompanyChat() {
     // Load initial messages from API
     async function loadInitialMessages() {
       try {
-        const r = await fetch(`${API_BASE_URL}/api/chat`, { headers: { Authorization: `Bearer ${accessToken}` }, credentials: 'include' })
-        if (r.ok) {
-          const data = await r.json()
-          if (!cancelled) setMessages(data)
+        const pageSize = 200
+        let offset = 0
+        let history = []
+
+        while (!cancelled) {
+          const r = await fetch(`${API_BASE_URL}/api/chat?limit=${pageSize}&offset=${offset}`, { headers: { Authorization: `Bearer ${accessToken}` }, credentials: 'include' })
+          if (!r.ok) throw new Error('Failed to load chat history')
+          const page = await r.json()
+          if (!Array.isArray(page)) throw new Error('Invalid chat history response')
+          history = [...page, ...history]
+          if (page.length < pageSize) break
+          offset += pageSize
+        }
+
+        if (!cancelled) {
+          setMessages((current) => {
+            const byId = new Map([...history, ...current].map((message) => [message.id, message]))
+            return [...byId.values()].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+          })
         }
       } catch (err) {
         console.error('Failed to load initial messages:', err)
+      } finally {
+        if (!cancelled) setLoading(false)
       }
     }
 
@@ -177,8 +204,6 @@ export default function CompanyChat() {
     })
 
     setSocket(newSocket)
-    setLoading(false)
-
     return () => {
       cancelled = true
       newSocket.disconnect()
@@ -251,10 +276,15 @@ export default function CompanyChat() {
     ))
   }, [contacts, searchTerm])
 
+  const visibleMessages = useMemo(() => {
+    if (!selectedDate) return messages
+    return messages.filter((message) => localDateKey(message.createdAt) === selectedDate)
+  }, [messages, selectedDate])
+
   const groupedMessages = useMemo(() => {
     const groups = []
 
-    messages.forEach((message) => {
+    visibleMessages.forEach((message) => {
       const label = formatDateLabel(message.createdAt)
       const lastGroup = groups[groups.length - 1]
 
@@ -267,12 +297,12 @@ export default function CompanyChat() {
     })
 
     return groups
-  }, [messages])
+  }, [visibleMessages])
 
   // Auto-scroll when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  }, [visibleMessages])
 
   useEffect(() => {
     messages.forEach((message) => {
@@ -585,12 +615,39 @@ export default function CompanyChat() {
             </div>
           </div>
 
+          <div className="flex flex-none flex-wrap items-center gap-2 border-b border-white/10 bg-[#111b21] px-3 py-2 sm:px-6">
+            <label htmlFor="chat-date-filter" className="text-xs font-semibold text-slate-300">Show chat from date</label>
+            <input
+              id="chat-date-filter"
+              type="date"
+              value={selectedDate}
+              onChange={(event) => setSelectedDate(event.target.value)}
+              className="rounded-lg border border-white/15 bg-[#202c33] px-3 py-1.5 text-sm text-white outline-none focus:border-emerald-400"
+            />
+            {selectedDate ? (
+              <>
+                <span className="text-xs text-slate-400">{visibleMessages.length} message(s)</span>
+                <button type="button" onClick={() => setSelectedDate('')} className="rounded-lg bg-white/10 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/15">
+                  Show all dates
+                </button>
+              </>
+            ) : (
+              <span className="text-xs text-slate-400">All {messages.length} messages</span>
+            )}
+          </div>
+
           <div className="flex-1 min-h-0 overflow-y-auto chat-scroll chat-wallpaper px-3 py-4 sm:px-6 sm:py-6">
             <div className="mx-auto flex w-full max-w-6xl flex-col gap-3 sm:gap-4">
-              {messages.length === 0 ? (
+              {loading ? (
+                <div className="mx-auto mt-10 rounded-3xl border border-white/10 bg-black/20 px-5 py-4 text-sm text-slate-300 backdrop-blur">
+                  Loading complete chat history...
+                </div>
+              ) : null}
+
+              {!loading && visibleMessages.length === 0 ? (
                 <div className="mx-auto mt-10 max-w-md rounded-3xl border border-white/10 bg-black/20 px-5 py-7 text-center text-slate-300 backdrop-blur sm:mt-16 sm:px-6 sm:py-8">
-                  <p className="text-base font-semibold text-white sm:text-lg">No messages yet</p>
-                  <p className="mt-2 text-sm text-slate-400">Start the conversation and the feed will appear here in the same style as WhatsApp.</p>
+                  <p className="text-base font-semibold text-white sm:text-lg">{selectedDate ? 'No messages on this date' : 'No messages yet'}</p>
+                  <p className="mt-2 text-sm text-slate-400">{selectedDate ? 'Choose another date or show all dates.' : 'Start the conversation and the feed will appear here in the same style as WhatsApp.'}</p>
                 </div>
               ) : null}
 
