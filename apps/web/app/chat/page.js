@@ -126,9 +126,38 @@ export default function CompanyChat() {
   const [mentionUsers, setMentionUsers] = useState([])
   const [mentionOpen, setMentionOpen] = useState(false)
   const [mentionQuery, setMentionQuery] = useState('')
+  const [targetMessageId, setTargetMessageId] = useState('')
+  const [highlightedMessageId, setHighlightedMessageId] = useState('')
   const messagesEndRef = useRef(null)
+  const chatScrollRef = useRef(null)
+  const targetMessageHandledRef = useRef(false)
   const fileInputRef = useRef(null)
   const messageInputRef = useRef(null)
+
+  useEffect(() => {
+    const messageId = new URLSearchParams(window.location.search).get('message')
+    setTargetMessageId(messageId || '')
+  }, [])
+
+  useEffect(() => {
+    function openNotification(event) {
+      const messageId = String(event.detail?.messageId || '')
+      const target = messageId ? document.getElementById(`message-${messageId}`) : null
+
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        setHighlightedMessageId(messageId)
+        setTimeout(() => setHighlightedMessageId(''), 2200)
+        return
+      }
+
+      const container = chatScrollRef.current
+      if (container) container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' })
+    }
+
+    window.addEventListener('chat:open-notification', openNotification)
+    return () => window.removeEventListener('chat:open-notification', openNotification)
+  }, [])
 
   // Initialize Socket.IO connection and load initial messages
   useEffect(() => {
@@ -299,10 +328,33 @@ export default function CompanyChat() {
     return groups
   }, [visibleMessages])
 
-  // Auto-scroll when messages change
+  // Open a notification at its exact message; normal chat visits open at the latest message.
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [visibleMessages])
+    if (loading) return
+
+    let highlightTimer
+    const scrollTimer = setTimeout(() => {
+      if (targetMessageId && !targetMessageHandledRef.current) {
+        const target = document.getElementById(`message-${targetMessageId}`)
+        if (target) {
+          targetMessageHandledRef.current = true
+          target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          setHighlightedMessageId(targetMessageId)
+          highlightTimer = setTimeout(() => setHighlightedMessageId(''), 2200)
+          return
+        }
+      }
+
+      const container = chatScrollRef.current
+      if (container) container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' })
+      else messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }, 150)
+
+    return () => {
+      clearTimeout(scrollTimer)
+      clearTimeout(highlightTimer)
+    }
+  }, [loading, targetMessageId, visibleMessages])
 
   useEffect(() => {
     messages.forEach((message) => {
@@ -636,7 +688,7 @@ export default function CompanyChat() {
             )}
           </div>
 
-          <div className="flex-1 min-h-0 overflow-y-auto chat-scroll chat-wallpaper px-3 py-4 sm:px-6 sm:py-6">
+          <div ref={chatScrollRef} className="flex-1 min-h-0 overflow-y-auto chat-scroll chat-wallpaper px-3 py-4 sm:px-6 sm:py-6">
             <div className="mx-auto flex w-full max-w-6xl flex-col gap-3 sm:gap-4">
               {loading ? (
                 <div className="mx-auto mt-10 rounded-3xl border border-white/10 bg-black/20 px-5 py-4 text-sm text-slate-300 backdrop-blur">
@@ -663,7 +715,7 @@ export default function CompanyChat() {
                     const isMine = message.authorId === user.id
                     const stickerMessage = isStickerMessage(message)
                     return (
-                      <div id={`message-${message.id}`} key={message.id} className={`flex scroll-mt-24 ${isMine ? 'justify-end' : 'justify-start'}`}>
+                      <div id={`message-${message.id}`} key={message.id} className={`flex scroll-mt-24 rounded-2xl transition ${highlightedMessageId === message.id ? 'bg-amber-300/20 ring-2 ring-amber-300/70' : ''} ${isMine ? 'justify-end' : 'justify-start'}`}>
                         <div className={`${stickerMessage ? 'max-w-[6rem] rounded-2xl bg-transparent px-0 py-0 text-white shadow-none' : `max-w-[86%] rounded-2xl px-3 py-2.5 text-white shadow-lg sm:max-w-[70%] sm:px-3.5 sm:py-3 ${isMine ? 'bg-[#005c4b] rounded-br-sm' : 'bg-[#202c33] rounded-bl-sm'}`}`}>
                           {!isMine && !stickerMessage ? (
                             <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white">{message.author?.name || 'Unknown'}</p>

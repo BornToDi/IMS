@@ -82,7 +82,15 @@ export default function NotificationBell() {
   async function openNotification(note) {
     await markRead(note.id)
     const url = targetFor(note)
-    if (url) { setShowDropdown(false); router.push(url) }
+    if (url) {
+      setShowDropdown(false)
+      if (url.startsWith('/chat') && window.location.pathname === '/chat') {
+        const messageId = new URL(url, window.location.origin).searchParams.get('message') || ''
+        window.dispatchEvent(new CustomEvent('chat:open-notification', { detail: { messageId } }))
+        return
+      }
+      router.push(url, { scroll: false })
+    }
   }
 
   function urlBase64ToUint8Array(value) {

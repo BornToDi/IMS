@@ -14,12 +14,13 @@ async function notifyGlobalChatRecipients(app, message) {
   if (!recipients.length) return;
 
   const author = message.author?.name || message.author?.email || 'Someone';
+  const targetUrl = message.id ? `/chat?message=${encodeURIComponent(message.id)}` : '/chat';
   const notes = await prisma.notification.createManyAndReturn({
     data: recipients.map(({ id: userId }) => ({
       userId,
       type: 'GLOBAL_CHAT',
       message: `${author}: ${messagePreview(message)}`,
-      targetUrl: '/chat',
+      targetUrl,
       isRead: false
     }))
   });
