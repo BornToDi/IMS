@@ -11,11 +11,19 @@ async function postGlobalMessage(req, res) {
     const { content, latitude, longitude, locationLabel, replyToId } = req.body;
     if (!userId) return res.status(401).json({ error: 'Not authenticated' });
     if (!content) return res.status(400).json({ error: 'Content required' });
+    let messageContent = content;
+    if (req.body.attendanceReason !== undefined) {
+      const viewer = await prisma.user.findUnique({ where: { id: userId }, select: { userRole: true } });
+      if (!viewer || !['ADMIN', 'ASSISTANT', 'EMPLOYEE', 'FIELD_EMPLOYEE'].includes(viewer.userRole)) return res.status(403).json({ error: 'Sign in is available to employees, assistants and admins only' });
+      const reason = typeof req.body.attendanceReason === 'string' ? req.body.attendanceReason.trim() : '';
+      if (content !== 'sign in' || replyToId || !reason || reason.length > 500) return res.status(400).json({ error: 'Enter a sign in reason between 1 and 500 characters' });
+      messageContent = `sign in\nReason: ${reason}`;
+    }
 
     const message = await prisma.globalMessage.create({
       data: {
         authorId: userId,
-        content,
+        content: messageContent,
         latitude: latitude === undefined || latitude === null || latitude === '' ? null : Number(latitude),
         longitude: longitude === undefined || longitude === null || longitude === '' ? null : Number(longitude),
         locationLabel: locationLabel || null,

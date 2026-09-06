@@ -24,6 +24,7 @@ const storage = multer.diskStorage({
 const upload = multer({ storage, limits: { fileSize: 100 * 1024 * 1024 } });
 
 // Routes
+router.get('/attendance', auth, require('../controllers/attendanceController').getAttendance);
 router.get('/', auth, ctrl.getGlobalMessages);
 router.post('/', auth, ctrl.postGlobalMessage);
 router.get('/files', auth, ctrl.getGlobalFiles);

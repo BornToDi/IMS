@@ -4,6 +4,8 @@ import { useAuthStore } from '../../store/useAuthStore'
 import { io } from 'socket.io-client'
 import { getCurrentLocationWithPlace, isGenericLocationLabel, resolvePlaceName } from '../../lib/location'
 import Layout from '../../components/Layout'
+import ChatAttendance from '../../components/ChatAttendance'
+import { fetchChatHistoryPage } from '../../lib/chatHistory.mjs'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || ''
 
@@ -110,6 +112,8 @@ export default function CompanyChat() {
   const { user, accessToken } = useAuthStore()
   const [messages, setMessages] = useState([])
   const [loading, setLoading] = useState(true)
+  const [historyError, setHistoryError] = useState('')
+  const [historyAttempt, setHistoryAttempt] = useState(0)
   const [newMessage, setNewMessage] = useState('')
   const [socket, setSocket] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
@@ -163,8 +167,11 @@ export default function CompanyChat() {
   useEffect(() => {
     if (!accessToken || !user) return
     setConnectionState('connecting')
+    setLoading(true)
+    setHistoryError('')
 
     let cancelled = false
+    const historyController = new AbortController()
 
     // Load initial messages from API
     async function loadInitialMessages() {
@@ -174,10 +181,10 @@ export default function CompanyChat() {
         let history = []
 
         while (!cancelled) {
-          const r = await fetch(`${API_BASE_URL}/api/chat?limit=${pageSize}&offset=${offset}`, { headers: { Authorization: `Bearer ${accessToken}` }, credentials: 'include' })
-          if (!r.ok) throw new Error('Failed to load chat history')
-          const page = await r.json()
-          if (!Array.isArray(page)) throw new Error('Invalid chat history response')
+          const page = await fetchChatHistoryPage(`${API_BASE_URL}/api/chat?limit=${pageSize}&offset=${offset}`, useAuthStore.getState().accessToken || accessToken, {
+            signal: historyController.signal,
+            refreshAccessToken: () => useAuthStore.getState().refreshAccessToken()
+          })
           history = [...page, ...history]
           if (page.length < pageSize) break
           offset += pageSize
@@ -190,7 +197,7 @@ export default function CompanyChat() {
           })
         }
       } catch (err) {
-        console.error('Failed to load initial messages:', err)
+        if (!cancelled && err.name !== 'AbortError') setHistoryError(err.message === 'Failed to fetch' ? 'Cannot reach the chat service. Check your connection and retry.' : err.message || 'Could not load chat history. Please retry.')
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -235,9 +242,10 @@ export default function CompanyChat() {
     setSocket(newSocket)
     return () => {
       cancelled = true
+      historyController.abort()
       newSocket.disconnect()
     }
-  }, [accessToken, user])
+  }, [accessToken, user, historyAttempt])
 
   useEffect(() => {
     if (!accessToken) return
@@ -667,6 +675,7 @@ export default function CompanyChat() {
             </div>
           </div>
 
+          <ChatAttendance accessToken={accessToken} user={user} messages={messages} historyLoading={loading || !!historyError} onMessage={message => setMessages(current => current.some(item => item.id === message.id) ? current : [...current, message])} />
           <div className="flex flex-none flex-wrap items-center gap-2 border-b border-white/10 bg-[#111b21] px-3 py-2 sm:px-6">
             <label htmlFor="chat-date-filter" className="text-xs font-semibold text-slate-300">Show chat from date</label>
             <input
@@ -696,7 +705,8 @@ export default function CompanyChat() {
                 </div>
               ) : null}
 
-              {!loading && visibleMessages.length === 0 ? (
+              {historyError ? <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-400/20 bg-[#202c33] px-4 py-3 text-sm text-amber-100"><span>{historyError}</span><button type="button" onClick={() => setHistoryAttempt(value => value + 1)} className="rounded-lg bg-white/10 px-3 py-1.5 font-semibold text-white hover:bg-white/20">Retry</button></div> : null}
+              {!loading && !historyError && visibleMessages.length === 0 ? (
                 <div className="mx-auto mt-10 max-w-md rounded-3xl border border-white/10 bg-black/20 px-5 py-7 text-center text-slate-300 backdrop-blur sm:mt-16 sm:px-6 sm:py-8">
                   <p className="text-base font-semibold text-white sm:text-lg">{selectedDate ? 'No messages on this date' : 'No messages yet'}</p>
                   <p className="mt-2 text-sm text-slate-400">{selectedDate ? 'Choose another date or show all dates.' : 'Start the conversation and the feed will appear here in the same style as WhatsApp.'}</p>
