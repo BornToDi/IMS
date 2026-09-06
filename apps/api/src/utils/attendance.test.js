@@ -26,6 +26,17 @@ test('reason-bearing sign ins preserve reasons and completed hours', () => {
   assert.equal(result.rows[0].minutes, 480);
   assert.equal(result.rows[0].status, 'Complete');
 });
+test('preserves separate sign in/out locations and leaves legacy locations empty', () => {
+  const report = buildReport([
+    message('1', 'sign in', '2026-09-06T03:00:00Z', { latitude: 23.81, longitude: 90.41, locationLabel: 'AIBL' }),
+    message('2', 'sign out', '2026-09-06T11:00:00Z', { latitude: 0, longitude: 0 }),
+    message('3', 'sign in', '2026-09-07T03:00:00Z')
+  ]);
+  assert.equal(report.rows[0].signInLocation.locationLabel, 'AIBL');
+  assert.equal(report.rows[0].signOutLocation.mapUrl, 'https://www.google.com/maps?q=0,0');
+  assert.equal(report.events[0].latitude, 23.81);
+  assert.equal(report.events[2].mapUrl, '');
+});
 test('sums completed sessions and flags duplicates without inflating hours', () => {
   const result = buildReport([
     message('1', 'sign in', '2026-09-06T03:00:00Z'),

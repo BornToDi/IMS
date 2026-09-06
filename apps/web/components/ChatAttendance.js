@@ -1,5 +1,6 @@
 "use client"
 import { useEffect, useRef, useState } from 'react'
+import { getCurrentLocationWithPlace } from '../lib/location'
 
 const API = process.env.NEXT_PUBLIC_API_URL || ''
 const today = () => new Date(Date.now() + 21600000).toISOString().slice(0, 10)
@@ -23,6 +24,7 @@ export default function ChatAttendance({ accessToken, user, messages, onMessage,
   const [reasonOpen, setReasonOpen] = useState(false)
   const [reason, setReason] = useState('')
   const [reasonError, setReasonError] = useState('')
+  const [locating, setLocating] = useState(false)
   const reasonDialog = useRef(null)
   const submitting = useRef(false)
   useEffect(() => {
@@ -54,7 +56,12 @@ export default function ChatAttendance({ accessToken, user, messages, onMessage,
     setReasonError('')
     setBusy(action); setNotice(''); setError('')
     try {
-      const response = await fetch(`${API}/api/chat`, { method: 'POST', headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ content: `sign ${action}`, ...(action === 'in' ? { attendanceReason: reason.trim() } : {}) }) })
+      setLocating(true)
+      let location
+      try { location = await getCurrentLocationWithPlace({ maximumAge: 0 }) }
+      catch (err) { throw new Error(`Location is required to sign ${action}. Allow location access and retry. ${err.message || ''}`) }
+      finally { setLocating(false) }
+      const response = await fetch(`${API}/api/chat`, { method: 'POST', headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ content: `sign ${action}`, attendanceAction: action, ...location, ...(action === 'in' ? { attendanceReason: reason.trim() } : {}) }) })
       const body = await response.json()
       if (!response.ok) throw new Error(body.error || 'Could not record attendance')
       onMessage(body)
@@ -80,11 +87,11 @@ export default function ChatAttendance({ accessToken, user, messages, onMessage,
         <p className="mt-1 text-sm text-slate-400">Where are you deployed or working today?</p>
         <label htmlFor="sign-in-reason" className="mb-2 mt-4 block text-sm font-medium">Reason <span className="text-emerald-300">*</span></label>
         <textarea autoFocus id="sign-in-reason" required maxLength={500} rows={3} value={reason} disabled={busy === 'in'} onChange={event => { setReason(event.target.value); setReasonError('') }} placeholder="e.g. Deployed in AIBL" aria-describedby="sign-in-reason-help" className={`${control} w-full resize-none`} />
-        <p id="sign-in-reason-help" className="mt-1 text-xs text-slate-400">Saved with your sign in in chat and attendance reports.</p>
+        <p id="sign-in-reason-help" className="mt-1 text-xs text-slate-400">Your reason and current location will be saved with your sign in. Allow location access when prompted.</p>
         {reasonError && <p role="alert" className="mt-2 text-sm text-rose-300">{reasonError}</p>}
         <div className="mt-4 flex justify-end gap-2">
           <button type="button" disabled={busy === 'in'} onClick={() => setReasonOpen(false)} className={control}>Cancel</button>
-          <button type="submit" disabled={busy === 'in' || !reason.trim()} className="rounded-xl bg-emerald-400 px-4 py-2 text-sm font-semibold text-emerald-950 disabled:opacity-40">{busy === 'in' ? 'Saving…' : 'Confirm sign in'}</button>
+          <button type="submit" disabled={busy === 'in' || !reason.trim()} className="rounded-xl bg-emerald-400 px-4 py-2 text-sm font-semibold text-emerald-950 disabled:opacity-40">{locating ? 'Getting location…' : busy === 'in' ? 'Saving…' : 'Confirm sign in'}</button>
         </div>
       </form>
     </dialog>
@@ -96,7 +103,7 @@ export default function ChatAttendance({ accessToken, user, messages, onMessage,
       </div>
       <div className="flex shrink-0 gap-1.5">
         <button type="button" disabled={historyLoading || !!busy || !!signedIn} onClick={() => { setReasonError(''); setReasonOpen(true) }} className="shrink-0 rounded-lg bg-emerald-400 px-2.5 py-1.5 text-xs font-semibold text-emerald-950 hover:bg-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-200 disabled:opacity-40">{busy === 'in' ? 'Saving…' : 'Sign in'}</button>
-        <button type="button" disabled={historyLoading || !!busy || !signedIn} onClick={() => mark('out')} className={compactControl}>{busy === 'out' ? 'Saving…' : 'Sign out'}</button>
+        <button type="button" title="Sign out and save your current location" disabled={historyLoading || !!busy || !signedIn} onClick={() => mark('out')} className={compactControl}>{busy === 'out' ? locating ? 'Locating…' : 'Saving…' : 'Sign out'}</button>
         {canViewReports && <button type="button" aria-expanded={expanded} onClick={() => setExpanded(!expanded)} className={compactControl}>{expanded ? 'Close' : 'Reports'}</button>}
       </div>
     </div>
@@ -118,6 +125,7 @@ export default function ChatAttendance({ accessToken, user, messages, onMessage,
         <div className="my-4 grid grid-cols-2 gap-3 sm:grid-cols-4">{[['Employee days', rows.length], ['Sign ins', rows.reduce((sum, row) => sum + row.signIns, 0)], ['Sign outs', rows.reduce((sum, row) => sum + row.signOuts, 0)], ['Worked hours', (rows.reduce((sum, row) => sum + row.minutes, 0) / 60).toFixed(1)]].map(([label, value]) => <div key={label} className="rounded-2xl border border-white/10 bg-white/5 p-3"><p className="text-xs text-slate-400">{label}</p><p className="mt-1 text-2xl font-semibold tabular-nums text-white">{value}</p></div>)}</div>
         <div className="overflow-x-auto rounded-2xl border border-white/10"><table className="w-full whitespace-nowrap text-left text-sm"><thead className="bg-white/5 text-xs text-slate-400"><tr>{['Employee / Date', 'Sign in', 'Sign out', 'Worked', 'Status'].map(label => <th key={label} className="px-4 py-3 font-medium">{label}</th>)}</tr></thead><tbody className="divide-y divide-white/5">{rows.map(row => <tr key={`${row.employeeId}-${row.date}`} className="text-slate-200"><td className="px-4 py-3"><p className="font-medium text-white">{row.name} <span className="text-xs text-slate-400">{row.employeeCode}</span></p><p className="mt-1 text-xs text-slate-400">{row.date}</p></td><td className="px-4 py-3 tabular-nums">{time(row.signIn)}</td><td className="px-4 py-3 tabular-nums">{time(row.signOut)}</td><td className="px-4 py-3">{Math.floor(row.minutes / 60)}h {row.minutes % 60}m</td><td className="px-4 py-3"><span className={`rounded-full px-2 py-1 text-xs ${row.status === 'Complete' ? 'bg-emerald-400/10 text-emerald-300' : 'bg-amber-400/10 text-amber-200'}`}>{row.status}</span>{row.issues.length > 0 && <p className="mt-2 text-xs text-amber-200">{row.issues.join(', ')}</p>}</td></tr>)}</tbody></table>{!rows.length && <div className="px-4 py-8 text-center"><p className="text-white">No attendance recorded</p><p className="mt-2 text-sm text-slate-400">Choose another period or start with a sign in message.</p></div>}</div>
         {rows.some(row => row.reasons?.length) && <details className="mt-3 text-sm text-slate-300"><summary className="cursor-pointer text-emerald-300">Sign in reasons</summary><ul className="mt-2 space-y-2">{rows.filter(row => row.reasons?.length).map(row => <li key={`${row.employeeId}-${row.date}`} className="rounded-lg bg-white/5 p-2"><span className="text-xs text-slate-400">{row.name} · {row.date}</span><p className="whitespace-pre-wrap break-words">{row.reasons.join('; ')}</p></li>)}</ul></details>}
+        {report.events?.some(event => event.mapUrl) && <details className="mt-3 text-sm text-slate-300"><summary className="cursor-pointer text-emerald-300">Sign in / out locations</summary><ul className="mt-2 space-y-2">{report.events.filter(event => event.mapUrl).map(event => <li key={event.messageId} className="rounded-lg bg-white/5 p-2"><p className="text-xs text-slate-400">{event.name} · {event.date} · Sign {event.action} {time(event.time)}</p><a href={event.mapUrl} target="_blank" rel="noopener noreferrer" className="mt-1 block break-words text-emerald-300 underline">{event.locationLabel || `${event.latitude}, ${event.longitude}`} ↗</a></li>)}</ul></details>}
         <p className="mt-3 text-xs leading-5 text-slate-400">Hours include completed sign in/out pairs within each Dhaka calendar day. Open sessions, overnight shifts and unmatched events need review. Excel includes every sign event; days without messages are not marked absent.</p>
       </>}
     </div>}

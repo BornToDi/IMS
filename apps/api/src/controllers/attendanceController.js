@@ -14,7 +14,7 @@ async function getAttendance(req, res) {
     const employees = await prisma.user.findMany({ where: { userRole: { not: 'BANK' } }, select: { id: true, name: true, employeeCode: true }, orderBy: { name: 'asc' } });
     const messages = await prisma.globalMessage.findMany({
       where: { createdAt: { gte: range.start, lt: range.end }, authorId: employeeId, author: { userRole: { not: 'BANK' } }, attachmentType: null, replyToId: null },
-      select: { id: true, authorId: true, content: true, createdAt: true, author: { select: { name: true, employeeCode: true } } },
+      select: { id: true, authorId: true, content: true, createdAt: true, latitude: true, longitude: true, locationLabel: true, author: { select: { name: true, employeeCode: true } } },
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }]
     });
     const report = buildReport(messages);
@@ -24,10 +24,12 @@ async function getAttendance(req, res) {
       sheet.columns = [ ['Date', 'date'], ['Employee', 'name'], ['Employee code', 'employeeCode'], ['First sign in (Dhaka)', 'signIn'], ['Last sign out (Dhaka)', 'signOut'], ['Worked minutes', 'minutes'], ['Sign in count', 'signIns'], ['Sign out count', 'signOuts'], ['Status', 'status'], ['Notes', 'issues'] ].map(([header, key]) => ({ header, key, width: 25 }));
       const time = (value) => value ? new Date(value).toLocaleString('en-GB', { timeZone: TIME_ZONE, hour12: false }) : '';
       sheet.columns = [...sheet.columns.map(column => ({ header: column.header, key: column.key, width: column.width })), { header: 'Sign in reasons', key: 'reasons', width: 45 }];
-      report.rows.forEach(row => sheet.addRow({ ...row, signIn: time(row.signIn), signOut: time(row.signOut), issues: row.issues.join('; '), reasons: row.reasons.join('; ') }));
+      sheet.columns = [...sheet.columns.map(column => ({ header: column.header, key: column.key, width: column.width })), ...[['Sign in location', 'signInPlace'], ['Sign in map', 'signInMap'], ['Sign out location', 'signOutPlace'], ['Sign out map', 'signOutMap']].map(([header, key]) => ({ header, key, width: 45 }))];
+      report.rows.forEach(row => sheet.addRow({ ...row, signIn: time(row.signIn), signOut: time(row.signOut), issues: row.issues.join('; '), reasons: row.reasons.join('; '), signInPlace: row.signInLocation?.locationLabel || '', signInMap: row.signInLocation?.mapUrl || '', signOutPlace: row.signOutLocation?.locationLabel || '', signOutMap: row.signOutLocation?.mapUrl || '' }));
       const events = workbook.addWorksheet('All sign events');
       events.columns = [['Date', 'date'], ['Employee', 'name'], ['Employee code', 'employeeCode'], ['Action', 'action'], ['Time (Dhaka)', 'time'], ['Chat message ID', 'messageId']].map(([header, key]) => ({ header, key, width: 25 }));
       events.columns = [...events.columns.map(column => ({ header: column.header, key: column.key, width: column.width })), { header: 'Reason', key: 'reason', width: 45 }];
+      events.columns = [...events.columns.map(column => ({ header: column.header, key: column.key, width: column.width })), ...[['Location', 'locationLabel'], ['Latitude', 'latitude'], ['Longitude', 'longitude'], ['Map', 'mapUrl']].map(([header, key]) => ({ header, key, width: 35 }))];
       report.events.forEach(event => events.addRow({ ...event, time: time(event.time) }));
       for (const page of [sheet, events]) {
         page.views = [{ state: 'frozen', ySplit: 1 }];

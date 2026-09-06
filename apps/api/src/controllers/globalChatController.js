@@ -12,6 +12,14 @@ async function postGlobalMessage(req, res) {
     if (!userId) return res.status(401).json({ error: 'Not authenticated' });
     if (!content) return res.status(400).json({ error: 'Content required' });
     let messageContent = content;
+    if (req.body.attendanceAction !== undefined) {
+      const action = req.body.attendanceAction;
+      const viewer = await prisma.user.findUnique({ where: { id: userId }, select: { userRole: true } });
+      if (!viewer || !['ADMIN', 'ASSISTANT', 'EMPLOYEE', 'FIELD_EMPLOYEE'].includes(viewer.userRole)) return res.status(403).json({ error: 'Attendance is available to employees, assistants and admins only' });
+      if (!['in', 'out'].includes(action) || content !== `sign ${action}` || replyToId) return res.status(400).json({ error: 'Invalid attendance action' });
+      if (typeof latitude !== 'number' || !Number.isFinite(latitude) || Math.abs(latitude) > 90 || typeof longitude !== 'number' || !Number.isFinite(longitude) || Math.abs(longitude) > 180) return res.status(400).json({ error: 'A valid current location is required to sign in or out' });
+      if (action === 'in' && req.body.attendanceReason === undefined) return res.status(400).json({ error: 'Enter a sign in reason' });
+    }
     if (req.body.attendanceReason !== undefined) {
       const viewer = await prisma.user.findUnique({ where: { id: userId }, select: { userRole: true } });
       if (!viewer || !['ADMIN', 'ASSISTANT', 'EMPLOYEE', 'FIELD_EMPLOYEE'].includes(viewer.userRole)) return res.status(403).json({ error: 'Sign in is available to employees, assistants and admins only' });

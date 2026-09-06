@@ -12,7 +12,7 @@ test('only admins and assistants can access team reports and export; employees a
   prisma.user.findMany = async () => [{ id: 'self', name: '=Example', employeeCode: 'E01' }];
   prisma.globalMessage.findMany = async args => {
     where = args.where;
-    return [{ id: 'm1', authorId: 'self', author: { name: '=Example', employeeCode: 'E01' }, content: 'sign in\nReason: Deployed in AIBL', createdAt: new Date('2026-09-06T03:00:00Z') }];
+    return [{ id: 'm1', authorId: 'self', author: { name: '=Example', employeeCode: 'E01' }, content: 'sign in\nReason: Deployed in AIBL', latitude: 23.81, longitude: 90.41, locationLabel: 'AIBL Dhaka', createdAt: new Date('2026-09-06T03:00:00Z') }];
   };
   const response = () => ({ code: 200, headers: {}, status(code) { this.code = code; return this; }, json(body) { this.body = body; return this; }, send(body) { this.body = body; return this; }, setHeader(key, value) { this.headers[key] = value; } });
   try {
@@ -52,6 +52,10 @@ test('only admins and assistants can access team reports and export; employees a
     assert.equal(workbook.worksheets[1].rowCount, 2);
     assert.equal(workbook.worksheets[0].getCell('K2').value, 'Deployed in AIBL');
     assert.equal(workbook.worksheets[1].getCell('G2').value, 'Deployed in AIBL');
+    assert.equal(workbook.worksheets[0].getCell('L2').value, 'AIBL Dhaka');
+    assert.equal(workbook.worksheets[0].getCell('M2').value, 'https://www.google.com/maps?q=23.81,90.41');
+    assert.equal(workbook.worksheets[1].getCell('I2').value, 23.81);
+    assert.equal(workbook.worksheets[1].getCell('J2').value, 90.41);
     req.query.date = 'invalid';
     res = response();
     await getAttendance(req, res);

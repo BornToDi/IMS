@@ -30,15 +30,18 @@ function buildReport(messages) {
     const reason = String(message.content).match(/\nReason: ([\s\S]+)$/i)?.[1]?.trim() || '';
     if (!row.reasons) row.reasons = [];
     if (reason) row.reasons.push(reason);
-    events.push({ date, name: row.name, employeeCode: row.employeeCode, action, reason, time: message.createdAt, messageId: message.id });
+    const hasLocation = typeof message.latitude === 'number' && Number.isFinite(message.latitude) && Math.abs(message.latitude) <= 90 && typeof message.longitude === 'number' && Number.isFinite(message.longitude) && Math.abs(message.longitude) <= 180;
+    const location = hasLocation ? { latitude: message.latitude, longitude: message.longitude, locationLabel: message.locationLabel || '', mapUrl: `https://www.google.com/maps?q=${message.latitude},${message.longitude}` } : { latitude: null, longitude: null, locationLabel: '', mapUrl: '' };
+    events.push({ date, name: row.name, employeeCode: row.employeeCode, action, reason, ...location, time: message.createdAt, messageId: message.id });
     if (action === 'in') {
       row.signIns++;
-      if (!row.signIn) row.signIn = message.createdAt;
+      if (!row.signIn) { row.signIn = message.createdAt; row.signInLocation = location; }
       if (row.open) row.issues.push('Repeated sign in');
       else row.open = message.createdAt;
     } else {
       row.signOuts++;
       row.signOut = message.createdAt;
+      row.signOutLocation = location;
       if (row.open) { row.minutes += (new Date(message.createdAt) - new Date(row.open)) / 60000; row.open = null; }
       else row.issues.push('Sign out without sign in');
     }

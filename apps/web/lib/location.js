@@ -45,7 +45,7 @@ export async function resolvePlaceName(latitude, longitude) {
   return lookup
 }
 
-export async function getCurrentLocationWithPlace() {
+export async function getCurrentLocationWithPlace({ maximumAge = 30000 } = {}) {
   if (typeof window === 'undefined' || !navigator.geolocation) {
     throw new Error('Location is not supported on this browser')
   }
@@ -57,7 +57,7 @@ export async function getCurrentLocationWithPlace() {
         longitude: position.coords.longitude
       }),
       (error) => reject(new Error(error?.message || 'Location permission denied')),
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 }
+      { enableHighAccuracy: true, timeout: 12000, maximumAge }
     )
   })
 

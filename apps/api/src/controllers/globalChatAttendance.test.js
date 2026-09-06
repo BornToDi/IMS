@@ -26,16 +26,30 @@ test('sign in reason is validated, authorized and saved with the chat message', 
     await postGlobalMessage({ userId: 'self', body: { content: 'sign in', attendanceReason: 'Deployed in AIBL' } }, res);
     assert.equal(res.code, 403);
     assert.equal(saved, undefined);
+    role = 'EMPLOYEE';
+    for (const action of ['in', 'out']) {
+      for (const coords of [{}, { latitude: null, longitude: null }, { latitude: 91, longitude: 90 }, { latitude: 23, longitude: 181 }, { latitude: '23', longitude: 90 }]) {
+        res = response();
+        await postGlobalMessage({ userId: 'self', body: { content: `sign ${action}`, attendanceAction: action, attendanceReason: action === 'in' ? 'Deployed in AIBL' : undefined, ...coords } }, res);
+        assert.equal(res.code, 400);
+        assert.equal(saved, undefined);
+      }
+    }
     for (role of ['ADMIN', 'ASSISTANT', 'EMPLOYEE', 'FIELD_EMPLOYEE']) {
       res = response();
-      await postGlobalMessage({ userId: 'self', body: { content: 'sign in', attendanceReason: '  Deployed in AIBL  ' } }, res);
+      await postGlobalMessage({ userId: 'self', body: { content: 'sign in', attendanceAction: 'in', attendanceReason: '  Deployed in AIBL  ', latitude: 23.81, longitude: 90.41, locationLabel: 'Dhaka' } }, res);
       assert.equal(res.code, 201);
       assert.equal(saved.content, 'sign in\nReason: Deployed in AIBL');
       assert.equal(saved.authorId, 'self');
+      assert.equal(saved.latitude, 23.81);
+      assert.equal(saved.longitude, 90.41);
+      assert.equal(saved.locationLabel, 'Dhaka');
       res = response();
-      await postGlobalMessage({ userId: 'self', body: { content: 'sign out' } }, res);
+      await postGlobalMessage({ userId: 'self', body: { content: 'sign out', attendanceAction: 'out', latitude: 0, longitude: 0 } }, res);
       assert.equal(res.code, 201);
       assert.equal(saved.content, 'sign out');
+      assert.equal(saved.latitude, 0);
+      assert.equal(saved.longitude, 0);
       assert.equal(saved.authorId, 'self');
     }
   } finally {
