@@ -1,10 +1,11 @@
 const placeCache = new Map()
 const pendingPlaces = new Map()
-const PLACE_CACHE_VERSION = 'v6'
+const failedPlaces = new Map()
+const PLACE_CACHE_VERSION = 'v7'
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || ''
 
 function cacheKey(latitude, longitude) {
-  return `${Number(latitude).toFixed(5)},${Number(longitude).toFixed(5)}`
+  return `${Number(latitude).toFixed(5)},${Number(longitude).toFixed(5)}:${typeof navigator === 'undefined' ? 'en' : navigator.language || 'en'}`
 }
 
 export function isGenericLocationLabel(label) {
@@ -15,10 +16,11 @@ export async function resolvePlaceName(latitude, longitude) {
   const key = cacheKey(latitude, longitude)
   if (placeCache.has(key)) return placeCache.get(key)
   if (pendingPlaces.has(key)) return pendingPlaces.get(key)
+  if ((failedPlaces.get(key) || 0) > Date.now()) return 'Tap to view exact location'
 
   try {
     const stored = window.localStorage.getItem(`place:${PLACE_CACHE_VERSION}:${key}`)
-    if (stored) {
+    if (stored && !isGenericLocationLabel(stored)) {
       placeCache.set(key, stored)
       return stored
     }
@@ -26,15 +28,21 @@ export async function resolvePlaceName(latitude, longitude) {
 
   const lookup = (async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/location/reverse?lat=${encodeURIComponent(latitude)}&lon=${encodeURIComponent(longitude)}&language=${encodeURIComponent(navigator.language || 'en')}`)
-      if (!response.ok) throw new Error('Place lookup failed')
+      const response = await fetch(`${API_BASE_URL}/api/location/reverse?lat=${encodeURIComponent(latitude)}&lon=${encodeURIComponent(longitude)}&language=${encodeURIComponent(navigator.language || 'en')}`, { signal: AbortSignal.timeout(15000) })
+      if (!response.ok) {
+        const retry = Number(response.headers.get('Retry-After')) || 60
+        failedPlaces.set(key, Date.now() + Math.max(30, retry) * 1000)
+        throw new Error('Place lookup failed')
+      }
       const data = await response.json()
       const place = data?.name
-      if (!place) throw new Error('Place name missing')
+      if (typeof place !== 'string' || isGenericLocationLabel(place)) throw new Error('Place name missing')
+      failedPlaces.delete(key)
       placeCache.set(key, place)
       try { window.localStorage.setItem(`place:${PLACE_CACHE_VERSION}:${key}`, place) } catch {}
       return place
     } catch {
+      if (!failedPlaces.has(key)) failedPlaces.set(key, Date.now() + 60000)
       return 'Tap to view exact location'
     } finally {
       pendingPlaces.delete(key)

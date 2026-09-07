@@ -2,7 +2,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuthStore } from '../../store/useAuthStore'
 import { io } from 'socket.io-client'
-import { getCurrentLocationWithPlace, isGenericLocationLabel, resolvePlaceName } from '../../lib/location'
+import { getCurrentLocationWithPlace } from '../../lib/location'
+import ChatLocation from '../../components/ChatLocation'
 import Layout from '../../components/Layout'
 import ChatAttendance from '../../components/ChatAttendance'
 import { fetchChatHistoryPage } from '../../lib/chatHistory.mjs'
@@ -113,7 +114,7 @@ const STICKERS = [
 ]
 
 // Draft changes must not re-render the full message history.
-const ChatMessageHistory = React.memo(function ChatMessageHistory({ groupedMessages, userId, highlightedMessageId, mentionUsers, placeNames, setLightbox, setReplyingTo }) {
+const ChatMessageHistory = React.memo(function ChatMessageHistory({ groupedMessages, userId, highlightedMessageId, mentionUsers, setLightbox, setReplyingTo }) {
   const mentionPattern = useMemo(() => buildMentionPattern(mentionUsers), [mentionUsers])
   return <>
 {groupedMessages.map((group) => (
@@ -182,10 +183,7 @@ const ChatMessageHistory = React.memo(function ChatMessageHistory({ groupedMessa
                             </div>
                           ) : null}
                           {hasLocation(message) ? (
-                            <a href={mapUrl(message)} target="_blank" rel="noreferrer" className={`mt-2 block rounded-2xl px-3 py-2 text-white ${isMine ? 'bg-white/10' : 'bg-black/20'}`}>
-                              <div className="text-xs font-black">📍 Live location</div>
-                              <div className="mt-0.5 break-words text-[11px] font-semibold leading-4 opacity-80">{placeNames[locationKey(message)] || (isGenericLocationLabel(message.locationLabel) ? 'Finding place name…' : message.locationLabel)}</div>
-                            </a>
+                            <ChatLocation latitude={Number(message.latitude)} longitude={Number(message.longitude)} locationLabel={message.locationLabel} isMine={isMine} />
                           ) : null}
                           <div className="mt-1.5 flex items-center justify-end gap-3 text-[11px] text-white">
                             <button type="button" onClick={() => setReplyingTo(message)} className="font-semibold text-white hover:text-white" title="Reply to message">Reply</button>
@@ -231,6 +229,11 @@ const ChatContacts = React.memo(function ChatContacts({ filteredContacts, setMob
 })
 
 export default function CompanyChat() {
+  // Keep the auth boundary mounted while restoring a session after a refresh.
+  return <Layout><CompanyChatContent /></Layout>
+}
+
+function CompanyChatContent() {
   const { user, accessToken } = useAuthStore()
   const [messages, setMessages] = useState([])
   const [loading, setLoading] = useState(true)
@@ -248,7 +251,6 @@ export default function CompanyChat() {
   const [locationStatus, setLocationStatus] = useState('')
   const [stickerTrayOpen, setStickerTrayOpen] = useState(false)
   const [lightbox, setLightbox] = useState(null)
-  const [placeNames, setPlaceNames] = useState({})
   const [replyingTo, setReplyingTo] = useState(null)
   const [mentionUsers, setMentionUsers] = useState([])
   const [mentionOpen, setMentionOpen] = useState(false)
@@ -500,20 +502,6 @@ export default function CompanyChat() {
     }
   }, [loading, targetMessageId, visibleMessages])
 
-  useEffect(() => {
-    messages.forEach((message) => {
-      if (!hasLocation(message)) return
-      const key = locationKey(message)
-      if (placeNames[key]) return
-      if (!isGenericLocationLabel(message.locationLabel)) {
-        setPlaceNames((current) => current[key] ? current : { ...current, [key]: message.locationLabel })
-        return
-      }
-      resolvePlaceName(Number(message.latitude), Number(message.longitude)).then((place) => {
-        setPlaceNames((current) => current[key] ? current : { ...current, [key]: place })
-      })
-    })
-  }, [messages, placeNames])
 
   async function buildLocationPayload() {
     try {
@@ -702,11 +690,9 @@ export default function CompanyChat() {
     setStickerTrayOpen((current) => !current)
   }
 
-  if (!user) return <div className="p-6">Please sign in to view chat.</div>
-  if (loading) return <div className="p-6">Loading chat...</div>
+  if (!user || loading) return <div role="status" className="flex min-h-[50vh] items-center justify-center p-6 text-slate-200">Loading chat…</div>
 
   return (
-    <Layout>
       <>
       {lightbox ? (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 p-3" onClick={() => setLightbox(null)}>
@@ -824,7 +810,7 @@ export default function CompanyChat() {
                 </div>
               ) : null}
 
-              <ChatMessageHistory groupedMessages={groupedMessages} userId={user.id} highlightedMessageId={highlightedMessageId} mentionUsers={mentionUsers} placeNames={placeNames} setLightbox={setLightbox} setReplyingTo={setReplyingTo} />
+              <ChatMessageHistory groupedMessages={groupedMessages} userId={user.id} highlightedMessageId={highlightedMessageId} mentionUsers={mentionUsers} setLightbox={setLightbox} setReplyingTo={setReplyingTo} />
 
               <div ref={messagesEndRef} />
             </div>
@@ -942,6 +928,5 @@ export default function CompanyChat() {
       </div>
     </div>
       </>
-    </Layout>
   )
 }

@@ -1,58 +1,18 @@
 const express = require('express');
-
+const { createGeocoder } = require('../utils/geocoder');
 const router = express.Router();
-const cache = new Map();
+const geocoder = createGeocoder();
 
 router.get('/reverse', async (req, res) => {
   const latitude = Number(req.query.lat);
   const longitude = Number(req.query.lon);
-
-  if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90 ||
-      !Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
-    return res.status(400).json({ error: 'Valid latitude and longitude are required' });
-  }
-
-  const key = `${latitude.toFixed(5)},${longitude.toFixed(5)}`;
-  if (cache.has(key)) return res.json({ name: cache.get(key) });
-
+  if (typeof req.query.lat !== 'string' || !req.query.lat.trim() || typeof req.query.lon !== 'string' || !req.query.lon.trim() || !Number.isFinite(latitude) || Math.abs(latitude) > 90 || !Number.isFinite(longitude) || Math.abs(longitude) > 180) return res.status(400).json({ error: 'Valid latitude and longitude are required' });
+  const language = String(req.query.language || 'en').replace(/[^a-zA-Z0-9,;-]/g, '').slice(0, 40) || 'en';
   try {
-    const params = new URLSearchParams({
-      format: 'jsonv2',
-      lat: String(latitude),
-      lon: String(longitude),
-      zoom: '18',
-      addressdetails: '1',
-      'accept-language': String(req.query.language || 'en').slice(0, 20)
-    });
-    const response = await fetch(`https://nominatim.openstreetmap.org/reverse?${params}`, {
-      headers: {
-        Accept: 'application/json',
-        'User-Agent': process.env.GEOCODER_USER_AGENT || 'Netfield/1.0'
-      },
-      signal: AbortSignal.timeout(10000)
-    });
-    if (!response.ok) throw new Error(`Geocoder returned ${response.status}`);
-
-    const data = await response.json();
-    const address = data?.address || {};
-    const name = address.neighbourhood ||
-      address.suburb ||
-      address.quarter ||
-      address.borough ||
-      address.city_district ||
-      address.village ||
-      address.town ||
-      address.city ||
-      data?.name;
-    if (!name) return res.status(404).json({ error: 'Place name not found' });
-
-    if (cache.size >= 1000) cache.delete(cache.keys().next().value);
-    cache.set(key, name);
-    return res.json({ name });
+    res.json({ name: await geocoder.lookup(latitude, longitude, language) });
   } catch (error) {
-    console.error('[location] reverse lookup error:', error.message);
-    return res.status(502).json({ error: 'Place lookup failed' });
+    if (error.retryAfter) res.setHeader('Retry-After', String(error.retryAfter));
+    res.status(error.status || 502).json({ error: error.message });
   }
 });
-
 module.exports = router;

@@ -78,6 +78,6 @@ export default function ProtectedRoute({ children }) {
     if (blocked) router.replace('/tickets')
   }, [user, loading, pathname, router])
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center">Loading…</div>
+  if (loading) return <div role="status" className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-200">Restoring your session…</div>
   return children
 }

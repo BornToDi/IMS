@@ -10,3 +10,4 @@ apps/api/uploads/
 **/.turbo
 pnpm-lock.yaml
 yarn.lock
+apps/api/data/geocoder-cache.json*
