@@ -8,7 +8,7 @@ import Layout from '../../components/Layout'
 import ChatAttendance from '../../components/ChatAttendance'
 import { fetchChatHistoryPage } from '../../lib/chatHistory.mjs'
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || ''
+const API_BASE_URL = ''
 
 function formatMessageTime(value) {
   return new Date(value).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })

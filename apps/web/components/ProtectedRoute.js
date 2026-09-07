@@ -9,49 +9,32 @@ export default function ProtectedRoute({ children }) {
   const user = useAuthStore((s) => s.user)
   const accessToken = useAuthStore((s) => s.accessToken)
   const refreshAccessToken = useAuthStore((s) => s.refreshAccessToken)
-  const setAuth = useAuthStore((s) => s.setAuth)
+  const sessionError = useAuthStore((s) => s.sessionError)
+  const [attempt, setAttempt] = useState(0)
   const setActiveWorkspace = useAuthStore((s) => s.setActiveWorkspace)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    let cancelled = false
     async function check() {
       if (user && accessToken) {
         setLoading(false)
-        // Restore workspace from localStorage
-        if (typeof window !== 'undefined') {
+        try {
           const saved = localStorage.getItem('activeWorkspace')
           if (saved) setActiveWorkspace(saved)
-        }
+        } catch {}
         return
       }
-      // Try refresh
-      try {
-        const res = await fetch('/api/auth/refresh', {
-          method: 'POST',
-          credentials: 'include'
-        })
-        if (!res.ok) throw new Error('No session')
-        const data = await res.json()
-        // fetch me
-        const meRes = await fetch('/api/auth/me', {
-          headers: { Authorization: `Bearer ${data.accessToken}` }
-        })
-        if (!meRes.ok) throw new Error('Could not fetch user')
-        const me = await meRes.json()
-        setAuth(me.user, data.accessToken)
-        // Restore workspace from localStorage
-        if (typeof window !== 'undefined') {
-          const saved = localStorage.getItem('activeWorkspace')
-          if (saved) setActiveWorkspace(saved)
-        }
-        setLoading(false)
-      } catch (err) {
-        router.push('/login')
-      }
+      setLoading(true)
+      await refreshAccessToken()
+      if (cancelled) return
+      const session = useAuthStore.getState()
+      if (session.sessionExpired) router.replace('/login')
+      else setLoading(false)
     }
     check()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, accessToken])
+    return () => { cancelled = true }
+  }, [user, accessToken, attempt, refreshAccessToken, setActiveWorkspace, router])
 
   useEffect(() => {
     if (!user || !accessToken) return undefined
@@ -79,5 +62,6 @@ export default function ProtectedRoute({ children }) {
   }, [user, loading, pathname, router])
 
   if (loading) return <div role="status" className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-200">Restoring your session…</div>
+  if (!user || !accessToken) return <div role="alert" className="flex min-h-screen flex-col items-center justify-center gap-3 bg-slate-950 p-6 text-slate-200"><p>{sessionError || 'Restoring your session…'}</p>{sessionError && <button type="button" onClick={() => setAttempt(value => value + 1)} className="rounded-lg bg-emerald-400 px-4 py-2 font-semibold text-emerald-950">Retry connection</button>}</div>
   return children
 }

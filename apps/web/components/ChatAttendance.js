@@ -2,7 +2,7 @@
 import { memo, useEffect, useRef, useState } from 'react'
 import { getCurrentLocationWithPlace } from '../lib/location'
 
-const API = process.env.NEXT_PUBLIC_API_URL || ''
+const API = ''
 const today = () => new Date(Date.now() + 21600000).toISOString().slice(0, 10)
 const time = value => value ? new Date(value).toLocaleTimeString('en-GB', { timeZone: 'Asia/Dhaka', hour: '2-digit', minute: '2-digit' }) : '—'
 const control = 'rounded-xl border border-white/15 bg-[#202c33] px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:opacity-50'

@@ -1,8 +1,8 @@
 import { useAuthStore } from '../store/useAuthStore'
 
-// Prefer explicit NEXT_PUBLIC_* env vars. Provide sensible local dev fallbacks
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || process.env.API_URL || 'http://127.0.0.1:5000'
-export const SOCKET_BASE_URL = process.env.NEXT_PUBLIC_SOCKET_URL || API_BASE_URL || 'http://127.0.0.1:5000'
+// Keep browser API traffic on the website's origin (Nginx/Next proxies it).
+export const API_BASE_URL = ''
+export const SOCKET_BASE_URL = process.env.NEXT_PUBLIC_SOCKET_URL || undefined
 
 export function authHeaders(token, extra = {}) {
   return {

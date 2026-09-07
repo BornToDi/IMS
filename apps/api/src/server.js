@@ -10,6 +10,7 @@ const { verify } = require('./utils/jwt');
 const { notifyGlobalChatRecipients } = require('./utils/globalChatNotifications');
 
 const app = express();
+app.set('trust proxy', 'loopback');
 const server = http.createServer(app);
 
 const DEFAULT_CLIENT_URLS = [

@@ -2,7 +2,7 @@ const placeCache = new Map()
 const pendingPlaces = new Map()
 const failedPlaces = new Map()
 const PLACE_CACHE_VERSION = 'v7'
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || ''
+const API_BASE_URL = ''
 
 function cacheKey(latitude, longitude) {
   return `${Number(latitude).toFixed(5)},${Number(longitude).toFixed(5)}:${typeof navigator === 'undefined' ? 'en' : navigator.language || 'en'}`
@@ -10,6 +10,10 @@ function cacheKey(latitude, longitude) {
 
 export function isGenericLocationLabel(label) {
   return !label || ['Update location', 'Shared live location', 'Live location', 'Place name unavailable', 'Tap to view exact location'].includes(label)
+}
+
+export function placeRetryDelay(latitude, longitude) {
+  return Math.max(1000, (failedPlaces.get(cacheKey(latitude, longitude)) || Date.now() + 60000) - Date.now() + 1000)
 }
 
 export async function resolvePlaceName(latitude, longitude) {
@@ -54,6 +58,9 @@ export async function resolvePlaceName(latitude, longitude) {
 }
 
 export async function getCurrentLocationWithPlace({ maximumAge = 30000 } = {}) {
+  if (typeof window !== 'undefined' && window.isSecureContext === false) {
+    throw new Error('Open this site using HTTPS to allow current location access')
+  }
   if (typeof window === 'undefined' || !navigator.geolocation) {
     throw new Error('Location is not supported on this browser')
   }

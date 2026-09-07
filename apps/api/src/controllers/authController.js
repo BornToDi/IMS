@@ -1,6 +1,7 @@
 const prisma = require('../prismaClient');
 const { hashPassword, verifyPassword } = require('../utils/hash');
 const { signAccess, signRefresh, verify } = require('../utils/jwt');
+const { sessionCookieOptions } = require('../utils/sessionCookie');
 
 const publicUserSelect = {
   id: true,
@@ -14,17 +15,11 @@ const publicUserSelect = {
   updatedAt: true
 };
 
-function sendTokens(res, user) {
+function sendTokens(req, res, user) {
   const access = signAccess({ userId: user.id });
   const refresh = signRefresh({ userId: user.id });
-  const secure = process.env.NODE_ENV === 'production';
-  res.cookie('refreshToken', refresh, {
-    httpOnly: true,
-    secure,
-    sameSite: secure ? 'none' : 'lax',
-    path: '/api',
-    maxAge: 7 * 24 * 60 * 60 * 1000
-  });
+  res.cookie('refreshToken', refresh, sessionCookieOptions(req));
+  res.setHeader('Cache-Control', 'no-store');
   return access;
 }
 
@@ -78,7 +73,7 @@ async function register(req, res) {
   if (userRole === 'BANK' && !String(bankName || '').trim()) return res.status(400).json({ error: 'Bank name is required' });
   const passwordHash = await hashPassword(password);
   const user = await prisma.user.create({ data: { name: String(name).trim(), email: normalizedEmail, passwordHash, userRole, bankName: trimOrNull(bankName) } });
-  const access = sendTokens(res, user);
+  const access = sendTokens(req, res, user);
   res.json({ user: serializeUser(user), accessToken: access });
 }
 
@@ -89,7 +84,7 @@ async function login(req, res) {
   if (!user) return res.status(401).json({ error: 'Invalid credentials' });
   const ok = await verifyPassword(password, user.passwordHash);
   if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
-  const access = sendTokens(res, user);
+  const access = sendTokens(req, res, user);
   return res.json({ user: serializeUser(user), accessToken: access });
 }
 
@@ -100,15 +95,19 @@ async function logout(req, res) {
 
 async function refresh(req, res) {
   const token = req.cookies.refreshToken;
+  res.setHeader('Cache-Control', 'no-store');
   if (!token) return res.status(401).json({ error: 'No refresh token' });
+  let payload;
+  try { payload = verify(token, 'refresh'); }
+  catch { return res.status(401).json({ error: 'Invalid refresh token' }); }
   try {
-    const payload = verify(token, 'refresh');
     const user = await prisma.user.findUnique({ where: { id: payload.userId } });
     if (!user) return res.status(401).json({ error: 'Invalid token user' });
-    const access = sendTokens(res, user);
-    res.json({ accessToken: access });
+    const access = sendTokens(req, res, user);
+    res.json({ accessToken: access, user: serializeUser(user) });
   } catch (err) {
-    return res.status(401).json({ error: 'Invalid refresh token' });
+    console.error('[auth] session restore failed:', err.code || err.name);
+    return res.status(503).json({ error: 'Session service temporarily unavailable' });
   }
 }
 

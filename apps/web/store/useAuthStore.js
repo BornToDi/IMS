@@ -1,29 +1,25 @@
 import { create } from 'zustand'
+import { requestSession } from '../lib/session.mjs'
 
 let refreshPromise = null
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || ''
+const API_BASE_URL = ''
 
 export const useAuthStore = create((set, get) => ({
   user: null,
   activeWorkspace: null,
   accessToken: null,
+  sessionError: '',
+  sessionExpired: false,
   refreshAccessToken: async () => {
     if (refreshPromise) return refreshPromise
     refreshPromise = (async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
-          method: 'POST',
-          credentials: 'include'
-        })
-        if (!res.ok) {
-          set({ user: null, accessToken: null })
-          return null
-        }
-        const data = await res.json()
-        set({ accessToken: data.accessToken })
+        const data = await requestSession()
+        set({ user: data.user, accessToken: data.accessToken, sessionError: '', sessionExpired: false })
         return data.accessToken
       } catch (e) {
-        set({ user: null, accessToken: null })
+        if (e.unauthenticated) set({ user: null, accessToken: null, sessionExpired: true, sessionError: '' })
+        else set({ sessionError: e.message || 'Connection interrupted. Please retry.', sessionExpired: false })
         return null
       } finally {
         refreshPromise = null
@@ -32,11 +28,10 @@ export const useAuthStore = create((set, get) => ({
     return refreshPromise
   },
   setAuth: (user, token) => {
-    set({ user, accessToken: token })
+    set({ user, accessToken: token, sessionError: '', sessionExpired: false })
     // Try to restore workspace selection
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('activeWorkspace')
-      if (saved) set({ activeWorkspace: saved })
+      try { const saved = localStorage.getItem('activeWorkspace'); if (saved) set({ activeWorkspace: saved }) } catch {}
     }
   },
   setActiveWorkspace: (id) => {
@@ -50,7 +45,7 @@ export const useAuthStore = create((set, get) => ({
     }
   },
   clearAuth: () => {
-    set({ user: null, accessToken: null, activeWorkspace: null })
+    set({ user: null, accessToken: null, activeWorkspace: null, sessionError: '', sessionExpired: true })
     if (typeof window !== 'undefined') {
       localStorage.removeItem('activeWorkspace')
     }
@@ -68,7 +63,7 @@ export const useAuthStore = create((set, get) => ({
       throw new Error(body && body.error ? body.error : 'Login failed')
     }
     const data = await res.json()
-    set({ user: data.user, accessToken: data.accessToken })
+    set({ user: data.user, accessToken: data.accessToken, sessionError: '', sessionExpired: false })
     return data.user
   },
   register: async (name, email, password, userRole = 'EMPLOYEE', bankName = '') => {
@@ -84,7 +79,7 @@ export const useAuthStore = create((set, get) => ({
       throw new Error(body && body.error ? body.error : 'Registration failed')
     }
     const data = await res.json()
-    set({ user: data.user, accessToken: data.accessToken })
+    set({ user: data.user, accessToken: data.accessToken, sessionError: '', sessionExpired: false })
     return data.user
   }
 }))

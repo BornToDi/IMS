@@ -1,6 +1,6 @@
 "use client"
 import { memo, useEffect, useRef, useState } from 'react'
-import { isGenericLocationLabel, resolvePlaceName } from '../lib/location'
+import { isGenericLocationLabel, resolvePlaceName, placeRetryDelay } from '../lib/location'
 
 export default memo(function ChatLocation({ latitude, longitude, locationLabel, isMine }) {
   const container = useRef(null)
@@ -10,6 +10,10 @@ export default memo(function ChatLocation({ latitude, longitude, locationLabel, 
   const [failed, setFailed] = useState(false)
   useEffect(() => {
     let active = true
+    let visible = false
+    let requested = false
+    let retries = 0
+    let retryTimer
     setPlace(''); setFailed(false)
     if (!isGenericLocationLabel(locationLabel)) { setPlace(locationLabel); return }
     async function lookup() {
@@ -19,13 +23,22 @@ export default memo(function ChatLocation({ latitude, longitude, locationLabel, 
       setPlace(isGenericLocationLabel(name) ? '' : name)
       setFailed(isGenericLocationLabel(name))
       setLoading(false)
+      if (isGenericLocationLabel(name) && retries < 1) {
+        retries++
+        retryTimer = setTimeout(() => {
+          if (!active) return
+          requested = false
+          if (visible && document.visibilityState === 'visible') { requested = true; lookup() }
+        }, placeRetryDelay(latitude, longitude))
+      }
     }
     // History can contain thousands of locations. Only resolve those on screen.
     const observer = new IntersectionObserver(entries => {
-      if (entries.some(entry => entry.isIntersecting)) { observer.disconnect(); lookup() }
+      visible = entries.some(entry => entry.isIntersecting)
+      if (visible && !requested) { requested = true; lookup() }
     })
     if (container.current) observer.observe(container.current)
-    return () => { active = false; observer.disconnect() }
+    return () => { active = false; observer.disconnect(); clearTimeout(retryTimer) }
   }, [latitude, longitude, locationLabel, attempt])
   return <div ref={container} className={`mt-2 rounded-2xl px-3 py-2 text-white ${isMine ? 'bg-white/10' : 'bg-black/20'}`}>
     <a href={`https://www.google.com/maps?q=${latitude},${longitude}`} target="_blank" rel="noreferrer" className="block">
