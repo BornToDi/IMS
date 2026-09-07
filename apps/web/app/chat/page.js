@@ -1,5 +1,5 @@
 "use client"
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuthStore } from '../../store/useAuthStore'
 import { io } from 'socket.io-client'
 import { getCurrentLocationWithPlace, isGenericLocationLabel, resolvePlaceName } from '../../lib/location'
@@ -66,15 +66,19 @@ function messagePreview(message) {
   const text = String(message?.content || message?.attachmentName || 'Message').trim()
   return text.length > 90 ? `${text.slice(0, 87)}...` : text
 }
-function renderMessageContent(content, users) {
+function buildMentionPattern(users) {
   const names = users
     .map((candidate) => String(candidate?.name || '').trim())
     .filter(Boolean)
     .sort((a, b) => b.length - a.length)
-  if (!names.length) return content
+  if (!names.length) return null
 
   const escapedNames = names.map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-  const pattern = new RegExp(`(@(?:${escapedNames.join('|')}))`, 'i')
+  return new RegExp(`(@(?:${escapedNames.join('|')}))`, 'i')
+}
+
+function renderMessageContent(content, pattern) {
+  if (!pattern || !String(content).includes('@')) return content
 
   return String(content).split(pattern).map((part, index) => (
     pattern.test(part)
@@ -108,6 +112,124 @@ const STICKERS = [
   { id: 'hug', emoji: '🤗', label: 'Hug' }
 ]
 
+// Draft changes must not re-render the full message history.
+const ChatMessageHistory = React.memo(function ChatMessageHistory({ groupedMessages, userId, highlightedMessageId, mentionUsers, placeNames, setLightbox, setReplyingTo }) {
+  const mentionPattern = useMemo(() => buildMentionPattern(mentionUsers), [mentionUsers])
+  return <>
+{groupedMessages.map((group) => (
+                <div key={group.label} className="space-y-3">
+                  <div className="flex justify-center py-1">
+                    <span className="rounded-full bg-[#202c33]/95 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-300 ring-1 ring-white/10">
+                      {group.label}
+                    </span>
+                  </div>
+
+                  {group.items.map((message) => {
+                    const isMine = message.authorId === userId
+                    const stickerMessage = isStickerMessage(message)
+                    return (
+                      <div id={`message-${message.id}`} key={message.id} className={`flex scroll-mt-24 rounded-2xl transition ${highlightedMessageId === message.id ? 'bg-amber-300/20 ring-2 ring-amber-300/70' : ''} ${isMine ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`${stickerMessage ? 'max-w-[6rem] rounded-2xl bg-transparent px-0 py-0 text-white shadow-none' : `max-w-[86%] rounded-2xl px-3 py-2.5 text-white shadow-lg sm:max-w-[70%] sm:px-3.5 sm:py-3 ${isMine ? 'bg-[#005c4b] rounded-br-sm' : 'bg-[#202c33] rounded-bl-sm'}`}`}>
+                          {!isMine && !stickerMessage ? (
+                            <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white">{message.author?.name || 'Unknown'}</p>
+                          ) : null}
+                          {message.replyTo ? (
+                            <button
+                              type="button"
+                              onClick={() => document.getElementById(`message-${message.replyTo.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+                              className={`mb-2 block w-full border-l-4 px-3 py-2 text-left ${isMine ? 'border-emerald-300 bg-black/15' : 'border-emerald-400 bg-black/20'}`}
+                            >
+                              <span className="block text-[11px] font-bold text-white">{message.replyTo.author?.name || 'Unknown'}</span>
+                              <span className="mt-0.5 block truncate text-xs text-white">{messagePreview(message.replyTo)}</span>
+                            </button>
+                          ) : null}
+                          {stickerMessage ? (
+                            <div className="flex justify-center text-[3.25rem] leading-none drop-shadow-lg sm:text-[4rem]">
+                              {message.content}
+                            </div>
+                          ) : (
+                            <p className="whitespace-pre-wrap break-words text-[13px] leading-5 sm:text-sm sm:leading-6">{renderMessageContent(message.content, mentionPattern)}</p>
+                          )}
+                          {message.attachmentUrl ? (
+                            <div className="mt-2 overflow-hidden rounded-2xl border border-white/10 bg-black/20">
+                              {isImageAttachment(message) ? (
+                                <button type="button" onClick={() => setLightbox(getAttachmentUrl(message))} className="block w-full">
+                                  <img
+                                    src={getAttachmentUrl(message)}
+                                    alt={message.attachmentName || 'Uploaded file'}
+                                    className="max-h-72 w-full object-cover"
+                                  />
+                                </button>
+                              ) : null}
+                              <a
+                                href={getAttachmentUrl(message)}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="flex items-center gap-3 px-3 py-3 text-left transition hover:bg-white/5"
+                              >
+                                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-emerald-500/15 text-lg text-emerald-200 ring-1 ring-emerald-400/20">
+                                  📎
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <p className="truncate text-sm font-semibold text-white">{message.attachmentName || 'Attachment'}</p>
+                                  <p className="truncate text-xs text-white">
+                                    {message.attachmentType || 'File'}
+                                    {message.attachmentSize ? ` • ${(message.attachmentSize / 1024).toFixed(1)} KB` : ''}
+                                  </p>
+                                </div>
+                                <span className="text-xs font-medium text-white">Open</span>
+                              </a>
+                            </div>
+                          ) : null}
+                          {hasLocation(message) ? (
+                            <a href={mapUrl(message)} target="_blank" rel="noreferrer" className={`mt-2 block rounded-2xl px-3 py-2 text-white ${isMine ? 'bg-white/10' : 'bg-black/20'}`}>
+                              <div className="text-xs font-black">📍 Live location</div>
+                              <div className="mt-0.5 break-words text-[11px] font-semibold leading-4 opacity-80">{placeNames[locationKey(message)] || (isGenericLocationLabel(message.locationLabel) ? 'Finding place name…' : message.locationLabel)}</div>
+                            </a>
+                          ) : null}
+                          <div className="mt-1.5 flex items-center justify-end gap-3 text-[11px] text-white">
+                            <button type="button" onClick={() => setReplyingTo(message)} className="font-semibold text-white hover:text-white" title="Reply to message">Reply</button>
+                            <span>{formatMessageTime(message.createdAt)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ))}
+  </>
+})
+
+const ChatContacts = React.memo(function ChatContacts({ filteredContacts, setMobileContactsOpen }) {
+  return (
+<div className="space-y-2">
+              {filteredContacts.length === 0 ? (
+                <div className="rounded-3xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
+                  No matching conversations yet.
+                </div>
+              ) : filteredContacts.map((contact) => (
+                <button
+                  key={contact.id}
+                  type="button"
+                  className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition hover:bg-white/5"
+                  onClick={() => setMobileContactsOpen(false)}
+                >
+                  <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[#202c33] text-sm font-semibold text-emerald-200 ring-1 ring-white/10">
+                    {contact.initials}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="truncate text-sm font-semibold text-white">{contact.isMe ? `${contact.name} (You)` : contact.name}</p>
+                      <span className="shrink-0 text-[11px] text-slate-400">{formatMessageTime(contact.createdAt)}</span>
+                    </div>
+                    <p className="truncate text-sm text-slate-400">{contact.lastMessage}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+  )
+})
+
 export default function CompanyChat() {
   const { user, accessToken } = useAuthStore()
   const [messages, setMessages] = useState([])
@@ -121,6 +243,7 @@ export default function CompanyChat() {
   const [connectionState, setConnectionState] = useState('connecting')
   const [mobileContactsOpen, setMobileContactsOpen] = useState(false)
   const [selectedFile, setSelectedFile] = useState(null)
+  const [filePreviewUrl, setFilePreviewUrl] = useState('')
   const [isUploading, setIsUploading] = useState(false)
   const [locationStatus, setLocationStatus] = useState('')
   const [stickerTrayOpen, setStickerTrayOpen] = useState(false)
@@ -137,6 +260,16 @@ export default function CompanyChat() {
   const targetMessageHandledRef = useRef(false)
   const fileInputRef = useRef(null)
   const messageInputRef = useRef(null)
+  const appendMessage = useCallback(message => {
+    setMessages(current => current.some(item => item.id === message.id) ? current : [...current, message])
+  }, [])
+
+  useEffect(() => {
+    if (!selectedFile?.type?.startsWith('image/')) { setFilePreviewUrl(''); return }
+    const url = URL.createObjectURL(selectedFile)
+    setFilePreviewUrl(url)
+    return () => URL.revokeObjectURL(url)
+  }, [selectedFile])
 
   useEffect(() => {
     const messageId = new URLSearchParams(window.location.search).get('message')
@@ -264,8 +397,11 @@ export default function CompanyChat() {
   useEffect(() => {
     const input = messageInputRef.current
     if (!input) return
-    input.style.height = 'auto'
-    input.style.height = `${Math.min(input.scrollHeight, 120)}px`
+    const frame = requestAnimationFrame(() => {
+      input.style.height = 'auto'
+      input.style.height = `${Math.min(input.scrollHeight, 120)}px`
+    })
+    return () => cancelAnimationFrame(frame)
   }, [newMessage])
 
   // Ensure the page background is dark while on chat page to avoid light corners
@@ -426,15 +562,14 @@ export default function CompanyChat() {
     }
   }
 
-  const filteredMentionUsers = mentionUsers
-    .filter((candidate) => candidate.id !== user?.id)
-    .filter((candidate) => {
-      const query = mentionQuery.trim().toLowerCase()
-      if (!query) return true
-      return String(candidate.name || '').toLowerCase().includes(query) ||
-        String(candidate.email || '').toLowerCase().includes(query)
-    })
-    .slice(0, 8)
+  const filteredMentionUsers = useMemo(() => {
+    if (!mentionOpen) return []
+    const query = mentionQuery.trim().toLowerCase()
+    return mentionUsers.filter(candidate => candidate.id !== user?.id && (
+      !query || String(candidate.name || '').toLowerCase().includes(query) ||
+      String(candidate.email || '').toLowerCase().includes(query)
+    )).slice(0, 8)
+  }, [mentionOpen, mentionQuery, mentionUsers, user?.id])
 
   function handleMessageChange(event) {
     const value = event.target.value
@@ -630,31 +765,7 @@ export default function CompanyChat() {
               <p className="mt-1 text-sm text-emerald-50/80">{messages.length} messages so far</p>
             </div>
 
-            <div className="space-y-2">
-              {filteredContacts.length === 0 ? (
-                <div className="rounded-3xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
-                  No matching conversations yet.
-                </div>
-              ) : filteredContacts.map((contact) => (
-                <button
-                  key={contact.id}
-                  type="button"
-                  className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition hover:bg-white/5"
-                  onClick={() => setMobileContactsOpen(false)}
-                >
-                  <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[#202c33] text-sm font-semibold text-emerald-200 ring-1 ring-white/10">
-                    {contact.initials}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="truncate text-sm font-semibold text-white">{contact.isMe ? `${contact.name} (You)` : contact.name}</p>
-                      <span className="shrink-0 text-[11px] text-slate-400">{formatMessageTime(contact.createdAt)}</span>
-                    </div>
-                    <p className="truncate text-sm text-slate-400">{contact.lastMessage}</p>
-                  </div>
-                </button>
-              ))}
-            </div>
+            <ChatContacts filteredContacts={filteredContacts} setMobileContactsOpen={setMobileContactsOpen} />
           </div>
         </aside>
 
@@ -675,7 +786,7 @@ export default function CompanyChat() {
             </div>
           </div>
 
-          <ChatAttendance accessToken={accessToken} user={user} messages={messages} historyLoading={loading || !!historyError} onMessage={message => setMessages(current => current.some(item => item.id === message.id) ? current : [...current, message])} />
+          <ChatAttendance accessToken={accessToken} user={user} messages={messages} historyLoading={loading || !!historyError} onMessage={appendMessage} />
           <div className="flex flex-none flex-wrap items-center gap-2 border-b border-white/10 bg-[#111b21] px-3 py-2 sm:px-6">
             <label htmlFor="chat-date-filter" className="text-xs font-semibold text-slate-300">Show chat from date</label>
             <input
@@ -713,87 +824,7 @@ export default function CompanyChat() {
                 </div>
               ) : null}
 
-              {groupedMessages.map((group) => (
-                <div key={group.label} className="space-y-3">
-                  <div className="flex justify-center py-1">
-                    <span className="rounded-full bg-[#202c33]/95 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-300 ring-1 ring-white/10">
-                      {group.label}
-                    </span>
-                  </div>
-
-                  {group.items.map((message) => {
-                    const isMine = message.authorId === user.id
-                    const stickerMessage = isStickerMessage(message)
-                    return (
-                      <div id={`message-${message.id}`} key={message.id} className={`flex scroll-mt-24 rounded-2xl transition ${highlightedMessageId === message.id ? 'bg-amber-300/20 ring-2 ring-amber-300/70' : ''} ${isMine ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`${stickerMessage ? 'max-w-[6rem] rounded-2xl bg-transparent px-0 py-0 text-white shadow-none' : `max-w-[86%] rounded-2xl px-3 py-2.5 text-white shadow-lg sm:max-w-[70%] sm:px-3.5 sm:py-3 ${isMine ? 'bg-[#005c4b] rounded-br-sm' : 'bg-[#202c33] rounded-bl-sm'}`}`}>
-                          {!isMine && !stickerMessage ? (
-                            <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white">{message.author?.name || 'Unknown'}</p>
-                          ) : null}
-                          {message.replyTo ? (
-                            <button
-                              type="button"
-                              onClick={() => document.getElementById(`message-${message.replyTo.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
-                              className={`mb-2 block w-full border-l-4 px-3 py-2 text-left ${isMine ? 'border-emerald-300 bg-black/15' : 'border-emerald-400 bg-black/20'}`}
-                            >
-                              <span className="block text-[11px] font-bold text-white">{message.replyTo.author?.name || 'Unknown'}</span>
-                              <span className="mt-0.5 block truncate text-xs text-white">{messagePreview(message.replyTo)}</span>
-                            </button>
-                          ) : null}
-                          {stickerMessage ? (
-                            <div className="flex justify-center text-[3.25rem] leading-none drop-shadow-lg sm:text-[4rem]">
-                              {message.content}
-                            </div>
-                          ) : (
-                            <p className="whitespace-pre-wrap break-words text-[13px] leading-5 sm:text-sm sm:leading-6">{renderMessageContent(message.content, mentionUsers)}</p>
-                          )}
-                          {message.attachmentUrl ? (
-                            <div className="mt-2 overflow-hidden rounded-2xl border border-white/10 bg-black/20">
-                              {isImageAttachment(message) ? (
-                                <button type="button" onClick={() => setLightbox(getAttachmentUrl(message))} className="block w-full">
-                                  <img
-                                    src={getAttachmentUrl(message)}
-                                    alt={message.attachmentName || 'Uploaded file'}
-                                    className="max-h-72 w-full object-cover"
-                                  />
-                                </button>
-                              ) : null}
-                              <a
-                                href={getAttachmentUrl(message)}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="flex items-center gap-3 px-3 py-3 text-left transition hover:bg-white/5"
-                              >
-                                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-emerald-500/15 text-lg text-emerald-200 ring-1 ring-emerald-400/20">
-                                  📎
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <p className="truncate text-sm font-semibold text-white">{message.attachmentName || 'Attachment'}</p>
-                                  <p className="truncate text-xs text-white">
-                                    {message.attachmentType || 'File'}
-                                    {message.attachmentSize ? ` • ${(message.attachmentSize / 1024).toFixed(1)} KB` : ''}
-                                  </p>
-                                </div>
-                                <span className="text-xs font-medium text-white">Open</span>
-                              </a>
-                            </div>
-                          ) : null}
-                          {hasLocation(message) ? (
-                            <a href={mapUrl(message)} target="_blank" rel="noreferrer" className={`mt-2 block rounded-2xl px-3 py-2 text-white ${isMine ? 'bg-white/10' : 'bg-black/20'}`}>
-                              <div className="text-xs font-black">📍 Live location</div>
-                              <div className="mt-0.5 break-words text-[11px] font-semibold leading-4 opacity-80">{placeNames[locationKey(message)] || (isGenericLocationLabel(message.locationLabel) ? 'Finding place name…' : message.locationLabel)}</div>
-                            </a>
-                          ) : null}
-                          <div className="mt-1.5 flex items-center justify-end gap-3 text-[11px] text-white">
-                            <button type="button" onClick={() => setReplyingTo(message)} className="font-semibold text-white hover:text-white" title="Reply to message">Reply</button>
-                            <span>{formatMessageTime(message.createdAt)}</span>
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              ))}
+              <ChatMessageHistory groupedMessages={groupedMessages} userId={user.id} highlightedMessageId={highlightedMessageId} mentionUsers={mentionUsers} placeNames={placeNames} setLightbox={setLightbox} setReplyingTo={setReplyingTo} />
 
               <div ref={messagesEndRef} />
             </div>
@@ -831,7 +862,7 @@ export default function CompanyChat() {
 
               {selectedFile ? (
                 <div className="mb-2 flex items-center justify-between gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-50">
-                  {selectedFile.type?.startsWith('image/') ? <img src={URL.createObjectURL(selectedFile)} alt="selected" className="h-14 w-16 shrink-0 rounded-xl object-cover" /> : <div className="grid h-14 w-16 shrink-0 place-items-center rounded-xl bg-white/10 text-2xl">📎</div>}
+                  {filePreviewUrl ? <img src={filePreviewUrl} alt="selected" className="h-14 w-16 shrink-0 rounded-xl object-cover" /> : <div className="grid h-14 w-16 shrink-0 place-items-center rounded-xl bg-white/10 text-2xl">📎</div>}
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium">{selectedFile.name}</p>
                     <p className="text-xs text-emerald-50/70">Ready to send in chat</p>

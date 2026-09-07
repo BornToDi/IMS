@@ -1,5 +1,5 @@
 "use client"
-import { useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import { getCurrentLocationWithPlace } from '../lib/location'
 
 const API = process.env.NEXT_PUBLIC_API_URL || ''
@@ -8,7 +8,7 @@ const time = value => value ? new Date(value).toLocaleTimeString('en-GB', { time
 const control = 'rounded-xl border border-white/15 bg-[#202c33] px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:opacity-50'
 const compactControl = 'shrink-0 rounded-lg border border-white/15 bg-[#202c33] px-2.5 py-1.5 text-xs font-medium text-white focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:opacity-40'
 
-export default function ChatAttendance({ accessToken, user, messages, onMessage, historyLoading }) {
+export default memo(function ChatAttendance({ accessToken, user, messages, onMessage, historyLoading }) {
   const canUseAttendance = ['ADMIN', 'ASSISTANT', 'EMPLOYEE', 'FIELD_EMPLOYEE'].includes(user?.userRole)
   const canViewReports = ['ADMIN', 'ASSISTANT'].includes(user?.userRole)
   const [expanded, setExpanded] = useState(false)
@@ -130,4 +130,4 @@ export default function ChatAttendance({ accessToken, user, messages, onMessage,
       </>}
     </div>}
   </div>
-}
+})
