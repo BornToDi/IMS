@@ -11,17 +11,18 @@ if (enabled) webpush.setVapidDetails(subject, publicKey, privateKey);
 async function sendPushForUser(userId, notification) {
   if (!enabled || !userId) return;
 
-  const [subscriptions, unreadCount] = await Promise.all([
+  const [subscriptions, unreadOther, unreadChat] = await Promise.all([
     prisma.pushSubscription.findMany({ where: { userId } }),
-    prisma.notification.count({ where: { userId, isRead: false } })
+    prisma.notification.count({ where: { userId, isRead: false, type: { not: 'GLOBAL_CHAT' } } }),
+    prisma.notification.count({ where: { userId, isRead: false, type: 'GLOBAL_CHAT' } })
   ]);
 
   const payload = JSON.stringify({
     title: 'TrackField',
     body: notification.message,
     url: notification.targetUrl || '/',
-    tag: notification.id,
-    unreadCount
+    tag: notification.type === 'GLOBAL_CHAT' ? `global-chat:${userId}` : notification.id,
+    unreadCount: unreadOther + Number(unreadChat > 0)
   });
 
   await Promise.all(subscriptions.map(async (subscription) => {

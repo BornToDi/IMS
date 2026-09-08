@@ -9,7 +9,11 @@ async function listNotifications(req, res) {
     const where = workspaceId ? { userId, workspaceId } : { userId };
     const requestedLimit = Number.parseInt(req.query.limit, 10);
     const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(requestedLimit, 1), 200) : 100;
-    const notes = await prisma.notification.findMany({ where, orderBy: { createdAt: 'desc' }, take: limit });
+    const [recent, unread] = await Promise.all([
+      prisma.notification.findMany({ where, orderBy: { createdAt: 'desc' }, take: limit }),
+      prisma.notification.findMany({ where: { ...where, isRead: false }, orderBy: { createdAt: 'desc' } })
+    ]);
+    const notes = [...new Map([...recent, ...unread].map(note => [note.id, note])).values()].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     res.json(notes);
   } catch (err) {
     console.error('[notifications/list]', err);
@@ -23,6 +27,9 @@ async function markRead(req, res) {
     const { id } = req.params;
     const note = await prisma.notification.findFirst({ where: { id, userId } });
     if (!note) return res.status(404).json({ error: 'Not found' });
+    if (note.type === 'GLOBAL_CHAT') {
+      await prisma.notification.updateMany({ where: { userId, type: 'GLOBAL_CHAT', isRead: false }, data: { isRead: true } });
+    }
     const updated = await prisma.notification.update({ where: { id }, data: { isRead: true } });
     res.json(updated);
   } catch (err) {

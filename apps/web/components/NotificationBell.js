@@ -4,15 +4,20 @@ import { io } from 'socket.io-client'
 import { useRouter } from 'next/navigation'
 import { SOCKET_BASE_URL, apiFetch } from '../lib/api'
 import { useAuthStore } from '../store/useAuthStore'
+import { useNotificationStore } from '../store/useNotificationStore'
+import { notificationCounts } from '../lib/notificationCounts.mjs'
 
 export default function NotificationBell() {
   const router = useRouter()
-  const [notes, setNotes] = useState([])
+  const notes = useNotificationStore(state => state.notes)
+  const setNotes = useNotificationStore(state => state.setNotes)
   const [showDropdown, setShowDropdown] = useState(false)
   const [pulse, setPulse] = useState(false)
   const accessToken = useAuthStore((s) => s.accessToken)
   const dropdownRef = useRef(null)
-  const unreadCount = notes.filter((note) => !note.isRead).length
+  const unreadCount = notificationCounts(notes).total
+  const firstUnreadChat = notes.find(note => note.type === 'GLOBAL_CHAT' && !note.isRead)
+  const visibleNotes = notes.filter(note => note.type !== 'GLOBAL_CHAT' || (firstUnreadChat ? note.id === firstUnreadChat.id : note.id === notes.find(item => item.type === 'GLOBAL_CHAT')?.id))
 
   async function load() {
     if (!accessToken) return setNotes([])
@@ -80,7 +85,7 @@ export default function NotificationBell() {
   }
 
   async function openNotification(note) {
-    await markRead(note.id)
+    await markRead(note.id, note.type)
     const url = targetFor(note)
     if (url) {
       setShowDropdown(false)
@@ -159,10 +164,10 @@ export default function NotificationBell() {
     }
   }
 
-  async function markRead(id) {
+  async function markRead(id, type) {
     try {
       await apiFetch(`/api/notifications/${id}/read`, accessToken, { method: 'PATCH' })
-      setNotes((current) => current.map((note) => (note.id === id ? { ...note, isRead: true } : note)))
+      setNotes((current) => current.map((note) => (note.id === id || (type === 'GLOBAL_CHAT' && note.type === type) ? { ...note, isRead: true } : note)))
     } catch (error) {
       console.error('Failed to mark notification as read:', error)
     }
@@ -191,7 +196,7 @@ export default function NotificationBell() {
             </div>
           </div>
           <div className="max-h-96 divide-y divide-slate-100 overflow-y-auto">
-            {notes.length === 0 ? <div className="px-4 py-8 text-center text-sm text-slate-500">No notifications yet</div> : notes.map((note) => (
+            {visibleNotes.length === 0 ? <div className="px-4 py-8 text-center text-sm text-slate-500">No notifications yet</div> : visibleNotes.map((note) => (
               <button type="button" key={note.id} onClick={() => openNotification(note)} className={`block w-full px-4 py-3 text-left transition hover:bg-slate-50 ${note.isRead ? 'bg-white' : 'bg-emerald-50/80'}`}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">

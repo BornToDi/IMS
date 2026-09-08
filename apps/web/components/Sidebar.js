@@ -1,11 +1,11 @@
 "use client"
 import React from 'react'
-import { useEffect, useState, useRef } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuthStore } from '../store/useAuthStore'
-import { apiFetch, SOCKET_BASE_URL } from '../lib/api'
-import { io } from 'socket.io-client'
+import { useNotificationStore } from '../store/useNotificationStore'
+import { notificationCounts } from '../lib/notificationCounts.mjs'
+import { apiFetch } from '../lib/api'
 
 const allItems = [
   { href: '/profile', label: 'My Profile', hint: 'Edit name and password', icon: '◌', roles: ['ADMIN', 'MANAGEMENT', 'ASSISTANT', 'EMPLOYEE', 'BANK'] },
@@ -24,78 +24,26 @@ const allItems = [
 export default function Sidebar({ open = true, onClose }){
   const pathname = usePathname()
   const user = useAuthStore((state) => state.user)
-  const accessToken = useAuthStore((state) => state.accessToken)
-  const [chatCount, setChatCount] = useState(0)
-  const [showChatBadge, setShowChatBadge] = useState(false)
-  // chatTotalRef: total messages known; lastSeenRef: last seen total persisted per user
-  const chatTotalRef = useRef(0)
-  const lastSeenRef = useRef(0)
+  const notes = useNotificationStore(state => state.notes)
+  const setNotes = useNotificationStore(state => state.setNotes)
+  const accessToken = useAuthStore(state => state.accessToken)
+  const counts = notificationCounts(notes)
+  const badgeFor = href => href === '/chat' ? counts.chat : href === '/announcements' ? counts.announcements : 0
   const role = String(user?.userRole || 'EMPLOYEE').toUpperCase()
   const items = allItems.filter((item) => item.roles.includes(role))
-  useEffect(() => {
-    let mounted = true
-    async function load() {
-      // wait for authenticated user so we can read/write per-user last-seen
-      if (!accessToken || !user) return
+  async function openItem(href) {
+    onClose?.()
+    const type = href === '/chat' ? 'GLOBAL_CHAT' : href === '/announcements' ? 'ANNOUNCEMENT' : null
+    if (!type || !accessToken) return
+    const unread = notes.filter(note => !note.isRead && note.type === type)
+    const targets = type === 'GLOBAL_CHAT' ? unread.slice(0, 1) : unread
+    await Promise.all(targets.map(async note => {
       try {
-        const data = await apiFetch('/api/chat', accessToken)
-        if (!mounted) return
-        if (Array.isArray(data)) {
-            const total = data.length
-            // load last seen from localStorage (per-user)
-            const userKey = `chat:lastSeen:${user?.id || user?.email || 'anon'}`
-            const persisted = parseInt(localStorage.getItem(userKey) || '0', 10) || 0
-            lastSeenRef.current = persisted
-            chatTotalRef.current = total
-            const unseen = Math.max(0, total - persisted)
-            if (unseen > 0) setShowChatBadge(true)
-            setChatCount(unseen)
-        }
-      } catch (e) {
-        // ignore
-      }
-    }
-    load()
-    const t = setInterval(load, 30000)
-
-    // real-time updates via socket
-    let socket = null
-    try {
-      socket = io(SOCKET_BASE_URL || undefined, {
-        auth: { token: accessToken },
-        extraHeaders: { Authorization: `Bearer ${accessToken}` }
-      })
-      socket.on('connect', () => {
-        if (!accessToken) return
-        socket.emit('join-global-chat')
-      })
-      socket.on('new-global-message', (message) => {
-        if (!mounted) return
-        // increment total and compute unseen relative to lastSeenRef
-        chatTotalRef.current = (chatTotalRef.current || 0) + 1
-        const unseen = Math.max(0, chatTotalRef.current - (lastSeenRef.current || 0))
-        setChatCount(unseen)
-        if (unseen > 0) setShowChatBadge(true)
-      })
-    } catch (err) {
-      // socket optional
-    }
-
-    return () => { mounted = false; clearInterval(t); if (socket) socket.disconnect() }
-  }, [accessToken, user])
-
-  // clear badge when user opens chat
-  useEffect(() => {
-    if (pathname && pathname.includes('/chat')) {
-      // mark all as seen
-      lastSeenRef.current = chatTotalRef.current || 0
-      const userKey = `chat:lastSeen:${user?.id || user?.email || 'anon'}`
-      try { localStorage.setItem(userKey, String(lastSeenRef.current)) } catch (e) {}
-      setShowChatBadge(false)
-      setChatCount(0)
-    }
-  }, [pathname])
-
+        await apiFetch(`/api/notifications/${note.id}/read`, accessToken, { method: 'PATCH' })
+        setNotes(current => current.map(item => item.id === note.id || (type === 'GLOBAL_CHAT' && item.type === type) ? { ...item, isRead: true } : item))
+      } catch (error) { console.error('Failed to mark navigation notifications as read:', error) }
+    }))
+  }
   if (!open) return null
   return (
     <>
@@ -111,24 +59,14 @@ export default function Sidebar({ open = true, onClose }){
             <Link
               key={i.href}
               href={i.href}
-              onClick={() => {
-                  if (onClose) onClose()
-                  if (i.href === '/chat') {
-                    // mark seen immediately on click
-                    lastSeenRef.current = chatTotalRef.current || 0
-                    const userKey = `chat:lastSeen:${user?.id || user?.email || 'anon'}`
-                    try { localStorage.setItem(userKey, String(lastSeenRef.current)) } catch (err) {}
-                    setShowChatBadge(false)
-                    setChatCount(0)
-                }
-              }}
+              onClick={() => openItem(i.href)}
               className={`relative mb-1 flex items-center gap-3 rounded-2xl px-3 py-3 transition ${active ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-700 hover:bg-slate-100'}`}>
               <span className="grid h-8 w-8 place-items-center rounded-xl bg-black/5 text-sm">{i.icon}</span>
               <span>
                 <span className="block text-sm font-semibold">{i.label}</span>
                 <span className={`block text-xs ${active ? 'text-slate-300' : 'text-slate-500'}`}>{i.hint}</span>
               </span>
-              {/* badge removed per request: no corner color */}
+              {badgeFor(i.href) > 0 && <span aria-label={`${badgeFor(i.href)} unread`} className="ml-auto rounded-full bg-rose-500 px-2 py-0.5 text-xs font-bold text-white">{badgeFor(i.href)}</span>}
             </Link>
           )
         })}
@@ -146,23 +84,14 @@ export default function Sidebar({ open = true, onClose }){
                 <Link
                   key={i.href}
                   href={i.href}
-                  onClick={() => {
-                    if (i.href === '/chat') {
-                      // mark seen immediately on click
-                      lastSeenRef.current = chatTotalRef.current || 0
-                      const userKey = `chat:lastSeen:${user?.id || user?.email || 'anon'}`
-                      try { localStorage.setItem(userKey, String(lastSeenRef.current)) } catch (err) {}
-                      setShowChatBadge(false)
-                      setChatCount(0)
-                    }
-                  }}
+                  onClick={() => openItem(i.href)}
                   className={`relative mb-1 flex items-center gap-3 rounded-2xl px-3 py-3 transition ${active ? 'bg-slate-900 text-white shadow-lg' : 'bg-white/60 text-slate-700 hover:bg-white hover:text-slate-950'}`}>
                   <span className="grid h-8 w-8 place-items-center rounded-xl bg-white/10 text-sm">{i.icon}</span>
                   <span>
                     <span className="block text-sm font-semibold">{i.label}</span>
                     <span className={`block text-xs ${active ? 'text-slate-300' : 'text-slate-500'}`}>{i.hint}</span>
                   </span>
-                  {/* badge removed per request: no corner color */}
+                  {badgeFor(i.href) > 0 && <span aria-label={`${badgeFor(i.href)} unread`} className="ml-auto rounded-full bg-rose-500 px-2 py-0.5 text-xs font-bold text-white">{badgeFor(i.href)}</span>}
                 </Link>
               )
             })}

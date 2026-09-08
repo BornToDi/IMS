@@ -1,4 +1,5 @@
 const prisma = require('../prismaClient');
+const { sendPushForNotifications } = require('../utils/push');
 
 async function canAccessAnnouncement(announcement, userId) {
   if (!announcement?.workspaceId) return true;
@@ -49,6 +50,14 @@ async function createAnnouncement(req, res) {
       }
     });
 
+    if (!workspaceId) {
+      try {
+        const recipients = await prisma.user.findMany({ where: { id: { not: authorId }, userRole: { not: 'BANK' } }, select: { id: true } });
+        const notes = recipients.length ? await prisma.notification.createManyAndReturn({ data: recipients.map(({ id }) => ({ userId: id, type: 'ANNOUNCEMENT', message: `Announcement: ${title}`, targetUrl: '/announcements', isRead: false })) }) : [];
+        notes.forEach(note => req.app?.locals?.io?.to(`user:${note.userId}`).emit('notification:new', note));
+        sendPushForNotifications(notes).catch(error => console.error('[push/announcement]', error));
+      } catch (error) { console.error('[announcement/notification]', error); }
+    }
     res.status(201).json(announcement);
   } catch (error) {
     console.error('[announcement/create]', error);
