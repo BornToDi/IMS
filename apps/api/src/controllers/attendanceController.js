@@ -1,6 +1,7 @@
 const prisma = require('../prismaClient');
 const ExcelJS = require('exceljs');
 const { reportRange, buildReport, TIME_ZONE } = require('../utils/attendance');
+const { compareAttendanceEmployees } = require('../utils/attendanceOrder');
 
 async function getAttendance(req, res) {
   try {
@@ -18,6 +19,7 @@ async function getAttendance(req, res) {
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }]
     });
     const report = buildReport(messages);
+    employees.sort(compareAttendanceEmployees);
     if (req.query.format === 'xlsx') {
       const workbook = new ExcelJS.Workbook();
       const sheet = workbook.addWorksheet('Daily attendance');

@@ -2,6 +2,22 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { command, dateKey, reportRange, buildReport } = require('./attendance');
 const message = (id, content, createdAt, extra = {}) => ({ id, content, createdAt, authorId: 'employee-1', author: { name: 'Employee', employeeCode: 'E01' }, ...extra });
+test('roster employees come first in image order across dates and sign events', () => {
+  const entries = [
+    ['other', 'Aaron Other', '2026-09-06T01:00:00Z'],
+    ['rajib', 'Rajib Chandra Sen (POS)', '2026-09-06T02:00:00Z'],
+    ['susanta', ' SUSANTA Kumar Das (POS) ', '2026-09-06T03:00:00Z'],
+    ['sayed', 'Sayed Arefin Hasan', '2026-09-07T03:00:00Z'],
+    ['sayed', 'Sayed Arefin Hasan', '2026-09-06T03:00:00Z'],
+    ['ma', 'M A Al Mahmud', '2026-09-06T03:00:00Z']
+  ];
+  const messages = entries.map(([authorId, name, date], index) => message(String(index), 'sign in', date, { authorId, author: { name } }));
+  const report = buildReport(messages);
+  assert.deepEqual(report.rows.map(row => row.employeeId), ['sayed', 'sayed', 'susanta', 'ma', 'rajib', 'other']);
+  assert.deepEqual(report.events.map(event => event.employeeId), ['sayed', 'sayed', 'susanta', 'ma', 'rajib', 'other']);
+  assert.deepEqual(report.rows.slice(0, 2).map(row => row.date), ['2026-09-06', '2026-09-07']);
+  assert.equal(messages[0].authorId, 'other');
+});
 test('recognizes standalone commands without matching conversation or quoted text', () => {
   for (const value of ['sign in', ' SIGN-IN! ', 'signin', 'Sign  In.']) assert.equal(command(value), 'in');
   assert.equal(command('Sign out'), 'out');

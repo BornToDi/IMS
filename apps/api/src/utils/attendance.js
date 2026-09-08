@@ -1,4 +1,5 @@
 const TIME_ZONE = 'Asia/Dhaka';
+const { compareAttendanceEmployees } = require('./attendanceOrder');
 function command(content) {
   const match = String(content || '').trim().match(/^sign[\s-]*(in|out)[.!]?(?:\nReason: ([\s\S]+))?$/i);
   return match ? match[1].toLowerCase() : null;
@@ -32,7 +33,7 @@ function buildReport(messages) {
     if (reason) row.reasons.push(reason);
     const hasLocation = typeof message.latitude === 'number' && Number.isFinite(message.latitude) && Math.abs(message.latitude) <= 90 && typeof message.longitude === 'number' && Number.isFinite(message.longitude) && Math.abs(message.longitude) <= 180;
     const location = hasLocation ? { latitude: message.latitude, longitude: message.longitude, locationLabel: message.locationLabel || '', mapUrl: `https://www.google.com/maps?q=${message.latitude},${message.longitude}` } : { latitude: null, longitude: null, locationLabel: '', mapUrl: '' };
-    events.push({ date, name: row.name, employeeCode: row.employeeCode, action, reason, ...location, time: message.createdAt, messageId: message.id });
+    events.push({ date, employeeId: row.employeeId, name: row.name, employeeCode: row.employeeCode, action, reason, ...location, time: message.createdAt, messageId: message.id });
     if (action === 'in') {
       row.signIns++;
       if (!row.signIn) { row.signIn = message.createdAt; row.signInLocation = location; }
@@ -46,6 +47,9 @@ function buildReport(messages) {
       else row.issues.push('Sign out without sign in');
     }
   }
-  return { rows: [...rows.values()].map(({ open, ...row }) => ({ ...row, minutes: Math.round(row.minutes), status: open ? 'Missing sign out' : row.issues.length ? 'Needs review' : 'Complete', issues: [...new Set(row.issues)] })), events };
+  return {
+    rows: [...rows.values()].sort((a, b) => compareAttendanceEmployees(a, b) || a.date.localeCompare(b.date)).map(({ open, ...row }) => ({ ...row, minutes: Math.round(row.minutes), status: open ? 'Missing sign out' : row.issues.length ? 'Needs review' : 'Complete', issues: [...new Set(row.issues)] })),
+    events: events.sort((a, b) => compareAttendanceEmployees(a, b) || new Date(a.time) - new Date(b.time) || a.messageId.localeCompare(b.messageId))
+  };
 }
 module.exports = { command, dateKey, reportRange, buildReport, TIME_ZONE };
