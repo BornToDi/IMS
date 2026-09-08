@@ -2,6 +2,17 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { command, dateKey, reportRange, buildReport } = require('./attendance');
 const message = (id, content, createdAt, extra = {}) => ({ id, content, createdAt, authorId: 'employee-1', author: { name: 'Employee', employeeCode: 'E01' }, ...extra });
+test('monthly reports retain empty days without duplicating recorded attendance', () => {
+  const result = buildReport([
+    message('1', 'sign in', '2024-02-10T03:00:00Z'),
+    message('2', 'sign out', '2024-02-10T11:00:00Z')
+  ], [{ id: 'employee-1', name: 'Employee', employeeCode: 'E01' }], reportRange('monthly', '2024-02-10'));
+  assert.equal(result.rows.length, 29);
+  assert.equal(result.rows.filter(row => row.status === 'No attendance').length, 28);
+  assert.equal(result.rows.find(row => row.date === '2024-02-10').minutes, 480);
+  assert.equal(result.events.length, 2);
+  assert.ok(result.rows.every(row => Array.isArray(row.reasons)));
+});
 test('roster employees come first in image order across dates and sign events', () => {
   const entries = [
     ['other', 'Aaron Other', '2026-09-06T01:00:00Z'],

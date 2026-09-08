@@ -18,9 +18,18 @@ function reportRange(period = 'daily', date = dateKey(new Date())) {
   else end.setUTCDate(end.getUTCDate() + (period === 'weekly' ? 7 : 1));
   return { from: start.toISOString().slice(0, 10), until: end.toISOString().slice(0, 10), start: new Date(start.getTime() - 21600000), end: new Date(end.getTime() - 21600000) };
 }
-function buildReport(messages) {
+function buildReport(messages, employees = [], range) {
   const rows = new Map();
   const events = [];
+  // Seed every employee/day so people without chat attendance remain visible.
+  if (range) {
+    for (const day = new Date(`${range.from}T00:00:00Z`); day.toISOString().slice(0, 10) < range.until; day.setUTCDate(day.getUTCDate() + 1)) {
+      const date = day.toISOString().slice(0, 10);
+      for (const employee of employees) {
+        rows.set(`${employee.id}:${date}`, { date, employeeId: employee.id, name: employee.name, employeeCode: employee.employeeCode || '', signIn: null, signOut: null, minutes: 0, signIns: 0, signOuts: 0, issues: [], reasons: [], open: null });
+      }
+    }
+  }
   for (const message of [...messages].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt) || a.id.localeCompare(b.id))) {
     const action = !message.attachmentType && !message.replyToId && command(message.content);
     if (!action) continue;
@@ -48,7 +57,7 @@ function buildReport(messages) {
     }
   }
   return {
-    rows: [...rows.values()].sort((a, b) => compareAttendanceEmployees(a, b) || a.date.localeCompare(b.date)).map(({ open, ...row }) => ({ ...row, minutes: Math.round(row.minutes), status: open ? 'Missing sign out' : row.issues.length ? 'Needs review' : 'Complete', issues: [...new Set(row.issues)] })),
+    rows: [...rows.values()].sort((a, b) => compareAttendanceEmployees(a, b) || a.date.localeCompare(b.date)).map(({ open, ...row }) => ({ ...row, minutes: Math.round(row.minutes), status: !row.signIns && !row.signOuts ? 'No attendance' : open ? 'Missing sign out' : row.issues.length ? 'Needs review' : 'Complete', issues: [...new Set(row.issues)] })),
     events: events.sort((a, b) => compareAttendanceEmployees(a, b) || new Date(a.time) - new Date(b.time) || a.messageId.localeCompare(b.messageId))
   };
 }

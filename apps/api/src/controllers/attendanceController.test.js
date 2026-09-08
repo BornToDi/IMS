@@ -56,6 +56,34 @@ test('only admins and assistants can access team reports and export; employees a
     assert.equal(workbook.worksheets[0].getCell('M2').value, 'https://www.google.com/maps?q=23.81,90.41');
     assert.equal(workbook.worksheets[1].getCell('I2').value, 23.81);
     assert.equal(workbook.worksheets[1].getCell('J2').value, 90.41);
+    prisma.user.findMany = async () => [
+      { id: 'other', name: 'Aaron Other' },
+      { id: 'rajib', name: 'Rajib Chandra Sen (POS)' },
+      { id: 'sayed', name: 'Sayed Arefin Hasan' }
+    ];
+    prisma.globalMessage.findMany = async () => [];
+    req.query = { period: 'daily', date: '2026-09-06' };
+    res = response();
+    await getAttendance(req, res);
+    assert.deepEqual(res.body.rows.map(row => row.employeeId), ['sayed', 'rajib', 'other']);
+    assert.ok(res.body.rows.every(row => row.status === 'No attendance' && row.signIn === null && row.minutes === 0));
+    assert.deepEqual(res.body.events, []);
+    req.query.format = 'xlsx';
+    res = response();
+    await getAttendance(req, res);
+    const emptyAttendance = new ExcelJS.Workbook();
+    await emptyAttendance.xlsx.load(res.body);
+    assert.equal(emptyAttendance.worksheets[0].rowCount, 4);
+    assert.equal(emptyAttendance.worksheets[0].getCell('B2').value, 'Sayed Arefin Hasan');
+    assert.equal(emptyAttendance.worksheets[0].getCell('I2').value, 'No attendance');
+    assert.equal(emptyAttendance.worksheets[1].rowCount, 1);
+    req.query = { period: 'weekly', date: '2026-09-06', employeeId: 'rajib' };
+    res = response();
+    await getAttendance(req, res);
+    assert.equal(res.body.rows.length, 7);
+    assert.ok(res.body.rows.every(row => row.employeeId === 'rajib'));
+    assert.equal(res.body.rows[0].date, '2026-08-31');
+    assert.equal(res.body.rows[6].date, '2026-09-06');
     req.query.date = 'invalid';
     res = response();
     await getAttendance(req, res);

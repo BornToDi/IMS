@@ -18,7 +18,7 @@ async function getAttendance(req, res) {
       select: { id: true, authorId: true, content: true, createdAt: true, latitude: true, longitude: true, locationLabel: true, author: { select: { name: true, employeeCode: true } } },
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }]
     });
-    const report = buildReport(messages);
+    const report = buildReport(messages, employees.filter(employee => !employeeId || employee.id === employeeId), range);
     employees.sort(compareAttendanceEmployees);
     if (req.query.format === 'xlsx') {
       const workbook = new ExcelJS.Workbook();
