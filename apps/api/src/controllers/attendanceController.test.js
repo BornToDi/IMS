@@ -46,16 +46,16 @@ test('only admins and assistants can access team reports and export; employees a
     assert.equal(res.code, 200);
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(res.body);
-    assert.equal(workbook.worksheets.length, 2);
-    assert.equal(workbook.worksheets[0].getCell('B2').value, '=Example');
-    assert.equal(workbook.worksheets[0].getCell('B2').type, ExcelJS.ValueType.String);
-    assert.equal(workbook.worksheets[1].rowCount, 2);
-    assert.equal(workbook.worksheets[0].getCell('K2').value, 'Deployed in AIBL');
-    assert.equal(workbook.worksheets[1].getCell('G2').value, 'Deployed in AIBL');
-    assert.equal(workbook.worksheets[0].getCell('L2').value, 'AIBL Dhaka');
-    assert.equal(workbook.worksheets[0].getCell('M2').value, 'https://www.google.com/maps?q=23.81,90.41');
-    assert.equal(workbook.worksheets[1].getCell('I2').value, 23.81);
-    assert.equal(workbook.worksheets[1].getCell('J2').value, 90.41);
+    assert.equal(workbook.worksheets.length, 3);
+    assert.equal(workbook.getWorksheet('Daily attendance').getCell('B2').value, '=Example');
+    assert.equal(workbook.getWorksheet('Daily attendance').getCell('B2').type, ExcelJS.ValueType.String);
+    assert.equal(workbook.getWorksheet('All sign events').rowCount, 2);
+    assert.equal(workbook.getWorksheet('Daily attendance').getCell('K2').value, 'Deployed in AIBL');
+    assert.equal(workbook.getWorksheet('All sign events').getCell('G2').value, 'Deployed in AIBL');
+    assert.equal(workbook.getWorksheet('Daily attendance').getCell('L2').value, 'AIBL Dhaka');
+    assert.equal(workbook.getWorksheet('Daily attendance').getCell('M2').value, 'https://www.google.com/maps?q=23.81,90.41');
+    assert.equal(workbook.getWorksheet('All sign events').getCell('I2').value, 23.81);
+    assert.equal(workbook.getWorksheet('All sign events').getCell('J2').value, 90.41);
     prisma.user.findMany = async () => [
       { id: 'other', name: 'Aaron Other' },
       { id: 'rajib', name: 'Rajib Chandra Sen (POS)' },
@@ -73,10 +73,10 @@ test('only admins and assistants can access team reports and export; employees a
     await getAttendance(req, res);
     const emptyAttendance = new ExcelJS.Workbook();
     await emptyAttendance.xlsx.load(res.body);
-    assert.equal(emptyAttendance.worksheets[0].rowCount, 4);
-    assert.equal(emptyAttendance.worksheets[0].getCell('B2').value, 'Sayed Arefin Hasan');
-    assert.equal(emptyAttendance.worksheets[0].getCell('I2').value, 'No attendance');
-    assert.equal(emptyAttendance.worksheets[1].rowCount, 1);
+    assert.equal(emptyAttendance.getWorksheet('Daily attendance').rowCount, 4);
+    assert.equal(emptyAttendance.getWorksheet('Daily attendance').getCell('B2').value, 'Sayed Arefin Hasan');
+    assert.equal(emptyAttendance.getWorksheet('Daily attendance').getCell('I2').value, 'No attendance');
+    assert.equal(emptyAttendance.getWorksheet('All sign events').rowCount, 1);
     req.query = { period: 'weekly', date: '2026-09-06', employeeId: 'rajib' };
     res = response();
     await getAttendance(req, res);

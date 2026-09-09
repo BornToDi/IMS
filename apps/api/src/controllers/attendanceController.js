@@ -2,6 +2,7 @@ const prisma = require('../prismaClient');
 const ExcelJS = require('exceljs');
 const { reportRange, buildReport, TIME_ZONE } = require('../utils/attendance');
 const { compareAttendanceEmployees } = require('../utils/attendanceOrder');
+const { buildAttendanceMatrix, addAttendanceMatrixSheet } = require('../utils/attendanceMatrix');
 
 async function getAttendance(req, res) {
   try {
@@ -20,8 +21,10 @@ async function getAttendance(req, res) {
     });
     const report = buildReport(messages, employees.filter(employee => !employeeId || employee.id === employeeId), range);
     employees.sort(compareAttendanceEmployees);
+    const matrix = buildAttendanceMatrix(report.rows, range);
     if (req.query.format === 'xlsx') {
       const workbook = new ExcelJS.Workbook();
+      addAttendanceMatrixSheet(workbook, matrix);
       const sheet = workbook.addWorksheet('Daily attendance');
       sheet.columns = [ ['Date', 'date'], ['Employee', 'name'], ['Employee code', 'employeeCode'], ['First sign in (Dhaka)', 'signIn'], ['Last sign out (Dhaka)', 'signOut'], ['Worked minutes', 'minutes'], ['Sign in count', 'signIns'], ['Sign out count', 'signOuts'], ['Status', 'status'], ['Notes', 'issues'] ].map(([header, key]) => ({ header, key, width: 25 }));
       const time = (value) => value ? new Date(value).toLocaleString('en-GB', { timeZone: TIME_ZONE, hour12: false }) : '';
@@ -44,7 +47,7 @@ async function getAttendance(req, res) {
       res.setHeader('Content-Disposition', `attachment; filename="attendance-${range.from}.xlsx"`);
       return res.send(Buffer.from(buffer));
     }
-    return res.json({ ...report, employees, canViewTeam, from: range.from, until: range.until, timeZone: TIME_ZONE });
+    return res.json({ ...report, matrix, employees, canViewTeam, from: range.from, until: range.until, timeZone: TIME_ZONE });
   } catch (error) {
     console.error('[attendance]', error);
     return res.status(500).json({ error: 'Could not load attendance report' });
