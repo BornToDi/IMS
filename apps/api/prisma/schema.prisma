@@ -17,6 +17,7 @@ model User {
   passwordHash String
   avatarUrl    String?
   userRole     String    @default("EMPLOYEE")
+  inventoryRole String?
   bankName     String?
   workspaces   WorkspaceMember[]
   ownedWorkspaces Workspace[]
@@ -496,8 +497,105 @@ model PosSerial {
 model BankMaster {
   id        String   @id @default(uuid())
   name      String   @unique
+  branch    String?
+  contactPerson String?
+  contactDetails String?
+  agreementReference String?
+  active Boolean @default(true)
+  devices InventoryDevice[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([name])
+}
+
+model InventoryDevice {
+  id String @id @default(uuid())
+  serialNumber String @unique
+  brand String
+  model String
+  deviceType String @default("POS")
+  supplier String?
+  purchaseDate DateTime?
+  warrantyUntil DateTime?
+  status String @default("IN_STOCK")
+  bank BankMaster? @relation(fields: [bankId], references: [id], onDelete: Restrict)
+  bankId String?
+  location String
+  merchant String?
+  branch String?
+  tid String?
+  mid String?
+  address String?
+  engineer String?
+  deploymentDate DateTime?
+  remarks String?
+  reference String?
+  dueDate DateTime?
+  faultType String?
+  repairReceivedDate DateTime?
+  technician String?
+  repairStatus String?
+  repairCost Float @default(0)
+  repairReturnDate DateTime?
+  replacementSerial String?
+  pendingReturn Boolean @default(false)
+  archived Boolean @default(false)
+  version Int @default(0)
+  events InventoryEvent[]
+  documents InventoryDocument[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([bankId, status])
+  @@index([status, model])
+  @@index([warrantyUntil])
+}
+
+model InventoryEvent {
+  id String @id @default(uuid())
+  device InventoryDevice @relation(fields: [deviceId], references: [id], onDelete: Restrict)
+  deviceId String
+  action String
+  previousStatus String?
+  newStatus String
+  actorId String
+  actorName String
+  remarks String?
+  details String
+  occurredAt DateTime @default(now())
+  createdAt DateTime @default(now())
+
+  @@index([deviceId, createdAt])
+  @@index([action, occurredAt])
+}
+
+model InventoryDocument {
+  id String @id @default(uuid())
+  device InventoryDevice @relation(fields: [deviceId], references: [id], onDelete: Restrict)
+  deviceId String
+  category String
+  name String
+  mimeType String
+  content Bytes
+  size Int
+  uploadedBy String
+  createdAt DateTime @default(now())
+
+  @@index([deviceId])
+}
+
+model InventorySetting {
+  id String @id @default("default")
+  lowStockThreshold Int @default(10)
+  pendingDays Int @default(7)
+}
+
+model InventoryAdminAudit {
+  id String @id @default(uuid())
+  action String
+  actorId String
+  actorName String
+  details String
+  createdAt DateTime @default(now())
 }

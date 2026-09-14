@@ -82,6 +82,7 @@ app.use('/api/location', require('./routes/location'));
 app.get('/api/health', async (req, res) => {
   try {
     await prisma.globalMessage.findFirst({ select: { id: true, replyToId: true } });
+    await prisma.inventoryDevice.findFirst({ select: { id: true } });
     res.json({ status: 'ok', database: 'ok', allowedOrigins });
   } catch (error) {
     console.error('[health] database schema check failed:', error);
@@ -190,6 +191,7 @@ const HOST = process.env.HOST || '0.0.0.0';
 async function startServer() {
   try {
     await prisma.globalMessage.findFirst({ select: { id: true, replyToId: true } });
+    await prisma.inventoryDevice.findFirst({ select: { id: true } });
   } catch (error) {
     console.error('[startup] Database schema is not current. Run prisma migrate deploy with the production DATABASE_URL.', error);
     process.exit(1);

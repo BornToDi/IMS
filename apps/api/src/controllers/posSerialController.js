@@ -227,6 +227,8 @@ async function updateBank(req, res) {
   const user = await currentUser(req, res); if (!user) return;
   if (!isFullAdminRole(user.userRole)) return res.status(403).json({ error: 'Only admin can edit bank' });
   const oldName = clean(req.params.id);
+  const trackedBank = await prisma.bankMaster.findUnique({ where: { name: oldName }, include: { _count: { select: { devices: true } } } });
+  if (trackedBank?._count.devices) return res.status(409).json({ error: 'Edit this bank in Hardware → Banks to preserve the inventory audit trail.' });
   const name = clean(req.body.name || req.body.bankName);
   if (!oldName || !name) return res.status(400).json({ error: 'Old and new bank name are required' });
 
@@ -249,6 +251,8 @@ async function deleteBank(req, res) {
   const user = await currentUser(req, res); if (!user) return;
   if (!isFullAdminRole(user.userRole)) return res.status(403).json({ error: 'Only admin can delete bank' });
   const name = clean(req.params.id);
+  const trackedBank = await prisma.bankMaster.findUnique({ where: { name }, include: { _count: { select: { devices: true } } } });
+  if (trackedBank?._count.devices) return res.status(409).json({ error: 'This bank has inventory history. Deactivate it in Hardware → Banks instead.' });
   if (!name) return res.status(400).json({ error: 'Bank name is required' });
 
   const result = await prisma.$transaction(async (tx) => {

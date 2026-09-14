@@ -126,13 +126,13 @@ export default function DashboardPage() {
     try {
       const [ticketsRes, hardwareRes, meetingsRes, announcementsRes] = await Promise.allSettled([
         apiFetch('/api/tickets', accessToken),
-        apiFetch('/api/hardware', accessToken),
+        apiFetch('/api/hardware/summary', accessToken),
         apiFetch('/api/meetings', accessToken),
         apiFetch('/api/announcements', accessToken)
       ])
       setCounts({
         tickets: Array.isArray(ticketsRes.value) ? ticketsRes.value.length : 0,
-        hardware: Array.isArray(hardwareRes.value) ? hardwareRes.value.length : 0,
+        hardware: hardwareRes.value?.total || 0,
         meetings: Array.isArray(meetingsRes.value) ? meetingsRes.value.length : 0,
         announcements: Array.isArray(announcementsRes.value) ? announcementsRes.value.length : 0
       })
