@@ -27,7 +27,7 @@ export default function Navbar({ navigationOpen = true, onToggleNavigation }) {
           <button
             type="button"
             onClick={onToggleNavigation}
-            className="grid h-10 w-10 place-items-center rounded-xl border border-cyan-300/60 bg-gradient-to-br from-cyan-400 to-blue-600 text-xl font-black text-white shadow-lg shadow-cyan-950/40 transition hover:scale-105 hover:from-cyan-300 hover:to-indigo-500"
+            className="grid h-10 w-10 place-items-center rounded-xl border border-cyan-300/60 bg-gradient-to-br from-cyan-400 to-blue-600 text-xl font-black text-white shadow-lg shadow-cyan-950/40 transition-colors hover:from-cyan-300 hover:to-indigo-500"
             aria-label={navigationOpen ? 'Close navigation menu' : 'Open navigation menu'}
             aria-expanded={navigationOpen}
             title={navigationOpen ? 'Close navigation' : 'Open navigation'}

@@ -1,445 +1,173 @@
 "use client"
 
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import Layout from '../../components/Layout'
 import { useAuthStore } from '../../store/useAuthStore'
 import { apiFetch } from '../../lib/api'
 
-const emptyForm = { serialNumber: '', model: '', location: '', place: '' }
-function clean(v) { return String(v || '').trim() }
+const blank = { serialNumber: '', tidNumber: '', midNumber: '', merchantName: '', merchantAddress: '', merchantStatus: '', model: '', location: '', place: '', operator: '', simNumber: '', remarks: '' }
+const fields = [
+  ['serialNumber', 'POS SL No *'], ['tidNumber', 'TID'], ['midNumber', 'MID'],
+  ['merchantName', 'DBN / Merchant'], ['merchantAddress', 'Address'],
+  ['merchantStatus', 'Status'], ['model', 'Model'], ['location', 'Area / location'],
+  ['place', 'Place'], ['operator', 'Telco'], ['simNumber', 'SIM EI'], ['remarks', 'Remarks']
+]
+const inputClass = 'mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-slate-700'
 
 export default function PosSerialsPage() {
   const token = useAuthStore((s) => s.accessToken)
   const user = useAuthStore((s) => s.user)
+  const [requestedBank, setRequestedBank] = useState('')
   const role = String(user?.userRole || '').toUpperCase()
-  const isFullAdmin = role === 'ADMIN' || role === 'MANAGEMENT'
+  const isAdmin = ['ADMIN', 'MANAGEMENT'].includes(role)
+  const isBank = role === 'BANK'
+  const canManage = isAdmin || isBank
   const fileRef = useRef(null)
-
   const [banks, setBanks] = useState([])
+  const [bank, setBank] = useState('')
   const [rows, setRows] = useState([])
-  const [form, setForm] = useState(emptyForm)
-  const [activeBank, setActiveBank] = useState('')
-  const [newBankName, setNewBankName] = useState('')
-  const [editingBank, setEditingBank] = useState(null)
-  const [editingBankName, setEditingBankName] = useState('')
-  const [q, setQ] = useState('')
+  const [query, setQuery] = useState('')
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
+  const [pages, setPages] = useState(1)
+  const [editing, setEditing] = useState(null)
+  const [form, setForm] = useState(blank)
+  const [showForm, setShowForm] = useState(false)
+  const [newBank, setNewBank] = useState('')
+  const [rename, setRename] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
-  const [mobilePanel, setMobilePanel] = useState('')
-  const [mobileBankMenuOpen, setMobileBankMenuOpen] = useState(false)
-  const [selectedIds, setSelectedIds] = useState([])
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(100)
-  const [totalRows, setTotalRows] = useState(0)
-  const [totalPages, setTotalPages] = useState(1)
+  const [selected, setSelected] = useState([])
 
-  async function loadBanks() {
+  useEffect(() => {
+    setRequestedBank(new URLSearchParams(window.location.search).get('bank') || '')
+  }, [])
+
+  const loadBanks = useCallback(async (preferred) => {
     if (!token) return
-    const data = await apiFetch('/api/pos-serials/bank-master', token).catch(() => [])
+    const data = await apiFetch('/api/pos-serials/bank-master', token)
     const list = Array.isArray(data) ? data : []
     setBanks(list)
-    setActiveBank((prev) => {
-      if (prev && list.some((b) => b.name === prev)) return prev
-      return list[0]?.name || ''
-    })
-  }
-
-  async function loadRows(bank = activeBank, requestedPage = page) {
-    if (!token || !bank) { setRows([]); setTotalRows(0); return }
-    try {
-      const params = new URLSearchParams({
-        take: String(pageSize),
-        page: String(requestedPage),
-        paginated: 'true',
-        bankName: bank
-      })
-      if (q.trim()) params.set('q', q.trim())
-      const data = await apiFetch(`/api/pos-serials?${params.toString()}`, token)
-      setRows(Array.isArray(data?.rows) ? data.rows : [])
-      setTotalRows(Number(data?.total) || 0)
-      setTotalPages(Number(data?.totalPages) || 1)
-      setPage(Number(data?.page) || requestedPage)
-      setSelectedIds([])
-      setError('')
-    } catch (e) {
-      setError(e.message || 'Failed to load POS serials')
-    }
-  }
-
-  useEffect(() => { loadBanks() }, [token])
+    setBank((current) => preferred || (list.some((item) => item.name === current) ? current : list[0]?.name || ''))
+  }, [token])
+  const loadRows = useCallback(async (activeBank, search, currentPage) => {
+    if (!token || !activeBank) { setRows([]); setTotal(0); return }
+    const params = new URLSearchParams({ bankName: activeBank, q: search, page: String(currentPage), take: '50', paginated: 'true' })
+    const data = await apiFetch(`/api/pos-serials?${params}`, token)
+    setRows(data.rows || []); setTotal(data.total || 0); setPages(data.totalPages || 1); setSelected([])
+  }, [token])
+  useEffect(() => { loadBanks(requestedBank).catch((e) => setError(e.message)) }, [loadBanks, requestedBank])
   useEffect(() => {
-    const t = setTimeout(() => loadRows(activeBank, page), 250)
-    return () => clearTimeout(t)
-  }, [token, activeBank, q, page, pageSize])
+    const timer = setTimeout(() => { loadRows(bank, query.trim(), page).catch((e) => setError(e.message)) }, 250)
+    return () => clearTimeout(timer)
+  }, [bank, query, page, loadRows])
 
-  useEffect(() => {
-    setPage(1)
-  }, [activeBank, q, pageSize])
-
-  async function createBank(e) {
-    e.preventDefault()
-    const name = clean(newBankName)
-    if (!name) return
-    setBusy(true); setError(''); setNotice('')
-    try {
-      await apiFetch('/api/pos-serials/bank-master', token, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name })
-      })
-      setNewBankName('')
-      setActiveBank(name)
-      setMobilePanel('')
-      setNotice('Bank created. Now add POS serials under this bank.')
-      await loadBanks()
-    } catch (e) {
-      setError(e.message || 'Failed to create bank')
-    } finally { setBusy(false) }
+  function chooseBank(value) {
+    setBank(value); setPage(1); setQuery(''); setSelected([]); setEditing(null); setShowForm(false); setForm(blank)
   }
-
-  async function renameBank(e) {
-    e.preventDefault()
-    const oldName = clean(editingBank)
-    const name = clean(editingBankName)
-    if (!oldName || !name) return
-    setBusy(true); setError(''); setNotice('')
-    try {
-      await apiFetch(`/api/pos-serials/bank-master/${encodeURIComponent(oldName)}`, token, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name })
-      })
-      setEditingBank(null)
-      setEditingBankName('')
-      setActiveBank(name)
-      setNotice('Bank renamed everywhere: users, tickets, tasks, hardware and POS serials.')
-      await loadBanks()
-      await loadRows(name)
-    } catch (e) {
-      setError(e.message || 'Failed to rename bank')
-    } finally { setBusy(false) }
+  function openEdit(row) {
+    setEditing(row.id)
+    setForm(Object.fromEntries(Object.keys(blank).map((key) => [key, row[key] || ''])))
+    setShowForm(true); setError(''); setNotice('')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
-
-  async function deleteBank(name) {
-    if (!confirm(`Delete bank ${name}? Bank with active POS serials or users cannot be deleted.`)) return
-    setBusy(true); setError(''); setNotice('')
-    try {
-      await apiFetch(`/api/pos-serials/bank-master/${encodeURIComponent(name)}`, token, { method: 'DELETE' })
-      setNotice('Bank deleted.')
-      setActiveBank('')
-      await loadBanks()
-    } catch (e) {
-      setError(e.message || 'Failed to delete bank')
-    } finally { setBusy(false) }
-  }
-
   async function save(e) {
     e.preventDefault()
-    const bankName = clean(activeBank)
-    if (!bankName) return setError('Create/select a bank first')
+    if (!bank || !form.serialNumber.trim()) return setError('Select bank and enter POS serial')
     setBusy(true); setError(''); setNotice('')
     try {
-      await apiFetch('/api/pos-serials', token, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, bankName })
+      await apiFetch(editing ? `/api/pos-serials/${editing}` : '/api/pos-serials', token, {
+        method: editing ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...form, bankName: bank })
       })
-      setForm(emptyForm)
-      setMobilePanel('')
-      setNotice('POS serial saved under selected bank.')
-      await loadRows(bankName)
-      await loadBanks()
-    } catch (e) {
-      setError(e.message || 'Failed to save POS serial')
-    } finally {
-      setBusy(false)
-    }
+      setNotice(editing ? 'POS record updated.' : 'POS record saved.')
+      setEditing(null); setShowForm(false); setForm(blank)
+      await Promise.all([loadRows(bank, query.trim(), page), loadBanks()])
+    } catch (e) { setError(e.message || 'Could not save POS record') }
+    finally { setBusy(false) }
   }
-
-  async function uploadFile(e) {
+  async function upload(e) {
     const file = e.target.files?.[0]
-    if (!file) return
-    if (!activeBank) {
-      e.target.value = ''
-      return setError('Select a bank before uploading Excel')
-    }
+    if (!file || !bank) return
     setBusy(true); setError(''); setNotice('')
     try {
-      const fd = new FormData()
-      fd.append('file', file)
-      fd.append('bankName', activeBank)
-      const result = await apiFetch('/api/pos-serials/import', token, { method: 'POST', body: fd })
-      setNotice(`Saved ${result.imported || result.processed || 0} POS serial(s) under ${activeBank}.`)
-      setMobilePanel('')
-      if (fileRef.current) fileRef.current.value = ''
-      await loadBanks()
-      setPage(1)
-      await loadRows(activeBank, 1)
-    } catch (e) {
-      setError(e.message || 'Failed to import file')
-    } finally {
-      setBusy(false)
-    }
+      const body = new FormData(); body.append('file', file); body.append('bankName', bank)
+      const result = await apiFetch('/api/pos-serials/import', token, { method: 'POST', body })
+      setNotice(`${result.imported || 0} POS rows saved for ${bank}${result.skipped ? `; ${result.skipped} skipped because the serial belongs to another bank` : ''}. Search a TID or serial to review updates.`)
+      setPage(1); setQuery(''); await Promise.all([loadRows(bank, '', 1), loadBanks()])
+    } catch (e) { setError(e.message || 'Import failed') }
+    finally { setBusy(false); if (fileRef.current) fileRef.current.value = '' }
   }
-
+  async function addBank(e) {
+    e.preventDefault(); const name = newBank.trim(); if (!name) return
+    setBusy(true); setError('')
+    try {
+      await apiFetch('/api/pos-serials/bank-master', token, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) })
+      setNewBank(''); setNotice(`${name} added.`); await loadBanks(name)
+    } catch (e) { setError(e.message) } finally { setBusy(false) }
+  }
+  async function renameBank(e) {
+    e.preventDefault(); const name = rename.trim(); if (!name || !bank || name === bank) return
+    setBusy(true); setError('')
+    try {
+      await apiFetch(`/api/pos-serials/bank-master/${encodeURIComponent(bank)}`, token, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) })
+      setRename(''); setNotice(`Bank renamed to ${name}.`); await loadBanks(name)
+    } catch (e) { setError(e.message) } finally { setBusy(false) }
+  }
   async function remove(row) {
     if (!confirm(`Delete POS serial ${row.serialNumber}?`)) return
     setBusy(true); setError('')
     try {
       await apiFetch(`/api/pos-serials/${row.id}`, token, { method: 'DELETE' })
-      await loadRows(activeBank, page)
-      await loadBanks()
-    } catch (e) {
-      setError(e.message || 'Failed to delete POS serial')
-    } finally {
-      setBusy(false)
-    }
+      setNotice('POS record deleted.'); await Promise.all([loadRows(bank, query.trim(), page), loadBanks()])
+    } catch (e) { setError(e.message) } finally { setBusy(false) }
   }
-
-  function toggleRow(id) {
-    setSelectedIds((current) => current.includes(id) ? current.filter((value) => value !== id) : [...current, id])
-  }
-
-  function toggleVisibleRows() {
-    const visibleIds = rows.map((row) => row.id)
-    const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.includes(id))
-    setSelectedIds(allVisibleSelected ? [] : visibleIds)
-  }
-
-  async function bulkRemove(deleteAll = false) {
-    const total = deleteAll ? (selectedBank?.posCount || rows.length) : selectedIds.length
-    if (!activeBank || !total) return
-    const message = deleteAll
-      ? `Delete all ${total} POS serials under ${activeBank}?`
-      : `Delete ${total} selected POS serial(s) under ${activeBank}?`
-    if (!confirm(message)) return
-
-    setBusy(true); setError(''); setNotice('')
+  async function removeSelected(all = false) {
+    const count = all ? (banks.find((item) => item.name === bank)?.posCount || 0) : selected.length
+    if (!count || !confirm(`Delete ${all ? 'all' : 'selected'} ${count} POS records in ${bank}?`)) return
+    setBusy(true); setError('')
     try {
-      const result = await apiFetch('/api/pos-serials/bulk', token, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bankName: activeBank, ids: selectedIds, all: deleteAll })
-      })
-      setSelectedIds([])
-      setNotice(`Deleted ${result.deleted || 0} POS serial(s) from ${activeBank}.`)
-      const nextPage = deleteAll ? 1 : (page > 1 && rows.length === result.deleted ? page - 1 : page)
-      setPage(nextPage)
-      await loadRows(activeBank, nextPage)
-      await loadBanks()
-    } catch (e) {
-      setError(e.message || 'Failed to delete POS serials')
-    } finally {
-      setBusy(false)
-    }
+      await apiFetch('/api/pos-serials/bulk', token, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bankName: bank, ids: selected, all }) })
+      setNotice(`${count} POS records deleted.`); setPage(1); await Promise.all([loadRows(bank, query.trim(), 1), loadBanks()])
+    } catch (e) { setError(e.message) } finally { setBusy(false) }
+  }
+  async function deleteBank() {
+    if (!bank || !confirm(`Delete ${bank}? This can also delete its POS records.`)) return
+    setBusy(true); setError('')
+    try {
+      await apiFetch(`/api/pos-serials/bank-master/${encodeURIComponent(bank)}`, token, { method: 'DELETE' })
+      setNotice(`${bank} deleted.`); chooseBank(''); await loadBanks()
+    } catch (e) { setError(e.message) } finally { setBusy(false) }
   }
 
-  const selectedBank = useMemo(() => banks.find((b) => b.name === activeBank), [banks, activeBank])
-  const allVisibleSelected = rows.length > 0 && rows.every((row) => selectedIds.includes(row.id))
-  const sampleCsv = useMemo(() => 'bankName,serialNumber,model,location,place\nAB Bank,AB001,PAX A920,Gulshan 1,Uday Tower\nEBL,EBL001,Verifone VX520,Uttara,Rajuk Commercial Complex', [])
-
-  if (!isFullAdmin) {
-    return <Layout><div className="rounded-3xl border border-red-200 bg-red-50 p-6 text-sm font-bold text-red-700">Only full admin can manage POS serials.</div></Layout>
-  }
-
-  return (
-    <Layout>
-      <div className="mx-auto max-w-[1700px] space-y-4 text-black">
-        <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-          <p className="text-xs font-black uppercase tracking-[0.2em] text-black/45">Admin only</p>
-          <h1 className="text-3xl font-black">Bank & POS Serial Management</h1>
-          <p className="text-sm font-semibold text-black/55">First create a bank, then open that bank and add POS serials. Revolutionary order, apparently.</p>
-        </section>
-
-        {error && <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{error}</div>}
-        {notice && <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">{notice}</div>}
-
-        <section className="sticky top-16 z-20 rounded-3xl border border-slate-200 bg-white/95 p-3 shadow-lg backdrop-blur md:hidden">
-          <label htmlFor="mobile-bank-select" className="mb-1.5 block px-1 text-xs font-black uppercase tracking-wide text-black/50">Working bank</label>
-          <div className="relative">
-            <button
-              id="mobile-bank-select"
-              type="button"
-              onClick={() => setMobileBankMenuOpen((open) => !open)}
-              aria-expanded={mobileBankMenuOpen}
-              className="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 px-3 py-3 text-left shadow-sm outline-none transition focus:border-slate-400 focus:ring-4 focus:ring-slate-900/5"
-            >
-              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-slate-900 text-base font-black text-white">B</span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-black text-slate-950">{activeBank || 'Select a bank'}</span>
-                <span className="mt-0.5 block text-[11px] font-bold text-slate-500">{selectedBank ? `${selectedBank.posCount || 0} active POS serials` : 'Choose the bank you want to manage'}</span>
-              </span>
-              <span aria-hidden="true" className={`grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-100 text-xs text-slate-600 transition ${mobileBankMenuOpen ? 'rotate-180' : ''}`}>▼</span>
-            </button>
-
-            {mobileBankMenuOpen && (
-              <div className="absolute inset-x-0 top-full z-30 mt-2 max-h-64 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl">
-                {banks.map((bank) => {
-                  const selected = bank.name === activeBank
-                  return (
-                    <button
-                      key={bank.name}
-                      type="button"
-                      onClick={() => { setActiveBank(bank.name); setMobileBankMenuOpen(false) }}
-                      className={`mb-1 flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left last:mb-0 ${selected ? 'bg-slate-900 text-white' : 'hover:bg-slate-100'}`}
-                    >
-                      <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg text-xs font-black ${selected ? 'bg-white/15' : 'bg-slate-100 text-slate-700'}`}>{bank.name.charAt(0).toUpperCase()}</span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-black">{bank.name}</span>
-                        <span className={`block text-[11px] font-bold ${selected ? 'text-slate-300' : 'text-slate-500'}`}>{bank.posCount || 0} active POS serials</span>
-                      </span>
-                      {selected && <span className="text-sm" aria-label="Selected">✓</span>}
-                    </button>
-                  )
-                })}
-                {!banks.length && <div className="px-3 py-6 text-center text-sm font-bold text-slate-500">No banks available</div>}
-              </div>
-            )}
-          </div>
-          <div className="mt-2 grid grid-cols-2 gap-2">
-            {[
-              ['banks', 'Manage banks'],
-              ['add', 'Add POS'],
-              ['import', 'Import file'],
-              ['create', 'New bank']
-            ].map(([key, label]) => (
-              <button key={key} type="button" onClick={() => setMobilePanel((current) => current === key ? '' : key)} className={`rounded-xl px-3 py-2.5 text-xs font-black ${mobilePanel === key ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-800'}`}>
-                {label}
-              </button>
-            ))}
-          </div>
-        </section>
-
-        <section className="grid gap-4 xl:grid-cols-[430px_1fr]">
-          <div className="space-y-4">
-            <form onSubmit={createBank} className={`${mobilePanel === 'create' ? 'block' : 'hidden'} rounded-3xl border border-slate-200 bg-white p-4 shadow-sm md:block md:p-5`}>
-              <h2 className="mb-4 text-xl font-black">Create bank</h2>
-              <div className="flex gap-2">
-                <input value={newBankName} onChange={(e) => setNewBankName(e.target.value)} className="min-w-0 flex-1 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold outline-none focus:border-black" placeholder="Bank name, e.g. Uttara Bank" />
-                <button disabled={busy} className="rounded-2xl bg-black px-5 py-3 text-sm font-black text-white disabled:opacity-60">Add</button>
-              </div>
-            </form>
-
-            <div className={`${mobilePanel === 'banks' ? 'block' : 'hidden'} rounded-3xl border border-slate-200 bg-white p-4 shadow-sm md:block md:p-5`}>
-              <h2 className="mb-4 text-xl font-black">Bank list</h2>
-              <div className="max-h-[360px] space-y-2 overflow-y-auto">
-                {banks.map((bank) => (
-                  <div key={bank.id || bank.name} className={`rounded-2xl border p-3 ${activeBank === bank.name ? 'border-black bg-slate-50' : 'border-slate-200 bg-white'}`}>
-                    {editingBank === bank.name ? (
-                      <form onSubmit={renameBank} className="flex gap-2">
-                        <input value={editingBankName} onChange={(e) => setEditingBankName(e.target.value)} className="min-w-0 flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold" />
-                        <button disabled={busy} className="rounded-xl bg-black px-3 py-2 text-xs font-black text-white">Save</button>
-                        <button type="button" onClick={() => { setEditingBank(null); setEditingBankName('') }} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-black">Cancel</button>
-                      </form>
-                    ) : (
-                      <div className="flex items-center justify-between gap-2">
-                        <button type="button" onClick={() => setActiveBank(bank.name)} className="min-w-0 text-left">
-                          <div className="truncate text-sm font-black">{bank.name}</div>
-                          <div className="text-[11px] font-bold text-black/45">{bank.posCount || 0} active POS serials</div>
-                        </button>
-                        <div className="flex gap-1">
-                          <button type="button" onClick={() => { setEditingBank(bank.name); setEditingBankName(bank.name) }} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-black">Edit</button>
-                          <button type="button" onClick={() => deleteBank(bank.name)} className="rounded-xl border border-red-200 px-3 py-2 text-xs font-black text-red-700">Delete</button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
-                {!banks.length && <div className="rounded-2xl bg-slate-50 p-5 text-center text-sm font-bold text-black/50">No bank found. Create one first.</div>}
-              </div>
-            </div>
-
-            <div className={`${mobilePanel === 'import' ? 'block' : 'hidden'} rounded-3xl border border-slate-200 bg-white p-4 shadow-sm md:block md:p-5`}>
-              <h2 className="mb-2 text-xl font-black">Bulk Excel import</h2>
-              <p className="text-sm font-semibold text-black/55">First select a bank above, then upload an Excel file containing one or more “POS Serial NO” columns.</p>
-              <div className="mt-3 rounded-2xl bg-slate-50 p-3 text-xs font-bold text-black/65">
-                Selected bank: <span className="text-black">{activeBank || 'Select a bank first'}</span>
-              </div>
-              <input ref={fileRef} type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,.csv,text/csv" onChange={uploadFile} disabled={busy || !activeBank} className="mt-3 w-full rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-4 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-50" />
-              <details className="mt-3 text-xs font-bold text-black/55">
-                <summary className="cursor-pointer">CSV format (optional)</summary>
-                <pre className="mt-2 overflow-auto rounded-2xl bg-slate-50 p-3 text-xs font-bold text-black/65">{sampleCsv}</pre>
-              </details>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <form onSubmit={save} className={`${mobilePanel === 'add' ? 'block' : 'hidden'} rounded-3xl border border-slate-200 bg-white p-4 shadow-sm md:block md:p-5`}>
-              <h2 className="mb-1 text-xl font-black">Add POS under bank</h2>
-              <p className="mb-4 text-sm font-bold text-black/50">Selected bank: {activeBank || 'None'}</p>
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-                <input readOnly value={activeBank} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold" placeholder="Select bank from left" required />
-                <input value={form.serialNumber} onChange={(e) => setForm({ ...form, serialNumber: e.target.value })} className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold outline-none focus:border-black" placeholder="POS serial number *" required />
-                <input value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })} className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold outline-none focus:border-black" placeholder="Model" />
-                <input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold outline-none focus:border-black" placeholder="Location, e.g. Gulshan 1" />
-                <input value={form.place} onChange={(e) => setForm({ ...form, place: e.target.value })} className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold outline-none focus:border-black" placeholder="Place, e.g. Uday Tower" />
-                <button disabled={busy || !activeBank} className="rounded-2xl bg-black px-5 py-3 text-sm font-black text-white disabled:opacity-60 md:col-span-2 xl:col-span-5">Save POS serial</button>
-              </div>
-            </form>
-
-            <div className="rounded-3xl border border-slate-200 bg-white shadow-sm">
-              <div className="grid gap-2 border-b border-slate-100 p-3 md:grid-cols-[240px_1fr_auto]">
-                <select value={activeBank} onChange={(e) => setActiveBank(e.target.value)} className="hidden rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold outline-none focus:border-black md:block">
-                  <option value="">Select bank</option>
-                  {banks.map((b) => <option key={b.name} value={b.name}>{b.name}</option>)}
-                </select>
-                <input value={q} onChange={(e) => setQ(e.target.value)} className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold outline-none focus:border-black" placeholder="Search serial, model, location or place" />
-                <button type="button" onClick={() => loadRows()} className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-black text-white">Refresh</button>
-              </div>
-              <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3">
-                <label className="flex cursor-pointer items-center gap-2 text-sm font-black">
-                  <input type="checkbox" checked={allVisibleSelected} onChange={toggleVisibleRows} disabled={!rows.length || busy} className="h-4 w-4 accent-black" />
-                  Select this page ({rows.length})
-                </label>
-                <span className="text-xs font-bold text-black/50">{selectedIds.length} selected</span>
-                <div className="ml-auto flex flex-wrap gap-2">
-                  <button type="button" onClick={() => bulkRemove(false)} disabled={!selectedIds.length || busy} className="rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-black text-red-700 disabled:opacity-40">Delete selected</button>
-                  <button type="button" onClick={() => bulkRemove(true)} disabled={!activeBank || !(selectedBank?.posCount) || busy} className="rounded-xl bg-red-700 px-3 py-2 text-xs font-black text-white disabled:opacity-40">Delete all in bank ({selectedBank?.posCount || 0})</button>
-                </div>
-              </div>
-
-              <div className="max-h-[70vh] divide-y divide-slate-100 overflow-y-auto">
-                {rows.map((row, index) => (
-                  <div key={row.id} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 md:grid-cols-[36px_45px_130px_1fr_110px_120px_120px_75px] md:gap-2">
-                    <input type="checkbox" checked={selectedIds.includes(row.id)} onChange={() => toggleRow(row.id)} disabled={busy} className="h-4 w-4 accent-black" aria-label={`Select ${row.serialNumber}`} />
-                    <div className="hidden text-sm font-black text-black/45 md:block">{(page - 1) * pageSize + index + 1}</div>
-                    <div className="hidden text-sm font-black md:block">{row.bankName}</div>
-                    <div className="min-w-0">
-                      <div className="truncate font-mono text-sm font-black">{row.serialNumber}</div>
-                      <div className="mt-1 truncate text-xs font-bold text-black/50 md:hidden">{[row.model, row.location, row.place].filter(Boolean).join(' · ') || 'No details'}</div>
-                    </div>
-                    <div className="hidden text-xs font-bold text-black/55 md:block">{row.model || 'No model'}</div>
-                    <div className="hidden text-xs font-bold text-black/55 md:block">{row.location || 'No location'}</div>
-                    <div className="hidden text-xs font-bold text-black/55 md:block">{row.place || 'No place'}</div>
-                    <button type="button" onClick={() => remove(row)} className="rounded-xl border border-red-200 px-3 py-2 text-xs font-black text-red-700">Delete</button>
-                  </div>
-                ))}
-                {activeBank && !rows.length && <div className="p-10 text-center text-sm font-bold text-black/55">No POS serial found under {activeBank}.</div>}
-                {!activeBank && <div className="p-10 text-center text-sm font-bold text-black/55">Select a bank to see POS serials.</div>}
-              </div>
-              {activeBank && totalRows > 0 && (
-                <div className="flex flex-col gap-3 border-t border-slate-100 px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-                  <div className="text-xs font-bold text-black/55">
-                    Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, totalRows)} of {totalRows}
-                  </div>
-                  <div className="grid grid-cols-2 items-center gap-2 sm:flex">
-                    <select value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))} disabled={busy} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-black">
-                      <option value={50}>50 / page</option>
-                      <option value={100}>100 / page</option>
-                      <option value={250}>250 / page</option>
-                      <option value={500}>500 / page</option>
-                    </select>
-                    <button type="button" onClick={() => setPage((value) => Math.max(value - 1, 1))} disabled={page <= 1 || busy} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-black disabled:opacity-40">← Previous</button>
-                    <span className="col-span-2 row-start-1 min-w-20 text-center text-xs font-black sm:col-auto sm:row-auto">Page {page} / {totalPages}</span>
-                    <button type="button" onClick={() => setPage((value) => Math.min(value + 1, totalPages))} disabled={page >= totalPages || busy} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-black disabled:opacity-40">Next →</button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </section>
+  if (!canManage) return <Layout><div className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">You do not have permission to manage POS records.</div></Layout>
+  return <Layout><main className="mx-auto max-w-7xl space-y-4 text-slate-900">
+    <header className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5"><h1 className="text-2xl font-semibold">POS records</h1><p className="mt-1 text-sm text-slate-600">Search by POS SL No, TID, MID, DBN, Telco or SIM EI. Open a row to update its details.</p></header>
+    {error && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+    {notice && <div role="status" className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{notice}</div>}
+    <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+      <div className="grid gap-3 sm:grid-cols-[minmax(180px,260px)_1fr_auto] sm:items-end">
+        <label className="block text-sm font-medium">Bank<select value={bank} onChange={(e) => chooseBank(e.target.value)} disabled={isBank} className={`${inputClass} disabled:bg-slate-100`}><option value="">Select bank</option>{banks.map((item) => <option key={item.name} value={item.name}>{item.name}</option>)}</select></label>
+        <label className="block text-sm font-medium">Find a record<input value={query} onChange={(e) => { setQuery(e.target.value); setPage(1) }} placeholder="POS SL No, TID, MID, DBN, Telco or SIM EI" className={inputClass} /></label>
+        <button type="button" disabled={!bank} onClick={() => { setEditing(null); setForm(blank); setShowForm(true); setError('') }} className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">Add POS</button>
       </div>
-    </Layout>
-  )
+      {bank && <p className="mt-3 text-xs text-slate-500">{total} matching records in {bank}</p>}
+    </section>
+    {showForm && <form onSubmit={save} className="rounded-xl border border-slate-300 bg-white p-4 sm:p-5">
+      <div className="mb-4 flex items-center justify-between gap-3"><div><h2 className="text-lg font-semibold">{editing ? 'Edit POS record' : 'Add POS record'}</h2><p className="text-sm text-slate-500">{bank}</p></div><button type="button" onClick={() => setShowForm(false)} className="text-sm text-slate-600">Close</button></div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{fields.map(([key, label]) => <label key={key} className={`block text-sm font-medium ${key === 'merchantAddress' || key === 'remarks' ? 'sm:col-span-2' : ''}`}>{label}<input value={form[key]} required={key === 'serialNumber'} onChange={(e) => setForm((current) => ({ ...current, [key]: e.target.value }))} className={inputClass} /></label>)}</div>
+      <div className="mt-4 flex gap-2"><button disabled={busy} className="rounded-lg bg-slate-900 px-5 py-2 text-sm font-medium text-white disabled:opacity-50">{busy ? 'Saving...' : 'Save record'}</button><button type="button" onClick={() => setShowForm(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm">Cancel</button></div>
+    </form>}
+    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3"><h2 className="font-semibold">{bank || 'Select a bank'}</h2><button type="button" onClick={() => loadRows(bank, query.trim(), page).catch((e) => setError(e.message))} disabled={!bank} className="text-sm text-slate-600 disabled:opacity-50">Refresh</button></div>
+      <div className="overflow-x-auto"><table className="w-full min-w-[900px] text-left text-sm">
+        <thead className="bg-slate-50 text-xs text-slate-600"><tr>{isAdmin && <th className="w-8 p-3"><input type="checkbox" aria-label="Select all visible rows" checked={rows.length > 0 && rows.every((row) => selected.includes(row.id))} onChange={(e) => setSelected(e.target.checked ? rows.map((row) => row.id) : [])} /></th>}<th className="p-3">TID</th><th className="p-3">MID</th><th className="p-3">DBN</th><th className="p-3">Address</th><th className="p-3">POS SL No</th><th className="p-3">Telco</th><th className="p-3">SIM EI</th><th className="p-3">Status</th><th className="p-3">Action</th></tr></thead>
+        <tbody className="divide-y divide-slate-100">{rows.map((row) => <tr key={row.id} className="hover:bg-slate-50">{isAdmin && <td className="p-3"><input type="checkbox" aria-label={`Select ${row.serialNumber}`} checked={selected.includes(row.id)} onChange={(e) => setSelected((current) => e.target.checked ? [...current, row.id] : current.filter((id) => id !== row.id))} /></td>}<td className="p-3">{row.tidNumber || '—'}</td><td className="p-3">{row.midNumber || '—'}</td><td className="max-w-[180px] p-3 font-medium">{row.merchantName || '—'}</td><td className="max-w-[220px] p-3"><div className="truncate" title={row.merchantAddress || ''}>{row.merchantAddress || '—'}</div></td><td className="p-3 font-mono">{row.serialNumber}</td><td className="p-3">{row.operator || '—'}</td><td className="p-3">{row.simNumber || '—'}</td><td className="p-3">{row.merchantStatus || '—'}</td><td className="p-3"><button type="button" onClick={() => openEdit(row)} className="font-medium text-blue-700">Edit</button>{isAdmin && <button type="button" onClick={() => remove(row)} className="ml-3 text-red-700">Delete</button>}</td></tr>)}</tbody>
+      </table>{bank && !rows.length && <p className="p-8 text-center text-sm text-slate-500">No records found. Try another search or add a POS record.</p>}</div>
+      {total > 0 && <div className="flex items-center justify-between gap-3 border-t border-slate-200 px-4 py-3 text-sm"><span>Page {page} of {pages} · {total} records</span><div className="flex gap-2"><button type="button" disabled={page <= 1} onClick={() => setPage(page - 1)} className="rounded-lg border px-3 py-1 disabled:opacity-40">Previous</button><button type="button" disabled={page >= pages} onClick={() => setPage(page + 1)} className="rounded-lg border px-3 py-1 disabled:opacity-40">Next</button></div></div>}
+    </section>
+    <details className="rounded-xl border border-slate-200 bg-white p-4"><summary className="cursor-pointer font-medium">Bulk upload POS serials</summary><p className="mt-3 text-sm text-slate-600">Select the bank first, then upload Excel, CSV or PDF. Matching serials in this bank are updated; PDF imports use detected POS serials.</p><input ref={fileRef} type="file" accept=".xlsx,.csv,.pdf" onChange={upload} disabled={!bank || busy} className="mt-3 block w-full text-sm disabled:opacity-50" /></details>
+    {isAdmin && <details className="rounded-xl border border-slate-200 bg-white p-4"><summary className="cursor-pointer font-medium">Bank settings and bulk actions</summary><div className="mt-4 grid gap-4 md:grid-cols-2"><form onSubmit={addBank} className="space-y-2"><label className="block text-sm font-medium">New bank<input value={newBank} onChange={(e) => setNewBank(e.target.value)} className={inputClass} /></label><button disabled={busy} className="rounded-lg border px-3 py-2 text-sm">Add bank</button></form><form onSubmit={renameBank} className="space-y-2"><label className="block text-sm font-medium">Rename selected bank<input value={rename} onChange={(e) => setRename(e.target.value)} placeholder={bank || 'Select bank first'} className={inputClass} /></label><button disabled={!bank || busy} className="rounded-lg border px-3 py-2 text-sm disabled:opacity-50">Rename bank</button></form></div><div className="mt-5 flex flex-wrap gap-2 border-t pt-4 text-sm"><button type="button" onClick={() => removeSelected(false)} disabled={!selected.length || busy} className="rounded-lg border border-red-200 px-3 py-2 text-red-700 disabled:opacity-40">Delete selected ({selected.length})</button><button type="button" onClick={() => removeSelected(true)} disabled={!bank || busy || !banks.find((item) => item.name === bank)?.posCount} className="rounded-lg border border-red-200 px-3 py-2 text-red-700 disabled:opacity-40">Delete all POS in bank</button><button type="button" onClick={deleteBank} disabled={!bank || busy} className="rounded-lg border border-red-200 px-3 py-2 text-red-700 disabled:opacity-40">Delete bank</button></div></details>}
+  </main></Layout>
 }

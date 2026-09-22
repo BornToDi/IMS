@@ -8,7 +8,11 @@ import { usePathname } from 'next/navigation'
 export default function Layout({ children, protect = true }){
   const pathname = usePathname()
   const isChatPage = pathname === '/chat'
-  const [navigationOpen, setNavigationOpen] = useState(false)
+  const [navigationOpen, setNavigationOpen] = useState(() => {
+    if (typeof window === 'undefined') return true
+    if (window.matchMedia('(max-width: 767px)').matches) return false
+    return window.localStorage.getItem('navigationOpen') !== 'false'
+  })
 
   useEffect(() => {
     const mobile = window.matchMedia('(max-width: 767px)').matches

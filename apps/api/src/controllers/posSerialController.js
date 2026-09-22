@@ -1,6 +1,7 @@
 const fs = require('fs');
 const { randomUUID } = require('crypto');
 const ExcelJS = require('exceljs');
+const { PDFParse } = require('pdf-parse');
 const prisma = require('../prismaClient');
 const { isAdminRole, isFullAdminRole, isBankRole, getUser } = require('../utils/workflow');
 
@@ -32,27 +33,50 @@ async function ensurePosSerialExtraColumns() {
   extraColumnsReady = true;
 }
 
-async function upsertPosSerialRaw({ bankName, serialNumber, model = null, location = null, place = null }) {
+const detailFields = ['tidNumber', 'midNumber', 'merchantName', 'merchantAddress', 'merchantStatus', 'operator', 'simNumber', 'remarks'];
+
+async function upsertPosSerialRaw({ bankName, serialNumber, model = null, location = null, place = null, ...details }) {
   await ensurePosSerialExtraColumns();
+  const existing = await prisma.posSerial.findUnique({ where: { serialNumber }, select: { bankName: true } });
+  if (existing && existing.bankName !== bankName) {
+    const error = new Error(`This POS serial already belongs to ${existing.bankName}`);
+    error.status = 409;
+    throw error;
+  }
   await prisma.$executeRawUnsafe(
-    `INSERT INTO "PosSerial" ("id", "bankName", "serialNumber", "model", "location", "place", "status", "createdAt", "updatedAt")
-     VALUES (?, ?, ?, ?, ?, ?, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    `INSERT INTO "PosSerial" ("id", "bankName", "serialNumber", "model", "location", "place", "tidNumber", "midNumber", "merchantName", "merchantAddress", "merchantStatus", "operator", "simNumber", "remarks", "status", "createdAt", "updatedAt")
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
      ON CONFLICT("serialNumber") DO UPDATE SET
-       "bankName" = excluded."bankName",
-       "model" = excluded."model",
-       "location" = excluded."location",
-       "place" = excluded."place",
+       "model" = COALESCE(excluded."model", "PosSerial"."model"),
+       "location" = COALESCE(excluded."location", "PosSerial"."location"),
+       "place" = COALESCE(excluded."place", "PosSerial"."place"),
+       "tidNumber" = COALESCE(excluded."tidNumber", "PosSerial"."tidNumber"),
+       "midNumber" = COALESCE(excluded."midNumber", "PosSerial"."midNumber"),
+       "merchantName" = COALESCE(excluded."merchantName", "PosSerial"."merchantName"),
+       "merchantAddress" = COALESCE(excluded."merchantAddress", "PosSerial"."merchantAddress"),
+       "merchantStatus" = COALESCE(excluded."merchantStatus", "PosSerial"."merchantStatus"),
+       "operator" = COALESCE(excluded."operator", "PosSerial"."operator"),
+       "simNumber" = COALESCE(excluded."simNumber", "PosSerial"."simNumber"),
+       "remarks" = COALESCE(excluded."remarks", "PosSerial"."remarks"),
        "status" = 'ACTIVE',
-       "updatedAt" = CURRENT_TIMESTAMP`,
+       "updatedAt" = CURRENT_TIMESTAMP
+     WHERE "PosSerial"."bankName" = excluded."bankName"`,
     randomUUID(),
     bankName,
     serialNumber,
     model,
     location,
-    place
+    place,
+    ...detailFields.map((field) => details[field] || null)
   );
   const rows = await prisma.$queryRawUnsafe('SELECT * FROM "PosSerial" WHERE "serialNumber" = ? LIMIT 1', serialNumber);
-  return Array.isArray(rows) ? rows[0] : rows;
+  const row = Array.isArray(rows) ? rows[0] : rows;
+  if (row?.bankName !== bankName) {
+    const error = new Error(`This POS serial already belongs to ${row?.bankName || 'another bank'}`);
+    error.status = 409;
+    throw error;
+  }
+  return row;
 }
 
 function parseCsvLine(line) {
@@ -70,32 +94,32 @@ function parseCsvLine(line) {
   return out;
 }
 
-function parseImportText(text) {
+function parseImportText(text, selectedBank = '') {
   const lines = String(text || '').replace(/^\uFEFF/, '').split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
   if (!lines.length) return [];
-  const first = parseCsvLine(lines[0]).map((x) => x.toLowerCase());
-  const hasHeader = first.includes('bankname') || first.includes('bank') || first.includes('serialnumber') || first.includes('serial') || first.includes('posserial');
-  let bankIndex = 0;
-  let serialIndex = 1;
-  let modelIndex = -1;
-  let locationIndex = -1;
-  let placeIndex = -1;
+  const first = parseCsvLine(lines[0]).map(normalizedHeader);
+  const hasHeader = first.some(isSerialHeader);
+  const index = (names) => first.findIndex((x) => names.includes(x));
+  const bankIndex = hasHeader ? index(['bankname', 'bank']) : 0;
+  const serialIndex = hasHeader ? first.findIndex(isSerialHeader) : 1;
+  const modelIndex = index(['model', 'device', 'terminalmodel']);
+  const locationIndex = index(['location', 'poslocation', 'area', 'branch']);
+  const placeIndex = index(['place', 'building', 'buildingname', 'tower', 'site']);
+  const addressIndex = index(['address', 'merchantaddress']) >= 0 ? index(['address', 'merchantaddress']) : index(['addressline']);
+  const detailIndexes = {
+    tidNumber: index(['tid', 'tidnumber']), midNumber: index(['mid', 'midnumber']),
+    merchantName: index(['dba', 'dbaname', 'merchantname']), merchantAddress: addressIndex,
+    merchantStatus: index(['status']), operator: index(['operator', 'telco']),
+    simNumber: index(['simnumber', 'simei', 'sim']), remarks: index(['remarks'])
+  };
   const start = hasHeader ? 1 : 0;
-  if (hasHeader) {
-    bankIndex = first.findIndex((x) => ['bankname', 'bank', 'bank_name'].includes(x));
-    serialIndex = first.findIndex((x) => ['serialnumber', 'serial', 'posserial', 'pos_serial', 'pos serial'].includes(x));
-    modelIndex = first.findIndex((x) => ['model', 'device', 'terminalmodel'].includes(x));
-    locationIndex = first.findIndex((x) => ['location', 'poslocation', 'pos_location', 'pos location', 'area', 'branch'].includes(x));
-    placeIndex = first.findIndex((x) => ['place', 'building', 'buildingname', 'building_name', 'building name', 'tower', 'site'].includes(x));
-    if (bankIndex < 0) bankIndex = 0;
-    if (serialIndex < 0) serialIndex = 1;
-  }
   return lines.slice(start).map(parseCsvLine).map((cols) => ({
-    bankName: clean(cols[bankIndex]),
+    bankName: selectedBank || (bankIndex >= 0 ? clean(cols[bankIndex]) : ''),
     serialNumber: clean(cols[serialIndex]),
     model: modelIndex >= 0 ? clean(cols[modelIndex]) || null : null,
     location: locationIndex >= 0 ? clean(cols[locationIndex]) || null : null,
-    place: placeIndex >= 0 ? clean(cols[placeIndex]) || null : null
+    place: placeIndex >= 0 ? clean(cols[placeIndex]) || null : null,
+    ...Object.fromEntries(detailFields.map((field) => [field, detailIndexes[field] >= 0 ? clean(cols[detailIndexes[field]]) || null : null]))
   })).filter((r) => r.bankName && r.serialNumber);
 }
 
@@ -104,7 +128,7 @@ function normalizedHeader(value) {
 }
 
 function isSerialHeader(value) {
-  return ['posserialno', 'posserialnumber', 'posserial', 'serialnumber', 'serialno'].includes(normalizedHeader(value));
+  return ['posserialno', 'posserialnumber', 'posserial', 'posslno', 'possl', 'serialnumber', 'serialno'].includes(normalizedHeader(value));
 }
 
 function excelCellText(cell) {
@@ -122,12 +146,11 @@ async function parseExcelFile(filePath, bankName) {
   await workbook.xlsx.readFile(filePath);
   const rows = [];
 
-  workbook.eachSheet((sheet) => {
+  const liveSheet = workbook.worksheets.find((sheet) => sheet.name.trim().toUpperCase() === 'LIVE MERCHANT');
+  (liveSheet ? [liveSheet] : workbook.worksheets).forEach((sheet) => {
     let headerRowNumber = 0;
     let serialColumns = [];
-    let modelColumn = 0;
-    let locationColumn = 0;
-    let placeColumn = 0;
+    const columns = {};
     const scanUntil = Math.min(sheet.rowCount, 20);
 
     for (let rowNumber = 1; rowNumber <= scanUntil; rowNumber += 1) {
@@ -144,9 +167,16 @@ async function parseExcelFile(filePath, bankName) {
         serialColumns = matches;
         row.eachCell({ includeEmpty: false }, (cell, columnNumber) => {
           const header = normalizedHeader(excelCellText(cell));
-          if (['model', 'device', 'terminalmodel'].includes(header)) modelColumn = columnNumber;
-          if (['location', 'poslocation', 'area', 'branch'].includes(header)) locationColumn = columnNumber;
-          if (['place', 'building', 'buildingname', 'tower', 'site'].includes(header)) placeColumn = columnNumber;
+          const field = {
+            model: 'model', device: 'model', terminalmodel: 'model',
+            location: 'location', poslocation: 'location', area: 'location', branch: 'location',
+            place: 'place', building: 'place', buildingname: 'place', tower: 'place', site: 'place',
+            tid: 'tidNumber', tidnumber: 'tidNumber', mid: 'midNumber', midnumber: 'midNumber',
+            dba: 'merchantName', dbaname: 'merchantName', merchantname: 'merchantName',
+            address: 'merchantAddress', addressline: 'merchantAddress', merchantaddress: 'merchantAddress',
+            status: 'merchantStatus', operator: 'operator', telco: 'operator', simnumber: 'simNumber', simei: 'simNumber', sim: 'simNumber', remarks: 'remarks'
+          }[header];
+          if (field && (!columns[field] || header === 'address')) columns[field] = columnNumber;
         });
         break;
       }
@@ -161,9 +191,7 @@ async function parseExcelFile(filePath, bankName) {
           rows.push({
             bankName,
             serialNumber,
-            model: modelColumn ? excelCellText(row.getCell(modelColumn)) || null : null,
-            location: locationColumn ? excelCellText(row.getCell(locationColumn)) || null : null,
-            place: placeColumn ? excelCellText(row.getCell(placeColumn)) || null : null
+            ...Object.fromEntries(['model', 'location', 'place', ...detailFields].map((field) => [field, columns[field] ? excelCellText(row.getCell(columns[field])) || null : null]))
           });
         }
       }
@@ -173,6 +201,27 @@ async function parseExcelFile(filePath, bankName) {
   const unique = new Map();
   for (const row of rows) unique.set(row.serialNumber, row);
   return [...unique.values()];
+}
+
+async function parsePdfFile(filePath, bankName) {
+  const parser = new PDFParse({ data: fs.readFileSync(filePath) });
+  const data = await parser.getText();
+  await parser.destroy();
+  const text = String(data.text || '').replace(/\r/g, '');
+  const structured = parseImportText(text, bankName);
+  if (structured.length) return structured;
+
+  const unique = new Set();
+  const rows = [];
+  for (const line of text.split('\n')) {
+    const candidates = line.match(/\b[A-Z0-9][A-Z0-9-]{5,}\b/gi) || [];
+    const serialNumber = candidates.find((value) => /\d/.test(value) && !/^20\d{2}-?\d{2}/.test(value));
+    if (serialNumber && !unique.has(serialNumber.toUpperCase())) {
+      unique.add(serialNumber.toUpperCase());
+      rows.push({ bankName, serialNumber: serialNumber.trim() });
+    }
+  }
+  return rows;
 }
 
 async function bankNamesFromMasterAndSerials() {
@@ -286,8 +335,8 @@ async function listPosSerials(req, res) {
     values.push(bankQuery);
   }
   if (q) {
-    where.push('("serialNumber" LIKE ? OR "bankName" LIKE ? OR "model" LIKE ? OR "location" LIKE ? OR "place" LIKE ?)');
-    values.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`);
+    where.push('("serialNumber" LIKE ? OR "bankName" LIKE ? OR "model" LIKE ? OR "location" LIKE ? OR "place" LIKE ? OR "tidNumber" LIKE ? OR "midNumber" LIKE ? OR "merchantName" LIKE ? OR "merchantAddress" LIKE ? OR "operator" LIKE ? OR "simNumber" LIKE ?)');
+    values.push(...Array(11).fill(`%${q}%`));
   }
 
   const whereSql = where.join(' AND ');
@@ -309,25 +358,46 @@ async function listPosSerials(req, res) {
 
 async function createPosSerial(req, res) {
   const user = await currentUser(req, res); if (!user) return;
-  if (!isFullAdminRole(user.userRole)) return res.status(403).json({ error: 'Only admin can add POS serials' });
-  const bankName = clean(req.body.bankName);
+  if (!isFullAdminRole(user.userRole) && !isBankRole(user.userRole)) return res.status(403).json({ error: 'Only admin or bank users can add POS serials' });
+  const requestedBank = clean(req.body.bankName);
+  const bankName = isBankRole(user.userRole) ? bankOfUser(user) : requestedBank;
   const serialNumber = clean(req.body.serialNumber);
   const model = clean(req.body.model) || null;
   const location = clean(req.body.location) || null;
   const place = clean(req.body.place) || null;
+  const details = Object.fromEntries(detailFields.map((field) => [field, clean(req.body[field]) || null]));
   if (!bankName || !serialNumber) return res.status(400).json({ error: 'Bank name and serial number are required' });
   await prisma.bankMaster.upsert({ where: { name: bankName }, update: { name: bankName }, create: { name: bankName } }).catch(() => null);
-  const row = await upsertPosSerialRaw({ bankName, serialNumber, model, location, place });
+  let row;
+  try { row = await upsertPosSerialRaw({ bankName, serialNumber, model, location, place, ...details }); }
+  catch (error) { if (error.status) return res.status(error.status).json({ error: error.message }); throw error; }
   res.status(201).json(row);
+}
+
+async function updatePosSerial(req, res) {
+  const user = await currentUser(req, res); if (!user) return;
+  if (!isFullAdminRole(user.userRole) && !isBankRole(user.userRole)) return res.status(403).json({ error: 'Only admin or bank users can edit POS records' });
+  const existing = await prisma.posSerial.findUnique({ where: { id: req.params.id } });
+  if (!existing) return res.status(404).json({ error: 'POS record not found' });
+  if (isBankRole(user.userRole) && existing.bankName !== bankOfUser(user)) return res.status(403).json({ error: 'You can only edit POS records for your bank' });
+  const serialNumber = clean(req.body.serialNumber);
+  if (!serialNumber) return res.status(400).json({ error: 'POS serial is required' });
+  const conflict = await prisma.posSerial.findUnique({ where: { serialNumber }, select: { id: true } });
+  if (conflict && conflict.id !== existing.id) return res.status(409).json({ error: 'This POS serial already exists' });
+  const fields = ['serialNumber', 'model', 'location', 'place', ...detailFields];
+  const data = Object.fromEntries(fields.map((field) => [field, clean(req.body[field]) || null]));
+  data.serialNumber = serialNumber;
+  const row = await prisma.posSerial.update({ where: { id: existing.id }, data });
+  res.json(row);
 }
 
 async function importPosSerials(req, res) {
   const user = await currentUser(req, res); if (!user) return;
-  if (!isFullAdminRole(user.userRole)) return res.status(403).json({ error: 'Only admin can import POS serials' });
+  if (!isFullAdminRole(user.userRole) && !isBankRole(user.userRole)) return res.status(403).json({ error: 'Only admin or bank users can import POS serials' });
   if (!req.file) return res.status(400).json({ error: 'Excel or CSV file is required' });
 
   try {
-    const selectedBank = clean(req.body.bankName);
+    const selectedBank = isBankRole(user.userRole) ? bankOfUser(user) : clean(req.body.bankName);
     const extension = String(req.file.originalname || '').toLowerCase().split('.').pop();
     let rows = [];
 
@@ -336,14 +406,19 @@ async function importPosSerials(req, res) {
       rows = await parseExcelFile(req.file.path, selectedBank);
     } else if (extension === 'csv') {
       const text = fs.readFileSync(req.file.path, 'utf8');
-      rows = parseImportText(text);
-      if (selectedBank) rows = rows.map((row) => ({ ...row, bankName: selectedBank }));
+      rows = parseImportText(text, selectedBank);
+    } else if (extension === 'pdf') {
+      if (!selectedBank) return res.status(400).json({ error: 'Select a bank before uploading PDF' });
+      rows = await parsePdfFile(req.file.path, selectedBank);
     } else {
-      return res.status(400).json({ error: 'Only .xlsx and .csv files are supported' });
+      return res.status(400).json({ error: 'Only .xlsx, .csv and .pdf files are supported' });
     }
 
     if (!rows.length) {
       return res.status(400).json({ error: 'No POS serial found. Excel must contain a POS Serial NO column.' });
+    }
+    if (isBankRole(user.userRole) && rows.some((row) => row.bankName !== selectedBank)) {
+      return res.status(403).json({ error: 'You can only import POS records for your bank' });
     }
 
     let inserted = 0;
@@ -356,28 +431,37 @@ async function importPosSerials(req, res) {
           await tx.bankMaster.upsert({ where: { name }, update: { name }, create: { name } });
         }
         for (const item of chunk) {
-          await tx.$executeRawUnsafe(
-            `INSERT INTO "PosSerial" ("id", "bankName", "serialNumber", "model", "location", "place", "status", "createdAt", "updatedAt")
-             VALUES (?, ?, ?, ?, ?, ?, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          const affected = await tx.$executeRawUnsafe(
+            `INSERT INTO "PosSerial" ("id", "bankName", "serialNumber", "model", "location", "place", "tidNumber", "midNumber", "merchantName", "merchantAddress", "merchantStatus", "operator", "simNumber", "remarks", "status", "createdAt", "updatedAt")
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
              ON CONFLICT("serialNumber") DO UPDATE SET
-               "bankName" = excluded."bankName",
                "model" = COALESCE(excluded."model", "PosSerial"."model"),
                "location" = COALESCE(excluded."location", "PosSerial"."location"),
                "place" = COALESCE(excluded."place", "PosSerial"."place"),
+               "tidNumber" = COALESCE(excluded."tidNumber", "PosSerial"."tidNumber"),
+               "midNumber" = COALESCE(excluded."midNumber", "PosSerial"."midNumber"),
+               "merchantName" = COALESCE(excluded."merchantName", "PosSerial"."merchantName"),
+               "merchantAddress" = COALESCE(excluded."merchantAddress", "PosSerial"."merchantAddress"),
+               "merchantStatus" = COALESCE(excluded."merchantStatus", "PosSerial"."merchantStatus"),
+               "operator" = COALESCE(excluded."operator", "PosSerial"."operator"),
+               "simNumber" = COALESCE(excluded."simNumber", "PosSerial"."simNumber"),
+               "remarks" = COALESCE(excluded."remarks", "PosSerial"."remarks"),
                "status" = 'ACTIVE',
-               "updatedAt" = CURRENT_TIMESTAMP`,
+               "updatedAt" = CURRENT_TIMESTAMP
+             WHERE "PosSerial"."bankName" = excluded."bankName"`,
             randomUUID(),
             item.bankName,
             item.serialNumber,
             item.model,
             item.location,
-            item.place
+            item.place,
+            ...detailFields.map((field) => item[field] || null)
           );
+          inserted += Number(affected) || 0;
         }
       });
-      inserted += chunk.length;
     }
-    res.json({ ok: true, bankName: selectedBank || null, processed: inserted, imported: inserted, skipped: 0 });
+    res.json({ ok: true, bankName: selectedBank || null, processed: rows.length, imported: inserted, skipped: rows.length - inserted });
   } finally {
     fs.unlink(req.file.path, () => {});
   }
@@ -407,4 +491,4 @@ async function deletePosSerials(req, res) {
   res.json({ ok: true, deleted: result.count, bankName });
 }
 
-module.exports = { listPublicBanks, listBanks, createBank, updateBank, deleteBank, listPosSerials, createPosSerial, importPosSerials, deletePosSerials, deletePosSerial };
+module.exports = { listPublicBanks, listBanks, createBank, updateBank, deleteBank, listPosSerials, createPosSerial, updatePosSerial, importPosSerials, deletePosSerials, deletePosSerial };

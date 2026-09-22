@@ -12,7 +12,10 @@ export default function ProtectedRoute({ children }) {
   const sessionError = useAuthStore((s) => s.sessionError)
   const [attempt, setAttempt] = useState(0)
   const setActiveWorkspace = useAuthStore((s) => s.setActiveWorkspace)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(() => {
+    const session = useAuthStore.getState()
+    return !(session.user && session.accessToken)
+  })
 
   useEffect(() => {
     let cancelled = false

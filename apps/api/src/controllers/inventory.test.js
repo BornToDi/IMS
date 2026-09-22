@@ -134,6 +134,27 @@ test('bulk movements are atomic when any serial has a stale version', async () =
   payload.devices[1].version=0;
   const result=await request('/actions',{body:payload}); assert.equal(result.status,200); assert.equal(result.body.quantity,2);
 });
+test('serial-list delivery and return process a group atomically and keep bank scope', async () => {
+  const rows = (await receive(['LIST-1', 'LIST-2'])).body.rows;
+  const delivery = { action: 'DELIVER', bankId: bank.id, serialNumbers: ['list-1', 'LIST-2'], location: 'Bank depot', reference: 'CH-5000', deliveredBy: 'Store', receivedBy: 'Bank officer', dueDate: due };
+  assert.equal((await request('/actions/by-serial', { user: manager, body: delivery })).status, 403);
+  assert.equal((await request('/actions/by-serial', { body: { ...delivery, serialNumbers: ['LIST-1', 'MISSING'] } })).status, 404);
+  assert.equal((await get(rows[0].id)).body.status, 'IN_STOCK');
+  const sent = await request('/actions/by-serial', { body: delivery });
+  assert.equal(sent.status, 200, JSON.stringify(sent.body)); assert.equal(sent.body.quantity, 2);
+  const returned = { action: 'RETURN', bankId: bank.id, serialNumbers: ['LIST-1', 'LIST-2'], location: 'Warehouse B', receivedBy: 'Store', remarks: 'Bank return' };
+  assert.equal((await request('/actions/by-serial', { body: { ...returned, bankId: secondBank.id } })).status, 409);
+  assert.equal((await get(rows[0].id)).body.status, 'DELIVERED');
+  assert.equal((await request('/actions/by-serial', { body: returned })).status, 200);
+  for (const row of rows) {
+    const result = await get(row.id);
+    assert.equal(result.body.status, 'RETURNED'); assert.equal(result.body.bankId, null);
+    assert.equal(result.body.events.length, 3);
+  }
+  const restocked = await request('/actions/by-serial', { body: { action: 'RESTOCK', serialNumbers: ['LIST-1', 'LIST-2'], location: 'Warehouse B' } });
+  assert.equal(restocked.status, 200, JSON.stringify(restocked.body));
+  assert.equal((await get(rows[0].id)).body.status, 'IN_STOCK');
+});
 test('bank queries, detail and exports cannot access another bank or internal costs', async () => {
   const device=await deployed('BANK-SCOPE');
   assert.equal((await get(device.id,otherBankUser)).status,404);

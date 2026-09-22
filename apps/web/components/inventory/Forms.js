@@ -9,14 +9,14 @@ const FORM_FIELDS = {
   EDIT: ['brand', 'model', 'deviceType', 'supplier', 'purchaseDate', 'warrantyUntil', 'remarks'],
   RESTOCK: ['location', 'occurredAt', 'remarks'], RESERVE: ['bankId', 'reference', 'dueDate', 'occurredAt', 'remarks'],
   DELIVER: ['bankId', 'location', 'reference', 'deliveredBy', 'receivedBy', 'occurredAt', 'dueDate', 'remarks'],
-  DEPLOY: ['bankId', 'location', 'merchant', 'branch', 'tid', 'mid', 'address', 'engineer', 'occurredAt', 'remarks'],
-  TRANSFER: ['location', 'merchant', 'branch', 'tid', 'mid', 'address', 'engineer', 'occurredAt', 'remarks'],
+  DEPLOY: ['bankId', 'location', 'merchant', 'branch', 'tid', 'mid', 'address', 'telco', 'simEi', 'engineer', 'occurredAt', 'remarks'],
+  TRANSFER: ['location', 'merchant', 'branch', 'tid', 'mid', 'address', 'telco', 'simEi', 'engineer', 'occurredAt', 'remarks'],
   FAULT: ['faultType', 'occurredAt', 'remarks'], REPAIR: ['technician', 'location', 'occurredAt', 'remarks'],
   REPAIR_UPDATE: ['technician', 'repairStatus', 'repairCost', 'occurredAt', 'remarks'], REPAIR_COMPLETE: ['repairCost', 'occurredAt', 'remarks'],
   RETURN: ['location', 'receivedBy', 'occurredAt', 'remarks'], REPLACE: ['replacementSerial', 'location', 'engineer', 'dueDate', 'occurredAt', 'remarks'],
   CONFIRM_RETURN: ['location', 'receivedBy', 'occurredAt', 'remarks'], SCRAP: ['occurredAt', 'remarks'], ARCHIVE: ['remarks']
 }
-const FIELD_LABELS = { serialNumbers: 'Serial numbers · one per line', bankId: 'Bank', deviceType: 'Device type', purchaseDate: 'Purchase date', warrantyUntil: 'Warranty expiry', receivedBy: 'Received by / receiving officer', deliveredBy: 'Delivered by', reference: 'PO / invoice / challan reference', occurredAt: 'Event date', dueDate: 'Expected delivery / deployment / return date', tid: 'TID', mid: 'MID', faultType: 'Fault type', repairStatus: 'Repair status', repairCost: 'Repair cost (BDT)', replacementSerial: 'Available replacement serial', technician: 'Technician / vendor', location: 'Destination / current location' }
+const FIELD_LABELS = { serialNumbers: 'Serial numbers · one per line', bankId: 'Bank', deviceType: 'Device type', purchaseDate: 'Purchase date', warrantyUntil: 'Warranty expiry', receivedBy: 'Received by / receiving officer', deliveredBy: 'Delivered by', reference: 'PO / invoice / challan reference', occurredAt: 'Event date', dueDate: 'Expected delivery / deployment / return date', merchant: 'DBN / Merchant', branch: 'Branch', tid: 'TID', mid: 'MID', address: 'Address', telco: 'Telco', simEi: 'SIM EI', faultType: 'Fault type', repairStatus: 'Repair status', repairCost: 'Repair cost (BDT)', replacementSerial: 'Available replacement serial', technician: 'Technician / vendor', location: 'Destination / current location' }
 const DATE_FIELDS = ['purchaseDate', 'warrantyUntil', 'occurredAt', 'dueDate']
 
 export function DeviceForm({ action, device, devices, summary, token, onClose, onSaved }) {

@@ -19,6 +19,7 @@ router.put('/bank-master/:id', ctrl.updateBank);
 router.delete('/bank-master/:id', ctrl.deleteBank);
 router.get('/', ctrl.listPosSerials);
 router.post('/', ctrl.createPosSerial);
+router.put('/:id', ctrl.updatePosSerial);
 router.post('/import', upload.single('file'), ctrl.importPosSerials);
 router.delete('/bulk', ctrl.deletePosSerials);
 router.delete('/:id', ctrl.deletePosSerial);

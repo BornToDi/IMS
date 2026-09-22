@@ -485,12 +485,21 @@ model PosSerial {
   model        String?
   location     String?
   place        String?
+  tidNumber    String?
+  midNumber    String?
+  merchantName String?
+  merchantAddress String?
+  merchantStatus String?
+  operator     String?
+  simNumber    String?
+  remarks      String?
   status       String   @default("ACTIVE")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   @@index([bankName])
   @@index([serialNumber])
+  @@index([tidNumber])
 }
 
 
@@ -527,6 +536,8 @@ model InventoryDevice {
   tid String?
   mid String?
   address String?
+  telco String?
+  simEi String?
   engineer String?
   deploymentDate DateTime?
   remarks String?

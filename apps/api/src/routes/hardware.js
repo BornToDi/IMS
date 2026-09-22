@@ -20,6 +20,7 @@ router.get('/documents/:documentId', ctrl.download);
 router.get('/', ctrl.list);
 router.post('/stock-in', ctrl.stockIn);
 router.post('/actions', ctrl.bulkAct);
+router.post('/actions/by-serial', ctrl.bulkBySerial);
 router.get('/:id', ctrl.detail);
 router.post('/:id/actions', ctrl.act);
 router.post('/:id/documents', upload.single('file'), ctrl.upload);

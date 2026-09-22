@@ -52,7 +52,7 @@ function assertAction(role, action, device, body = {}) {
   for (const field of rule.required || []) if (!clean(body[field])) fail(`${field.replace(/([A-Z])/g, ' $1')} is required`);
   if (device.pendingReturn && ['SCRAP', 'REPAIR', 'ARCHIVE'].includes(action)) fail('Confirm the old device has been returned first', 409);
 }
-const TEXT_FIELDS = ['brand', 'model', 'deviceType', 'supplier', 'location', 'merchant', 'branch', 'tid', 'mid', 'address', 'engineer', 'remarks', 'reference', 'faultType', 'technician', 'repairStatus'];
+const TEXT_FIELDS = ['brand', 'model', 'deviceType', 'supplier', 'location', 'merchant', 'branch', 'tid', 'mid', 'address', 'telco', 'simEi', 'engineer', 'remarks', 'reference', 'faultType', 'technician', 'repairStatus'];
 function fields(body, allowed = TEXT_FIELDS) {
   const result = {};
   for (const key of allowed) if (body[key] !== undefined) result[key] = clean(body[key], key === 'remarks' ? 2000 : 500) || null;

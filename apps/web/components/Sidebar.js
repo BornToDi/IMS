@@ -13,7 +13,7 @@ const allItems = [
   { href: '/tickets', label: 'Bank Tickets', hint: 'Client requests', icon: '▣', roles: ['BANK', 'ADMIN', 'MANAGEMENT', 'ASSISTANT'] },
   { href: '/employees', label: 'Employees', hint: 'Admin team control', icon: '◫', roles: ['ADMIN', 'MANAGEMENT'] },
   { href: '/workspaces', label: 'Field Tasks', hint: 'POS jobs', icon: '▦', roles: ['ADMIN', 'MANAGEMENT', 'ASSISTANT', 'EMPLOYEE'] },
-  { href: '/pos-serials', label: 'POS Serials', hint: 'Master list', icon: '▤', roles: ['ADMIN', 'MANAGEMENT'] },
+  { href: '/pos-serials', label: 'POS Serials', hint: 'Manage POS records', icon: '▤', roles: ['BANK', 'ADMIN', 'MANAGEMENT'] },
   { href: '/hardware', label: 'Hardware', hint: 'POS inventory', icon: '▧', roles: ['BANK', 'ADMIN', 'MANAGEMENT', 'ASSISTANT', 'EMPLOYEE'] },
   { href: '/meetings', label: 'Meetings', hint: 'Schedule', icon: '◷', roles: ['ADMIN', 'MANAGEMENT', 'ASSISTANT', 'EMPLOYEE'] },
   { href: '/announcements', label: 'Announcements', hint: 'Updates', icon: '✦', roles: ['ADMIN', 'MANAGEMENT', 'ASSISTANT', 'EMPLOYEE'] },
@@ -32,7 +32,7 @@ export default function Sidebar({ open = true, onClose }){
   const role = String(user?.userRole || 'EMPLOYEE').toUpperCase()
   const items = allItems.filter((item) => item.roles.includes(role))
   async function openItem(href) {
-    onClose?.()
+    if (window.matchMedia('(max-width: 767px)').matches) onClose?.()
     const type = href === '/chat' ? 'GLOBAL_CHAT' : href === '/announcements' ? 'ANNOUNCEMENT' : null
     if (!type || !accessToken) return
     const unread = notes.filter(note => !note.isRead && note.type === type)
@@ -60,7 +60,7 @@ export default function Sidebar({ open = true, onClose }){
               key={i.href}
               href={i.href}
               onClick={() => openItem(i.href)}
-              className={`relative mb-1 flex items-center gap-3 rounded-2xl px-3 py-3 transition ${active ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-700 hover:bg-slate-100'}`}>
+                  className={`relative mb-1 flex items-center gap-3 rounded-2xl px-3 py-3 transition-colors ${active ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-700 hover:bg-slate-100'}`}>
               <span className="grid h-8 w-8 place-items-center rounded-xl bg-black/5 text-sm">{i.icon}</span>
               <span>
                 <span className="block text-sm font-semibold">{i.label}</span>
@@ -85,7 +85,7 @@ export default function Sidebar({ open = true, onClose }){
                   key={i.href}
                   href={i.href}
                   onClick={() => openItem(i.href)}
-                  className={`relative mb-1 flex items-center gap-3 rounded-2xl px-3 py-3 transition ${active ? 'bg-slate-900 text-white shadow-lg' : 'bg-white/60 text-slate-700 hover:bg-white hover:text-slate-950'}`}>
+                  className={`relative mb-1 flex items-center gap-3 rounded-2xl px-3 py-3 transition-colors ${active ? 'bg-slate-900 text-white shadow-lg' : 'bg-white/60 text-slate-700 hover:bg-white hover:text-slate-950'}`}>
                   <span className="grid h-8 w-8 place-items-center rounded-xl bg-white/10 text-sm">{i.icon}</span>
                   <span>
                     <span className="block text-sm font-semibold">{i.label}</span>

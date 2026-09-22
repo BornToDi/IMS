@@ -45,7 +45,7 @@ async function bankCheck(tx, bankId) {
 function buildWhere(req) {
   const where = { AND: [scope(req)], archived: req.query.archived === 'true' };
   const q = clean(req.query.q);
-  if (q) where.OR = [...['serialNumber', 'brand', 'model', 'tid', 'mid', 'merchant', 'engineer', 'location'].map(key => ({ [key]: { contains: q } })), { bank: { name: { contains: q } } }];
+  if (q) where.OR = [...['serialNumber', 'brand', 'model', 'tid', 'mid', 'merchant', 'address', 'telco', 'simEi', 'engineer', 'location'].map(key => ({ [key]: { contains: q } })), { bank: { name: { contains: q } } }];
   if (req.query.status) {
     const statuses = clean(req.query.status).split(',');
     if (statuses.some(s => !STATUSES.includes(s))) fail('Invalid status filter');
@@ -159,11 +159,11 @@ async function applyAction(req, tx, id, body) {
     if (now < new Date(before.createdAt).setUTCHours(0, 0, 0, 0)) fail('Event date cannot be before this device was registered');
     let data = { status: TRANSITIONS[action].to || before.status, version: { increment: 1 } };
     const actionFields = {
-      EDIT: ['brand', 'model', 'deviceType', 'supplier', 'remarks'],
+      EDIT: ['brand', 'model', 'deviceType', 'supplier', 'telco', 'simEi', 'remarks'],
       RESTOCK: ['location', 'remarks'], RESERVE: ['remarks', 'reference'],
       DELIVER: ['location', 'reference', 'remarks'],
-      DEPLOY: ['location', 'merchant', 'branch', 'tid', 'mid', 'address', 'engineer', 'remarks'],
-      TRANSFER: ['location', 'merchant', 'branch', 'tid', 'mid', 'address', 'engineer', 'remarks'],
+      DEPLOY: ['location', 'merchant', 'branch', 'tid', 'mid', 'address', 'telco', 'simEi', 'engineer', 'remarks'],
+      TRANSFER: ['location', 'merchant', 'branch', 'tid', 'mid', 'address', 'telco', 'simEi', 'engineer', 'remarks'],
       FAULT: ['faultType', 'remarks'], REPAIR: ['technician', 'location', 'remarks'],
       REPAIR_UPDATE: ['technician', 'repairStatus', 'remarks'], REPAIR_COMPLETE: ['remarks'],
       RETURN: ['location', 'remarks'], CONFIRM_RETURN: ['location', 'remarks'], REPLACE: ['remarks'], SCRAP: ['remarks'], ARCHIVE: ['remarks']
@@ -203,7 +203,7 @@ async function applyAction(req, tx, id, body) {
     }
     if (action === 'REPAIR_COMPLETE') { data.repairStatus = 'COMPLETED'; data.repairReturnDate = now; }
     if (action === 'RETURN' || action === 'RESTOCK') {
-      data = { ...data, bankId: null, merchant: null, branch: null, tid: null, mid: null, address: null, engineer: null, deploymentDate: null, pendingReturn: false, dueDate: null };
+      data = { ...data, bankId: null, merchant: null, branch: null, tid: null, mid: null, address: null, telco: null, simEi: null, engineer: null, deploymentDate: null, pendingReturn: false, dueDate: null };
       if (action === 'RESTOCK' && !clean(body.location)) fail('Warehouse location is required');
     }
     if (action === 'CONFIRM_RETURN') {
@@ -218,7 +218,7 @@ async function applyAction(req, tx, id, body) {
       await bankCheck(tx, before.bankId);
       const conflict = await tx.inventoryDevice.findFirst({ where: { bankId: before.bankId, tid: before.tid, status: 'DEPLOYED', archived: false } });
       if (conflict) fail(`TID ${before.tid} is already active on ${conflict.serialNumber}`, 409);
-      const updated = await tx.inventoryDevice.updateMany({ where: { id: replacement.id, version: replacement.version, status: 'IN_STOCK' }, data: { bankId: before.bankId, location: clean(body.location), merchant: before.merchant, branch: before.branch, tid: before.tid, mid: before.mid, address: before.address, engineer: clean(body.engineer), deploymentDate: now, status: 'DEPLOYED', replacementSerial: before.serialNumber, version: { increment: 1 } } });
+      const updated = await tx.inventoryDevice.updateMany({ where: { id: replacement.id, version: replacement.version, status: 'IN_STOCK' }, data: { bankId: before.bankId, location: clean(body.location), merchant: before.merchant, branch: before.branch, tid: before.tid, mid: before.mid, address: before.address, telco: before.telco, simEi: before.simEi, engineer: clean(body.engineer), deploymentDate: now, status: 'DEPLOYED', replacementSerial: before.serialNumber, version: { increment: 1 } } });
       if (updated.count !== 1) fail('Replacement is no longer available', 409);
       const next = await tx.inventoryDevice.findUnique({ where: { id: replacement.id }, include });
       await tx.inventoryEvent.create({ data: eventData(req, 'REPLACEMENT_ISSUED', replacement, next, body) });
@@ -250,6 +250,32 @@ async function bulkAct(req, res) {
     return result;
   }, { timeout: 30000 });
   res.json({ rows, quantity: rows.length });
+}
+async function bulkBySerial(req, res) {
+  const { serialNumbers, ...body } = req.body || {};
+  if (!['DELIVER', 'RETURN', 'RESTOCK'].includes(body.action)) fail('Choose Deliver, Return or Restock');
+  assertAction(req.inventoryRole, body.action);
+  if (!Array.isArray(serialNumbers) || !serialNumbers.length || serialNumbers.length > 50) fail('Send 1–50 serial numbers per batch');
+  const serials = serialNumbers.map(value => clean(value, 120).toUpperCase());
+  if (serials.some(value => !value) || new Set(serials).size !== serials.length) fail('Serial numbers must be filled and unique');
+  const bankId = clean(body.bankId);
+  if (body.action !== 'RESTOCK' && !bankId) fail('Select a bank');
+  const rows = await prisma.$transaction(async tx => {
+    if (body.action === 'DELIVER') await bankCheck(tx, bankId);
+    else if (body.action === 'RETURN' && !await tx.bankMaster.findUnique({ where: { id: bankId }, select: { id: true } })) fail('Bank not found');
+    const devices = await tx.inventoryDevice.findMany({ where: { serialNumber: { in: serials } }, select: { id: true, serialNumber: true, version: true, bankId: true } });
+    const bySerial = new Map(devices.map(device => [device.serialNumber, device]));
+    const result = [];
+    for (const serial of serials) {
+      const device = bySerial.get(serial);
+      if (!device) fail(`${serial}: POS is not in the Hardware register`, 404);
+      if (body.action === 'RETURN' && device.bankId !== bankId) fail(`${serial}: POS is not assigned to the selected bank`, 409);
+      try { result.push(await applyAction(req, tx, device.id, { ...body, version: device.version })); }
+      catch (error) { error.message = `${serial}: ${error.message}`; throw error; }
+    }
+    return result;
+  }, { timeout: 30000 });
+  res.json({ quantity: rows.length, serialNumbers: rows.map(row => row.serialNumber) });
 }
 async function saveBank(req, res) {
   assertAction(req.inventoryRole, 'BANK');
@@ -373,4 +399,4 @@ function errors(err, req, res, next) {
   if (err.status) return res.status(err.status).json({ error: err.message });
   next(err);
 }
-module.exports = { identify, list, summary, detail, stockIn, act, bulkAct, saveBank, upload, download, report, settings, errors };
+module.exports = { identify, list, summary, detail, stockIn, act, bulkAct, bulkBySerial, saveBank, upload, download, report, settings, errors };

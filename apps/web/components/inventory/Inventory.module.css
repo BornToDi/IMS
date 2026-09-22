@@ -46,6 +46,8 @@ button.card:hover { border-color: #70b5aa; background: #fbfefd; }
 .table th { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); background: #f8fafb; font-weight: 700; }
 .table th, .table td { padding: 11px 14px; border-bottom: 1px solid #edf1f3; }
 .table tbody tr:hover { background: #f8fbfa; }
+.clickableRow { cursor: pointer; }
+.table tbody .clickableRow:hover, .table tbody .clickableRow:focus-within { background: #edf7f4; }
 .table tbody tr:last-child td { border-bottom: 0; }
 .serial { background: none; border: 0; color: #0f766e; cursor: pointer; padding: 0; font-weight: 750; text-decoration: none; }
 .small { display: block; color: var(--muted); font-size: 10px; margin-top: 3px; }
