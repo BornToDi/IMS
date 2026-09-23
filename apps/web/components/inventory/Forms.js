@@ -3,8 +3,9 @@ import { useState } from 'react'
 import { apiFetch } from '../../lib/api'
 import { s, Field, Modal, label, dateValue } from './shared'
 
-const TITLES = { STOCK_IN: 'Receive stock', RESTOCK: 'Move to available stock', RESERVE: 'Reserve for a bank', DELIVER: 'Deliver to bank', DEPLOY: 'Deploy to merchant', TRANSFER: 'Transfer POS', FAULT: 'Report a fault', REPAIR: 'Start repair / RMA', REPAIR_UPDATE: 'Update repair', REPAIR_COMPLETE: 'Complete repair', WITHDRAWAL: 'Withdrawal', REPLACE: 'Replace faulty POS', CONFIRM_RETURN: 'Confirm old POS return', EDIT: 'Edit device details', SCRAP: 'Retire / scrap POS', ARCHIVE: 'Archive retired POS' }
+const TITLES = { EDIT_ASSIGNMENT: 'Edit current assignment', STOCK_IN: 'Receive stock', RESTOCK: 'Move to available stock', RESERVE: 'Reserve for a bank', DELIVER: 'Deliver to bank', DEPLOY: 'Deploy to merchant', TRANSFER: 'Transfer POS', FAULT: 'Report a fault', REPAIR: 'Start repair / RMA', REPAIR_UPDATE: 'Update repair', REPAIR_COMPLETE: 'Complete repair', WITHDRAWAL: 'Withdrawal', REPLACE: 'Replace faulty POS', CONFIRM_RETURN: 'Confirm old POS return', EDIT: 'Edit device details', SCRAP: 'Retire / scrap POS', ARCHIVE: 'Archive retired POS' }
 const FORM_FIELDS = {
+  EDIT_ASSIGNMENT: ['bankId', 'location', 'merchant', 'branch', 'tid', 'mid', 'address', 'telco', 'simEi', 'engineer', 'deploymentDate'],
   STOCK_IN: ['serialNumbers', 'brand', 'model', 'deviceType', 'supplier', 'purchaseDate', 'warrantyUntil', 'location', 'reference', 'receivedBy', 'occurredAt', 'remarks'],
   EDIT: ['brand', 'model', 'deviceType', 'supplier', 'purchaseDate', 'warrantyUntil', 'remarks'],
   RESTOCK: ['location', 'occurredAt', 'remarks'], RESERVE: ['bankId', 'reference', 'dueDate', 'occurredAt', 'remarks'],
@@ -17,7 +18,7 @@ const FORM_FIELDS = {
   CONFIRM_RETURN: ['location', 'receivedBy', 'occurredAt', 'remarks'], SCRAP: ['occurredAt', 'remarks'], ARCHIVE: ['remarks']
 }
 const FIELD_LABELS = { serialNumbers: 'Serial numbers · one per line', bankId: 'Bank', deviceType: 'Device type', purchaseDate: 'Purchase date', warrantyUntil: 'Warranty expiry', receivedBy: 'Received by / receiving officer', deliveredBy: 'Delivered by', reference: 'PO / invoice / challan reference', occurredAt: 'Event date', dueDate: 'Expected delivery / deployment / return date', merchant: 'DBN / Merchant', branch: 'Branch', tid: 'TID', mid: 'MID', address: 'Address', telco: 'Telco', simEi: 'SIM EI', faultType: 'Fault type', repairStatus: 'Repair status', repairCost: 'Repair cost (BDT)', replacementSerial: 'Available replacement serial', technician: 'Technician / vendor', location: 'Destination / current location' }
-const DATE_FIELDS = ['purchaseDate', 'warrantyUntil', 'occurredAt', 'dueDate']
+const DATE_FIELDS = ['deploymentDate', 'purchaseDate', 'warrantyUntil', 'occurredAt', 'dueDate']
 
 export function DeviceForm({ action, device, devices, summary, token, onClose, onSaved }) {
   const [form, setForm] = useState(() => {
@@ -30,7 +31,7 @@ export function DeviceForm({ action, device, devices, summary, token, onClose, o
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const change = e => setForm(f => ({ ...f, [e.target.name]: e.target.value }))
-  const required = action === 'STOCK_IN' ? ['serialNumbers', 'brand', 'model', 'supplier', 'reference', 'receivedBy', 'location'] : [...(summary.transitions[action]?.required || []), ...(action === 'RESTOCK' ? ['location'] : []), ...(action === 'DEPLOY' ? ['brand', 'model', 'deviceType'] : []), ...(action === 'EDIT' ? ['brand', 'model', 'deviceType'] : []), ...(action === 'TRANSFER' && device.status === 'DEPLOYED' ? ['merchant', 'tid', 'mid', 'address', 'engineer'] : [])]
+  const required = action === 'STOCK_IN' ? ['serialNumbers', 'brand', 'model', 'supplier', 'reference', 'receivedBy', 'location'] : [...(summary.transitions[action]?.required || []), ...(action === 'RESTOCK' ? ['location'] : []), ...(action === 'DEPLOY' ? ['brand', 'model', 'deviceType'] : []), ...(action === 'EDIT_ASSIGNMENT' && ['RESERVED', 'DELIVERED', 'DEPLOYED'].includes(device.status) ? ['bankId'] : []), ...(action === 'EDIT_ASSIGNMENT' && device.status === 'DEPLOYED' ? ['tid'] : []), ...(action === 'EDIT' ? ['brand', 'model', 'deviceType'] : []), ...(action === 'TRANSFER' && device.status === 'DEPLOYED' ? ['merchant', 'tid', 'mid', 'address', 'engineer'] : [])]
   async function submit(e) {
     e.preventDefault(); setBusy(true); setError('')
     try {
@@ -48,7 +49,7 @@ export function DeviceForm({ action, device, devices, summary, token, onClose, o
     {action === 'ARCHIVE' && <div className={s.alert} style={{ marginBottom: 15 }}>This retired device will move to the archive. Its serial number and complete history remain available.</div>}
     {error && <div role="alert" className={`${s.message} ${s.error}`}>{error}</div>}
     <form id="device-action-form" onSubmit={submit} className={s.formGrid}>
-      {FORM_FIELDS[action].map(key => <Field key={key} name={key} title={FIELD_LABELS[key]} value={form[key]} onChange={change} required={required.includes(key)} wide={['serialNumbers', 'remarks', 'address'].includes(key)} type={['serialNumbers', 'remarks', 'address'].includes(key) ? 'textarea' : DATE_FIELDS.includes(key) ? 'date' : key === 'repairCost' ? 'number' : 'text'} {...(key === 'repairCost' ? { min: 0, step: '.01' } : {})} {...(key === 'occurredAt' ? { max: new Date().toISOString().slice(0, 10) } : {})} options={key === 'bankId' ? summary.banks.filter(b => b.active).map(b => ({ value: b.id, label: b.name })) : key === 'deviceType' ? ['POS', 'SMART_POS', 'MPOS', 'PIN_PAD'] : key === 'repairStatus' ? ['DIAGNOSING', 'WAITING_PARTS', 'WITH_VENDOR', 'REPAIRING', 'TESTING'] : undefined} placeholder={key === 'serialNumbers' ? 'POS000001\nPOS000002\nPOS000003' : undefined}/>) }
+      {FORM_FIELDS[action].map(key => <Field key={key} name={key} title={FIELD_LABELS[key]} value={form[key]} onChange={change} required={required.includes(key)} wide={['serialNumbers', 'remarks', 'address'].includes(key)} type={['serialNumbers', 'remarks', 'address'].includes(key) ? 'textarea' : DATE_FIELDS.includes(key) ? 'date' : key === 'repairCost' ? 'number' : 'text'} {...(key === 'repairCost' ? { min: 0, step: '.01' } : {})} {...(key === 'occurredAt' ? { max: new Date().toISOString().slice(0, 10) } : {})} options={key === 'bankId' ? summary.banks.filter(b => b.active || (action === 'EDIT_ASSIGNMENT' && b.id === device.bankId)).map(b => ({ value: b.id, label: b.name })) : key === 'deviceType' ? ['POS', 'SMART_POS', 'MPOS', 'PIN_PAD'] : key === 'repairStatus' ? ['DIAGNOSING', 'WAITING_PARTS', 'WITH_VENDOR', 'REPAIRING', 'TESTING'] : undefined} placeholder={key === 'serialNumbers' ? 'POS000001\nPOS000002\nPOS000003' : undefined}/>) }
       {action === 'STOCK_IN' && <div className={`${s.sub} ${s.wide}`}>{(form.serialNumbers || '').split(/[\n,]+/).filter(v => v.trim()).length} serials · maximum 500 per receipt · documents can be attached after receiving.</div>}
     </form>
   </Modal>

@@ -316,4 +316,153 @@ test('Excel bank-specific columns reach POS and Hardware without importing withd
   assert.equal(pos.simNumber, '8988013502727207928F');
   assert.equal(pos.tidNumber, '001200');
   assert.equal(pos.merchantName, 'Excel merchant');
-  const device = await prisma.invent
+  const device = await prisma.inventoryDevice.findUnique({ where: { serialNumber: pos.serialNumber } });
+  assert.equal(device.brand, 'UROVO');
+  assert.equal(device.model, 'i9100');
+  assert.equal(device.engineer, 'Installer');
+  assert.equal(device.location, 'Mirpur');
+  assert.equal(device.simEi, pos.simNumber);
+  assert.equal(await prisma.posSerial.count({ where: { serialNumber: 'EXCEL-WITHDRAWN' } }), 0);
+});
+
+test('old upload correction preserves history, excludes other receipts and is idempotent', async () => {
+  const { correctImportedPosStatus } = require('../../scripts/correct-imported-pos-status');
+  const data = { brand: 'Unknown', model: 'N910PRO', location: 'Dhaka', bankId: bank.id, status: 'RECEIVED' };
+  const old = await prisma.inventoryDevice.create({ data: { ...data, serialNumber: 'OLD-IMPORT', tid: 'CORRECTION-TID', events: { create: { action: 'IMPORT', newStatus: 'RECEIVED', actorId: admin.id, actorName: admin.name, details: JSON.stringify({ source: 'POS_SERIALS' }) } } } });
+  const other = await prisma.inventoryDevice.create({ data: { ...data, serialNumber: 'OTHER-RECEIPT' } });
+  const preview = await correctImportedPosStatus(prisma);
+  assert.equal(preview.eligible, 1); assert.equal(preview.corrected, 0);
+  assert.equal((await prisma.inventoryDevice.findUnique({ where: { id: old.id } })).status, 'RECEIVED');
+  const result = await correctImportedPosStatus(prisma, true);
+  assert.equal(result.corrected, 1);
+  const fixed = await prisma.inventoryDevice.findUnique({ where: { id: old.id }, include: { events: true } });
+  assert.equal(fixed.status, 'DEPLOYED'); assert.equal(fixed.version, 1); assert.equal(fixed.deploymentDate, null);
+  assert.equal(fixed.events.length, 2);
+  assert.equal(fixed.events.find(e => e.action === 'IMPORT').newStatus, 'RECEIVED');
+  assert.equal(fixed.events.find(e => e.action === 'STATUS_CORRECTION').newStatus, 'DEPLOYED');
+  assert.equal((await prisma.inventoryDevice.findUnique({ where: { id: other.id } })).status, 'RECEIVED');
+  assert.equal((await correctImportedPosStatus(prisma, true)).corrected, 0);
+});
+
+
+test('permanent bank deletion is admin-only, atomic and scoped to the selected bank', async () => {
+  const target = await prisma.bankMaster.create({ data: { name: 'Delete bank test' } });
+  const createDevice = (serialNumber, bankId, archived = false) => prisma.inventoryDevice.create({ data: { serialNumber, bankId, brand: 'PAX', model: 'A920', location: 'Test', archived } });
+  const active = await createDevice('DELETE-ACTIVE', target.id);
+  const archived = await createDevice('DELETE-ARCHIVED', target.id, true);
+  const keep = await createDevice('DELETE-KEEP', secondBank.id);
+  for (const device of [active, archived, keep]) {
+    await prisma.inventoryEvent.create({ data: { deviceId: device.id, action: 'STOCK_IN', newStatus: 'IN_STOCK', actorId: admin.id, actorName: admin.name, details: '{}' } });
+    await prisma.inventoryDocument.create({ data: { deviceId: device.id, category: 'RMA', name: 'test.pdf', mimeType: 'application/pdf', content: Buffer.from('%PDF-test'), size: 9, uploadedBy: admin.name } });
+  }
+  await prisma.posSerial.create({ data: { bankName: target.name, serialNumber: active.serialNumber } });
+  await prisma.posSerial.create({ data: { bankName: target.name, serialNumber: 'DELETE-POS-ONLY' } });
+  await prisma.posSerial.create({ data: { bankName: secondBank.name, serialNumber: keep.serialNumber } });
+  const url = `/banks/${target.id}`;
+  assert.equal((await request(url, { method: 'DELETE', user: null })).status, 401);
+  for (const user of [store, engineer, operations, manager, bankUser]) {
+    assert.equal((await request(url, { method: 'DELETE', user })).status, 403);
+  }
+  // Force failure after child deletion to prove the whole transaction rolls back.
+  await prisma.$executeRawUnsafe(`CREATE TRIGGER reject_test_bank_delete BEFORE DELETE ON "BankMaster" WHEN OLD.name = 'Delete bank test' BEGIN SELECT RAISE(ABORT, 'test rollback'); END`);
+  try {
+    assert.ok((await request(url, { method: 'DELETE' })).status >= 400);
+    assert.equal(await prisma.inventoryDevice.count({ where: { bankId: target.id } }), 2);
+    assert.equal(await prisma.inventoryEvent.count({ where: { deviceId: active.id } }), 1);
+    assert.equal(await prisma.inventoryDocument.count({ where: { deviceId: active.id } }), 1);
+    assert.equal(await prisma.posSerial.count({ where: { bankName: target.name } }), 2);
+  } finally {
+    await prisma.$executeRawUnsafe('DROP TRIGGER reject_test_bank_delete');
+  }
+  const result = await request(url, { method: 'DELETE' });
+  assert.equal(result.status, 200, JSON.stringify(result.body));
+  assert.equal(result.body.deletedDevices, 2);
+  assert.equal(result.body.deletedPosSerials, 2);
+  assert.equal(result.body.deletedEvents, 2);
+  assert.equal(result.body.deletedDocuments, 2);
+  assert.equal(await prisma.bankMaster.findUnique({ where: { id: target.id } }), null);
+  assert.equal(await prisma.inventoryDevice.count({ where: { bankId: target.id } }), 0);
+  assert.equal(await prisma.inventoryDocument.count({ where: { deviceId: { in: [active.id, archived.id] } } }), 0);
+  assert.equal(await prisma.inventoryEvent.count({ where: { deviceId: { in: [active.id, archived.id] } } }), 0);
+  assert.equal(await prisma.posSerial.count({ where: { bankName: target.name } }), 0);
+  assert.ok(await prisma.inventoryDevice.findUnique({ where: { id: keep.id } }));
+  assert.equal(await prisma.inventoryEvent.count({ where: { deviceId: keep.id } }), 1);
+  assert.equal(await prisma.inventoryDocument.count({ where: { deviceId: keep.id } }), 1);
+  assert.ok(await prisma.posSerial.findUnique({ where: { serialNumber: keep.serialNumber } }));
+  assert.equal((await request(url, { method: 'DELETE' })).status, 404);
+  const empty = await prisma.bankMaster.create({ data: { name: 'Delete empty bank' } });
+  assert.equal((await request(`/banks/${empty.id}`, { method: 'DELETE' })).status, 200);
+});
+
+
+test('row deletion removes only the selected POS, checks permissions and rejects stale versions', async () => {
+  const received = await receive(['ROW-DELETE', 'ROW-KEEP']);
+  const device = received.body.rows.find(r => r.serialNumber === 'ROW-DELETE');
+  const keep = received.body.rows.find(r => r.serialNumber === 'ROW-KEEP');
+  await prisma.posSerial.create({ data: { bankName: bank.name, serialNumber: device.serialNumber } });
+  const document = await prisma.inventoryDocument.create({ data: { deviceId: device.id, category: 'RMA', name: 'row.pdf', mimeType: 'application/pdf', content: Buffer.from('%PDF-test'), size: 9, uploadedBy: admin.name } });
+  const options = { method: 'DELETE', body: { version: device.version } };
+  assert.equal((await request(`/${device.id}`, { ...options, user: null })).status, 401);
+  for (const user of [store, engineer, manager, bankUser]) assert.equal((await request(`/${device.id}`, { ...options, user })).status, 403);
+  const edited = await action(device, 'EDIT', { brand: 'PAX', model: 'A920 Pro', deviceType: 'POS' });
+  assert.equal(edited.status, 200);
+  assert.equal((await request(`/${device.id}`, options)).status, 409);
+  assert.ok(await prisma.inventoryDocument.findUnique({ where: { id: document.id } }));
+  await prisma.$executeRawUnsafe(`CREATE TRIGGER reject_row_delete BEFORE DELETE ON "InventoryDevice" WHEN OLD.serialNumber = 'ROW-DELETE' BEGIN SELECT RAISE(ABORT, 'test rollback'); END`);
+  const current = { method: 'DELETE', body: { version: edited.body.version } };
+  try {
+    assert.ok((await request(`/${device.id}`, current)).status >= 400);
+    assert.ok(await prisma.inventoryDocument.findUnique({ where: { id: document.id } }));
+    assert.ok(await prisma.inventoryEvent.count({ where: { deviceId: device.id } }));
+  } finally { await prisma.$executeRawUnsafe('DROP TRIGGER reject_row_delete'); }
+  assert.equal((await request(`/${device.id}`, current)).status, 200);
+  assert.equal((await get(device.id)).status, 404);
+  assert.equal(await prisma.inventoryDocument.count({ where: { deviceId: device.id } }), 0);
+  assert.equal(await prisma.inventoryEvent.count({ where: { deviceId: device.id } }), 0);
+  assert.equal(await prisma.posSerial.findUnique({ where: { serialNumber: device.serialNumber } }), null);
+  assert.equal((await get(keep.id)).status, 200);
+  assert.equal((await request(`/${device.id}`, current)).status, 404);
+  const archived = await prisma.inventoryDevice.update({ where: { id: keep.id }, data: { archived: true, status: 'SCRAPPED' } });
+  assert.equal((await request(`/${archived.id}`, { method: 'DELETE', body: { version: archived.version } })).status, 200);
+});
+
+
+test('assignment edits change bank and details directly while preserving status and service history', async () => {
+  const assignmentBank = await prisma.bankMaster.create({ data: { name: 'Assignment source bank' } });
+  async function assignmentDevice(serialNumber) {
+    const received = await receive([serialNumber]);
+    const delivered = await action(received.body.rows[0], 'DELIVER', { bankId: assignmentBank.id, location: 'Assignment depot', reference: 'CH-ASSIGN', deliveredBy: 'Driver', receivedBy: 'Officer', dueDate: due });
+    assert.equal(delivered.status, 200);
+    const result = await action(delivered.body, 'DEPLOY', { bankId: assignmentBank.id, location: 'Merchant', merchant: 'Merchant', tid: serialNumber, mid: 'MID', address: 'Dhaka', engineer: 'Engineer' });
+    assert.equal(result.status, 200);
+    return result.body;
+  }
+  const device = await assignmentDevice('ASSIGN-EDIT');
+  const changes = { bankId: secondBank.id, location: device.location, merchant: 'Updated merchant', tid: 'ASSIGN-TID', mid: 'NEW-MID', branch: 'New branch', address: 'Updated address', telco: 'Telco', simEi: '001234567890', engineer: 'New engineer', deploymentDate: today };
+  for (const user of [manager, engineer]) assert.equal((await action(device, 'EDIT_ASSIGNMENT', changes, user)).status, 403);
+  assert.equal((await action(device, 'EDIT_ASSIGNMENT', changes, bankUser)).status, 404);
+  const edited = await action(device, 'EDIT_ASSIGNMENT', changes);
+  assert.equal(edited.status, 200, JSON.stringify(edited.body));
+  assert.equal(edited.body.status, 'DEPLOYED');
+  assert.equal(edited.body.bankId, secondBank.id);
+  assert.equal(edited.body.tid, changes.tid);
+  assert.equal(edited.body.simEi, changes.simEi);
+  assert.equal(edited.body.brand, device.brand);
+  assert.equal(edited.body.serialNumber, device.serialNumber);
+  assert.equal((await action(device, 'EDIT_ASSIGNMENT', changes)).status, 409);
+  assert.equal((await action(edited.body, 'EDIT_ASSIGNMENT', { ...changes, bankId: '' })).status, 400);
+  assert.equal((await action(edited.body, 'EDIT_ASSIGNMENT', { ...changes, tid: '' })).status, 400);
+  const conflicting = await assignmentDevice('ASSIGN-CONFLICT');
+  assert.equal((await action(conflicting, 'EDIT_ASSIGNMENT', changes)).status, 409);
+  const inactive = await prisma.bankMaster.create({ data: { name: 'Assignment inactive', active: false } });
+  assert.equal((await action(edited.body, 'EDIT_ASSIGNMENT', { ...changes, bankId: inactive.id })).status, 400);
+  const faulty = await action(edited.body, 'FAULT', { faultType: 'Printer' });
+  const corrected = await action(faulty.body, 'EDIT_ASSIGNMENT', { ...changes, location: 'Corrected location' }, store);
+  assert.equal(corrected.status, 200);
+  assert.equal(corrected.body.status, 'FAULTY');
+  assert.equal(corrected.body.faultType, 'Printer');
+  const detail = await get(device.id);
+  assert.ok(detail.body.events.some(event => event.action === 'EDIT_ASSIGNMENT' && JSON.parse(event.details).before.bankId === assignmentBank.id));
+  await prisma.inventoryDevice.update({ where: { id: device.id }, data: { archived: true } });
+  assert.equal((await action(corrected.body, 'EDIT_ASSIGNMENT', changes)).status, 409);
+});

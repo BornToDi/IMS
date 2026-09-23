@@ -1,6 +1,7 @@
 const ExcelJS = require('exceljs');
 const { validPosSerial } = require('./posInventory');
 
+const importError = message => Object.assign(new Error(message), { status: 400 });
 const normalize = value => String(value ?? '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
 // Ordered aliases: prefer the exact field, then the most specific alternative.
 const ALIASES = {
@@ -47,7 +48,7 @@ function mapHeader(cells) {
   });
   if (!candidates.serialNumber) return null;
   // Two serial columns might be old/new POS or two side-by-side tables. Never guess.
-  if (candidates.serialNumber.length !== 1) throw new Error('Multiple POS serial columns found. Split old/new POS or side-by-side tables into separate sheets before importing.');
+  if (candidates.serialNumber.length !== 1) throw importError('Multiple POS serial columns found. Split old/new POS or side-by-side tables into separate sheets before importing.');
   const columns = Object.fromEntries(Object.entries(candidates).map(([field, matches]) => [field, matches.sort((a, b) => a.rank - b.rank || a.index - b.index)]));
   return { columns, unmapped: cells.filter(header => header && !fieldFor(header)) };
 }
@@ -80,7 +81,7 @@ function parseTables(tables, selectedBank = '') {
       record.serialNumber = serial;
       if (selectedBank && record.bankName && normalize(record.bankName) !== normalize(selectedBank)) { report.mismatchedBankRows++; continue; }
       record.bankName = selectedBank || record.bankName;
-      if (!record.bankName) throw new Error('Select a bank or include a Bank Name column.');
+      if (!record.bankName) throw importError('Select a bank or include a Bank Name column.');
       info.rows++;
       if (conflicts.has(serial)) { report.duplicateRows++; continue; }
       const existing = records.get(serial);
@@ -130,7 +131,7 @@ function csvRows(text, delimiter) {
       row.push(value.trim()); rows.push(row); row = []; value = '';
     } else value += ch;
   }
-  if (quoted) throw new Error('CSV contains an unclosed quoted field.');
+  if (quoted) throw importError('CSV contains an unclosed quoted field.');
   if (row.length || value) { row.push(value.trim()); rows.push(row); }
   return rows;
 }

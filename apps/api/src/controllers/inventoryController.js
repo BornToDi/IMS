@@ -174,6 +174,7 @@ async function applyAction(req, tx, id, body) {
     let data = { status: TRANSITIONS[action].to || before.status, version: { increment: 1 } };
     const actionFields = {
       EDIT: ['brand', 'model', 'deviceType', 'supplier', 'telco', 'simEi', 'remarks'],
+      EDIT_ASSIGNMENT: ['location', 'merchant', 'branch', 'tid', 'mid', 'address', 'telco', 'simEi', 'engineer'],
       RESTOCK: ['location', 'remarks'], RESERVE: ['remarks', 'reference'],
       DELIVER: ['location', 'reference', 'remarks'],
       DEPLOY: ['brand', 'model', 'deviceType', 'supplier', 'location', 'merchant', 'branch', 'tid', 'mid', 'address', 'telco', 'simEi', 'engineer', 'remarks'],
@@ -190,6 +191,19 @@ async function applyAction(req, tx, id, body) {
       const purchase = data.purchaseDate === undefined ? before.purchaseDate : data.purchaseDate;
       const warranty = data.warrantyUntil === undefined ? before.warrantyUntil : data.warrantyUntil;
       if (purchase && warranty && warranty < purchase) fail('Warranty cannot end before purchase');
+    }
+    if (action === 'EDIT_ASSIGNMENT') {
+      if (body.bankId !== undefined) {
+        const bankId = clean(body.bankId);
+        data.bankId = bankId === before.bankId ? before.bankId : bankId ? await bankCheck(tx, bankId) : null;
+      }
+      const assignedBank = data.bankId === undefined ? before.bankId : data.bankId;
+      if (['RESERVED', 'DELIVERED', 'DEPLOYED'].includes(before.status) && !assignedBank) fail('Bank is required for this POS');
+      if (before.status === 'DEPLOYED' && !clean(data.tid === undefined ? before.tid : data.tid)) fail('TID is required for an active POS');
+      if (body.deploymentDate !== undefined) {
+        data.deploymentDate = date(body.deploymentDate, 'deployment date');
+        if (data.deploymentDate > new Date()) fail('Deployment date cannot be in the future');
+      }
     }
     if (['RESERVE', 'DELIVER', 'DEPLOY'].includes(action)) {
       data.bankId = await bankCheck(tx, body.bankId);
@@ -319,6 +333,37 @@ async function saveBank(req, res) {
   });
   res.status(req.params.id ? 200 : 201).json(row);
 }
+async function deleteDevice(req, res) {
+  if (req.inventoryRole !== 'ADMIN') fail('Only admin can permanently delete a POS', 403);
+  const result = await prisma.$transaction(async tx => {
+    const device = await deviceFor(req, tx);
+    if (!Number.isInteger(req.body?.version) || req.body.version !== device.version) fail('This POS has changed. Refresh and try again.', 409);
+    await tx.inventoryDocument.deleteMany({ where: { deviceId: device.id } });
+    await tx.inventoryEvent.deleteMany({ where: { deviceId: device.id } });
+    await tx.inventoryDevice.delete({ where: { id: device.id } });
+    await tx.posSerial.deleteMany({ where: { serialNumber: device.serialNumber } });
+    await tx.inventoryAdminAudit.create({ data: { action: 'DEVICE_DELETE', actorId: req.inventoryUser.id, actorName: req.inventoryUser.name, details: JSON.stringify({ deviceId: device.id, serialNumber: device.serialNumber, bankId: device.bankId }) } });
+    return { serialNumber: device.serialNumber };
+  }, { timeout: 30000 });
+  res.json({ ok: true, ...result });
+}
+async function deleteBank(req, res) {
+  if (req.inventoryRole !== 'ADMIN') fail('Only admin can permanently delete a bank', 403);
+  const result = await prisma.$transaction(async tx => {
+    const bank = await tx.bankMaster.findUnique({ where: { id: req.params.id } });
+    if (!bank) fail('Bank not found', 404);
+    const devices = { bankId: bank.id };
+    const documents = await tx.inventoryDocument.deleteMany({ where: { device: devices } });
+    const events = await tx.inventoryEvent.deleteMany({ where: { device: devices } });
+    const hardware = await tx.inventoryDevice.deleteMany({ where: devices });
+    const pos = await tx.posSerial.deleteMany({ where: { bankName: bank.name } });
+    await tx.bankMaster.delete({ where: { id: bank.id } });
+    const counts = { deletedDevices: hardware.count, deletedPosSerials: pos.count, deletedDocuments: documents.count, deletedEvents: events.count };
+    await tx.inventoryAdminAudit.create({ data: { action: 'BANK_DELETE', actorId: req.inventoryUser.id, actorName: req.inventoryUser.name, details: JSON.stringify({ bankId: bank.id, bankName: bank.name, ...counts }) } });
+    return { bankName: bank.name, ...counts };
+  }, { timeout: 30000 });
+  res.json({ ok: true, ...result });
+}
 async function upload(req, res) {
   assertAction(req.inventoryRole, 'DOCUMENT');
   const file = req.file;
@@ -422,4 +467,4 @@ function errors(err, req, res, next) {
   if (err.status) return res.status(err.status).json({ error: err.message });
   next(err);
 }
-module.exports = { identify, list, summary, detail, stockIn, act, bulkAct, bulkBySerial, saveBank, upload, download, report, settings, errors, syncPosSerials };
+module.exports = { identify, list, summary, detail, stockIn, act, bulkAct, bulkBySerial, saveBank, deleteBank, deleteDevice, upload, download, report, settings, errors, syncPosSerials };
