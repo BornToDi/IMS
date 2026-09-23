@@ -18,6 +18,7 @@ const prisma = require('../prismaClient');
 const { signAccess } = require('../utils/jwt');
 const app = express();
 app.use(express.json());
+app.use('/api/pos-serials', require('../routes/posSerials'));
 app.use('/api/hardware', require('../routes/hardware'));
 app.use((err, req, res, next) => res.status(err.status || 500).json({ error: err.message }));
 let server, base, admin, store, engineer, operations, manager, bankUser, otherBankUser, bank, secondBank;
@@ -195,4 +196,78 @@ test('dashboard totals, filters and real Excel exports match persisted records',
   assert.equal((await request('/?page=Infinity')).status,400);
   const workbook=await request('/reports?format=xlsx&type=stock',{raw:true}); assert.equal(workbook.status,200); assert.equal(workbook.body.subarray(0,2).toString(),'PK');
   const ExcelJS=require('exceljs'); const parsed=new ExcelJS.Workbook(); await parsed.xlsx.load(workbook.body); assert.equal(parsed.worksheets[0].rowCount,summary.body.total+1);
+});
+
+
+test('POS backfill maps identity, skips placeholders and preserves existing inventory', async () => {
+  const name = 'Sync bank';
+  await prisma.posSerial.createMany({ data: [
+    { bankName: name, serialNumber: 'SYNC-NEW', tidNumber: '001234', midNumber: '000567', merchantName: 'Shop', merchantAddress: 'Dhaka', operator: 'GP', simNumber: '89880001', model: 'N910PRO' },
+    { bankName: name, serialNumber: 'PENDING FOR LOGO' },
+    { bankName: name, serialNumber: 'SYNC-CONFLICT' }
+  ] });
+  const existing = (await receive(['SYNC-CONFLICT'])).body.rows[0];
+  for (const user of [bankUser, manager, store]) {
+    assert.equal((await request('/sync-pos-serials', { user, body: { bankName: name } })).status, 403);
+  }
+  const result = await request('/sync-pos-serials', { body: { bankName: name } });
+  assert.equal(result.status, 200);
+  assert.deepEqual(result.body, { added: 1, existing: 0, invalid: 1, conflicts: 1 });
+  const device = await prisma.inventoryDevice.findUnique({ where: { serialNumber: 'SYNC-NEW' }, include: { bank: true, events: true } });
+  assert.equal(device.bank.name, name);
+  assert.equal(device.status, 'DEPLOYED');
+  assert.equal(device.tid, '001234'); assert.equal(device.mid, '000567');
+  assert.equal(device.merchant, 'Shop'); assert.equal(device.address, 'Dhaka');
+  assert.equal(device.telco, 'GP'); assert.equal(device.simEi, '89880001');
+  assert.equal(device.events.length, 1); assert.equal(device.events[0].action, 'IMPORT');
+  assert.equal(JSON.parse(device.events[0].details).after.bankName, name);
+  const repeat = await request('/sync-pos-serials', { body: { bankName: name, status: 'RECEIVED' } });
+  assert.equal(repeat.body.added, 0); assert.equal(repeat.body.existing, 1);
+  assert.equal((await prisma.inventoryDevice.findUnique({ where: { id: device.id } })).status, 'DEPLOYED');
+  assert.equal(await prisma.inventoryEvent.count({ where: { deviceId: device.id } }), 1);
+  const untouched = await prisma.inventoryDevice.findUnique({ where: { id: existing.id } });
+  assert.equal(untouched.bankId, null); assert.equal(untouched.status, 'IN_STOCK'); assert.equal(untouched.version, existing.version);
+  assert.equal(await prisma.inventoryDevice.count({ where: { serialNumber: 'PENDING FOR LOGO' } }), 0);
+});
+
+test('admin bulk upload adds Hardware atomically and bank uploads remain scoped to POS records', async () => {
+  const uploadBank = await prisma.bankMaster.findUnique({ where: { id: bank.id } });
+  async function uploadFor(user, serial) {
+    const body = new FormData();
+    body.append('bankName', uploadBank.name);
+    body.append('file', new Blob(['POS SERIAL,TID,MID,DBA NAME,ADDRESS,MODEL\n' + serial + ',000123,000456,Upload shop,Dhaka,N910PRO'], { type: 'text/csv' }), 'pos.csv');
+    const response = await fetch(base.replace('/api/hardware', '/api/pos-serials/import'), {
+      method: 'POST', headers: { Authorization: 'Bearer ' + signAccess({ userId: user.id }) }, body
+    });
+    return { status: response.status, body: await response.json() };
+  }
+  const first = await uploadFor(admin, 'UPLOAD-HARDWARE');
+  assert.equal(first.status, 200, JSON.stringify(first.body)); assert.equal(first.body.hardware.added, 1);
+  const device = await prisma.inventoryDevice.findUnique({ where: { serialNumber: 'UPLOAD-HARDWARE' } });
+  assert.equal(device.bankId, bank.id); assert.equal(device.status, 'DEPLOYED');
+  const again = await uploadFor(admin, 'UPLOAD-HARDWARE');
+  assert.equal(again.body.hardware.added, 0); assert.equal(again.body.hardware.existing, 1);
+  const bankUpload = await uploadFor(bankUser, 'BANK-UPLOAD-ONLY');
+  assert.equal(bankUpload.status, 200); assert.equal(bankUpload.body.hardware, null);
+  assert.equal(await prisma.inventoryDevice.count({ where: { serialNumber: 'BANK-UPLOAD-ONLY' } }), 0);
+});
+
+
+test('old upload correction preserves history, excludes other receipts and is idempotent', async () => {
+  const { correctImportedPosStatus } = require('../../scripts/correct-imported-pos-status');
+  const data = { brand: 'Unknown', model: 'N910PRO', location: 'Dhaka', bankId: bank.id, status: 'RECEIVED' };
+  const old = await prisma.inventoryDevice.create({ data: { ...data, serialNumber: 'OLD-IMPORT', tid: 'CORRECTION-TID', events: { create: { action: 'IMPORT', newStatus: 'RECEIVED', actorId: admin.id, actorName: admin.name, details: JSON.stringify({ source: 'POS_SERIALS' }) } } } });
+  const other = await prisma.inventoryDevice.create({ data: { ...data, serialNumber: 'OTHER-RECEIPT' } });
+  const preview = await correctImportedPosStatus(prisma);
+  assert.equal(preview.eligible, 1); assert.equal(preview.corrected, 0);
+  assert.equal((await prisma.inventoryDevice.findUnique({ where: { id: old.id } })).status, 'RECEIVED');
+  const result = await correctImportedPosStatus(prisma, true);
+  assert.equal(result.corrected, 1);
+  const fixed = await prisma.inventoryDevice.findUnique({ where: { id: old.id }, include: { events: true } });
+  assert.equal(fixed.status, 'DEPLOYED'); assert.equal(fixed.version, 1); assert.equal(fixed.deploymentDate, null);
+  assert.equal(fixed.events.length, 2);
+  assert.equal(fixed.events.find(e => e.action === 'IMPORT').newStatus, 'RECEIVED');
+  assert.equal(fixed.events.find(e => e.action === 'STATUS_CORRECTION').newStatus, 'DEPLOYED');
+  assert.equal((await prisma.inventoryDevice.findUnique({ where: { id: other.id } })).status, 'RECEIVED');
+  assert.equal((await correctImportedPosStatus(prisma, true)).corrected, 0);
 });

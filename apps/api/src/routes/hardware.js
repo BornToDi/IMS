@@ -19,6 +19,7 @@ router.put('/banks/:id', ctrl.saveBank);
 router.get('/documents/:documentId', ctrl.download);
 router.get('/', ctrl.list);
 router.post('/stock-in', ctrl.stockIn);
+router.post('/sync-pos-serials', ctrl.syncPosSerials);
 router.post('/actions', ctrl.bulkAct);
 router.post('/actions/by-serial', ctrl.bulkBySerial);
 router.get('/:id', ctrl.detail);

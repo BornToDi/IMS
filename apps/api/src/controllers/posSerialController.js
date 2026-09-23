@@ -3,6 +3,7 @@ const { randomUUID } = require('crypto');
 const ExcelJS = require('exceljs');
 const { PDFParse } = require('pdf-parse');
 const prisma = require('../prismaClient');
+const { validPosSerial, addPosToInventory } = require('../utils/posInventory');
 const { isAdminRole, isFullAdminRole, isBankRole, getUser } = require('../utils/workflow');
 
 function clean(v) { return String(v || '').trim(); }
@@ -398,6 +399,7 @@ async function importPosSerials(req, res) {
 
   try {
     const selectedBank = isBankRole(user.userRole) ? bankOfUser(user) : clean(req.body.bankName);
+    const syncHardware = String(user.userRole).toUpperCase() === 'ADMIN';
     const extension = String(req.file.originalname || '').toLowerCase().split('.').pop();
     let rows = [];
 
@@ -414,6 +416,8 @@ async function importPosSerials(req, res) {
       return res.status(400).json({ error: 'Only .xlsx, .csv and .pdf files are supported' });
     }
 
+    const invalidSerials = rows.filter(row => !validPosSerial(row.serialNumber)).length;
+    rows = rows.filter(row => validPosSerial(row.serialNumber));
     if (!rows.length) {
       return res.status(400).json({ error: 'No POS serial found. Excel must contain a POS Serial NO column.' });
     }
@@ -422,7 +426,8 @@ async function importPosSerials(req, res) {
     }
 
     let inserted = 0;
-    const chunkSize = 500;
+    const hardware = { added: 0, existing: 0, invalid: 0, conflicts: 0 };
+    const chunkSize = 100;
     await ensurePosSerialExtraColumns();
     for (let i = 0; i < rows.length; i += chunkSize) {
       const chunk = rows.slice(i, i + chunkSize);
@@ -458,10 +463,16 @@ async function importPosSerials(req, res) {
             ...detailFields.map((field) => item[field] || null)
           );
           inserted += Number(affected) || 0;
+          if (syncHardware && affected) {
+            const saved = await tx.posSerial.findUnique({ where: { serialNumber: item.serialNumber } });
+            const counts = await addPosToInventory(tx, [saved], user);
+            for (const key of Object.keys(hardware)) hardware[key] += counts[key];
+          }
         }
-      });
+      }, { timeout: 30000 });
     }
-    res.json({ ok: true, bankName: selectedBank || null, processed: rows.length, imported: inserted, skipped: rows.length - inserted });
+    if (syncHardware) req.app.locals.io?.emit('inventory:updated');
+    res.json({ ok: true, bankName: selectedBank || null, processed: rows.length, imported: inserted, skipped: rows.length - inserted, invalidSerials, hardware: syncHardware ? hardware : null });
   } finally {
     fs.unlink(req.file.path, () => {});
   }

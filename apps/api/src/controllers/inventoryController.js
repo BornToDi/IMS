@@ -1,5 +1,6 @@
 const prisma = require('../prismaClient');
 const ExcelJS = require('exceljs');
+const { addPosToInventory } = require('../utils/posInventory');
 const { STATUSES, TRANSITIONS, ROLE_ACTIONS, inventoryRole, fail, clean, date, assertAction, fields, snapshot } = require('../utils/inventory');
 const include = { bank: true };
 const documentSelect = { id: true, deviceId: true, category: true, name: true, mimeType: true, size: true, uploadedBy: true, createdAt: true };
@@ -83,6 +84,19 @@ async function list(req, res) {
   ]);
   if (req.inventoryRole === 'BANK') for (const row of rows) delete row.repairCost;
   res.json({ rows, total, page, pages: Math.max(1, Math.ceil(total / take)) });
+}
+async function syncPosSerials(req, res) {
+  assertAction(req.inventoryRole, 'STOCK_IN');
+  if (req.inventoryRole !== 'ADMIN') fail('Only admin can import POS records into Hardware', 403);
+  const bankName = clean(req.body.bankName);
+  if (!bankName) fail('Select a bank');
+  const rows = await prisma.posSerial.findMany({ where: { bankName } });
+  const result = { added: 0, existing: 0, invalid: 0, conflicts: 0 };
+  for (let i = 0; i < rows.length; i += 100) {
+    const counts = await prisma.$transaction(tx => addPosToInventory(tx, rows.slice(i, i + 100), req.inventoryUser), { timeout: 30000 });
+    for (const key of Object.keys(result)) result[key] += counts[key];
+  }
+  res.json(result);
 }
 async function summary(req, res) {
   const where = { ...scope(req), archived: false };
@@ -399,4 +413,4 @@ function errors(err, req, res, next) {
   if (err.status) return res.status(err.status).json({ error: err.message });
   next(err);
 }
-module.exports = { identify, list, summary, detail, stockIn, act, bulkAct, bulkBySerial, saveBank, upload, download, report, settings, errors };
+module.exports = { identify, list, summary, detail, stockIn, act, bulkAct, bulkBySerial, saveBank, upload, download, report, settings, errors, syncPosSerials };
