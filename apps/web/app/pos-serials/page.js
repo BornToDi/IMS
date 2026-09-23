@@ -12,6 +12,7 @@ const fields = [
   ['merchantStatus', 'Status'], ['model', 'Model'], ['location', 'Area / location'],
   ['place', 'Place'], ['operator', 'Telco'], ['simNumber', 'SIM EI'], ['remarks', 'Remarks']
 ]
+const importFieldLabels = { ...Object.fromEntries(fields), bankName: 'Bank', brand: 'Brand (Hardware)', engineer: 'Engineer (Hardware)' }
 const inputClass = 'mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-slate-700'
 
 export default function PosSerialsPage() {
@@ -39,6 +40,7 @@ export default function PosSerialsPage() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [importMapping, setImportMapping] = useState(null)
   const [selected, setSelected] = useState([])
 
   useEffect(() => {
@@ -91,10 +93,11 @@ export default function PosSerialsPage() {
   async function upload(e) {
     const file = e.target.files?.[0]
     if (!file || !bank) return
-    setBusy(true); setError(''); setNotice('')
+    setBusy(true); setError(''); setNotice(''); setImportMapping(null)
     try {
       const body = new FormData(); body.append('file', file); body.append('bankName', bank)
       const result = await apiFetch('/api/pos-serials/import', token, { method: 'POST', body })
+      setImportMapping(result.mapping || null)
       setNotice(`${result.imported || 0} POS rows saved for ${bank}${result.skipped ? `; ${result.skipped} skipped because the serial belongs to another bank` : ''}${result.invalidSerials ? `; ${result.invalidSerials} invalid serial entries skipped` : ''}${result.hardware ? `. ${hardwareNotice(result.hardware)}` : ''}. Search a TID or serial to review updates.`)
       setPage(1); setQuery(''); await Promise.all([loadRows(bank, '', 1), loadBanks()])
     } catch (e) { setError(e.message || 'Import failed') }
@@ -184,7 +187,22 @@ export default function PosSerialsPage() {
       {total > 0 && <div className="flex items-center justify-between gap-3 border-t border-slate-200 px-4 py-3 text-sm"><span>Page {page} of {pages} · {total} records</span><div className="flex gap-2"><button type="button" disabled={page <= 1} onClick={() => setPage(page - 1)} className="rounded-lg border px-3 py-1 disabled:opacity-40">Previous</button><button type="button" disabled={page >= pages} onClick={() => setPage(page + 1)} className="rounded-lg border px-3 py-1 disabled:opacity-40">Next</button></div></div>}
     </section>
     {canSyncHardware && <section className="rounded-xl border border-slate-200 bg-white p-4 space-y-3"><h2 className="font-medium">Hardware inventory</h2><p className="text-sm text-slate-600">New uploads automatically add missing devices to Hardware as Deployed. For records uploaded earlier, use the button below. Existing device history and status stay unchanged.</p><button type="button" disabled={!bank || busy} onClick={syncHardware} className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-40">Add missing POS to Hardware</button></section>}
-    <details className="rounded-xl border border-slate-200 bg-white p-4"><summary className="cursor-pointer font-medium">Bulk upload POS serials</summary><p className="mt-3 text-sm text-slate-600">Select the bank first, then upload Excel, CSV or PDF. Matching serials in this bank are updated; PDF imports use detected POS serials.</p><input ref={fileRef} type="file" accept=".xlsx,.csv,.pdf" onChange={upload} disabled={!bank || busy} className="mt-3 block w-full text-sm disabled:opacity-50" /></details>
+    <details className="rounded-xl border border-slate-200 bg-white p-4"><summary className="cursor-pointer font-medium">Bulk upload POS serials</summary><p className="mt-3 text-sm text-slate-600">Select the bank first, then upload Excel, CSV or PDF. Excel and CSV columns are matched automatically by name, regardless of order. Withdrawal/archive sheets and conflicting duplicates are skipped. Matching serials in this bank are updated; PDF imports use detected POS serials.</p><input ref={fileRef} type="file" accept=".xlsx,.csv,.pdf" onChange={upload} disabled={!bank || busy} className="mt-3 block w-full text-sm disabled:opacity-50" /></details>
+    {importMapping && <section className="rounded-xl border border-slate-200 bg-white p-4 text-sm" aria-label="Import column mapping">
+      <h2 className="font-semibold">Detected column mapping</h2>
+      <p className="mt-2 text-slate-600">Skipped: {importMapping.inactiveRows} inactive rows, {importMapping.conflictingSerials} conflicting serials, {importMapping.mismatchedBankRows} rows naming a different bank. {importMapping.duplicateRows} duplicate rows detected.</p>
+      {importMapping.unsafeNumericCells > 0 && <p className="mt-2 text-amber-800">{importMapping.unsafeNumericCells} long numeric cells could not be read exactly and were left blank. Store SIM / serial numbers as Text in Excel using the original digits, then upload again.</p>}
+      {importMapping.sheets.map((sheet, index) => <details key={index} className="mt-3 rounded-lg border p-3">
+        <summary className="cursor-pointer font-medium">{sheet.name} ? {sheet.skipped || `${sheet.rows} source rows`}</summary>
+        {sheet.headers.map(header => <div key={header.row} className="mt-3">
+          <p className="font-medium">Header row {header.row}</p>
+          <div className="mt-2 overflow-x-auto"><table className="w-full text-left"><thead><tr><th className="p-2">Excel / CSV column</th><th className="p-2">Saved field</th></tr></thead><tbody>{Object.entries(header.mapped).map(([field, names]) => <tr key={field} className="border-t"><td className="p-2">{names.join(' / ')}</td><td className="p-2">{importFieldLabels[field] || field}</td></tr>)}</tbody></table></div>
+          <p className="mt-2 text-slate-600">When several columns match, the first non-empty value is used in the order shown.</p>
+          {header.unmapped.length > 0 && <p className="mt-2 text-amber-800">No matching field; not imported: {header.unmapped.join(', ')}</p>}
+        </div>)}
+      </details>)}
+    </section>}
+
     {isAdmin && <details className="rounded-xl border border-slate-200 bg-white p-4"><summary className="cursor-pointer font-medium">Bank settings and bulk actions</summary><div className="mt-4 grid gap-4 md:grid-cols-2"><form onSubmit={addBank} className="space-y-2"><label className="block text-sm font-medium">New bank<input value={newBank} onChange={(e) => setNewBank(e.target.value)} className={inputClass} /></label><button disabled={busy} className="rounded-lg border px-3 py-2 text-sm">Add bank</button></form><form onSubmit={renameBank} className="space-y-2"><label className="block text-sm font-medium">Rename selected bank<input value={rename} onChange={(e) => setRename(e.target.value)} placeholder={bank || 'Select bank first'} className={inputClass} /></label><button disabled={!bank || busy} className="rounded-lg border px-3 py-2 text-sm disabled:opacity-50">Rename bank</button></form></div><div className="mt-5 flex flex-wrap gap-2 border-t pt-4 text-sm"><button type="button" onClick={() => removeSelected(false)} disabled={!selected.length || busy} className="rounded-lg border border-red-200 px-3 py-2 text-red-700 disabled:opacity-40">Delete selected ({selected.length})</button><button type="button" onClick={() => removeSelected(true)} disabled={!bank || busy || !banks.find((item) => item.name === bank)?.posCount} className="rounded-lg border border-red-200 px-3 py-2 text-red-700 disabled:opacity-40">Delete all POS in bank</button><button type="button" onClick={deleteBank} disabled={!bank || busy} className="rounded-lg border border-red-200 px-3 py-2 text-red-700 disabled:opacity-40">Delete bank</button></div></details>}
   </main></Layout>
 }

@@ -3,17 +3,17 @@ import { useState } from 'react'
 import { apiFetch } from '../../lib/api'
 import { s, Field, Modal, label, dateValue } from './shared'
 
-const TITLES = { STOCK_IN: 'Receive stock', RESTOCK: 'Move to available stock', RESERVE: 'Reserve for a bank', DELIVER: 'Deliver to bank', DEPLOY: 'Deploy to merchant', TRANSFER: 'Transfer POS', FAULT: 'Report a fault', REPAIR: 'Start repair / RMA', REPAIR_UPDATE: 'Update repair', REPAIR_COMPLETE: 'Complete repair', RETURN: 'Return to warehouse', REPLACE: 'Replace faulty POS', CONFIRM_RETURN: 'Confirm old POS return', EDIT: 'Edit device details', SCRAP: 'Retire / scrap POS', ARCHIVE: 'Archive retired POS' }
+const TITLES = { STOCK_IN: 'Receive stock', RESTOCK: 'Move to available stock', RESERVE: 'Reserve for a bank', DELIVER: 'Deliver to bank', DEPLOY: 'Deploy to merchant', TRANSFER: 'Transfer POS', FAULT: 'Report a fault', REPAIR: 'Start repair / RMA', REPAIR_UPDATE: 'Update repair', REPAIR_COMPLETE: 'Complete repair', WITHDRAWAL: 'Withdrawal', REPLACE: 'Replace faulty POS', CONFIRM_RETURN: 'Confirm old POS return', EDIT: 'Edit device details', SCRAP: 'Retire / scrap POS', ARCHIVE: 'Archive retired POS' }
 const FORM_FIELDS = {
   STOCK_IN: ['serialNumbers', 'brand', 'model', 'deviceType', 'supplier', 'purchaseDate', 'warrantyUntil', 'location', 'reference', 'receivedBy', 'occurredAt', 'remarks'],
   EDIT: ['brand', 'model', 'deviceType', 'supplier', 'purchaseDate', 'warrantyUntil', 'remarks'],
   RESTOCK: ['location', 'occurredAt', 'remarks'], RESERVE: ['bankId', 'reference', 'dueDate', 'occurredAt', 'remarks'],
   DELIVER: ['bankId', 'location', 'reference', 'deliveredBy', 'receivedBy', 'occurredAt', 'dueDate', 'remarks'],
-  DEPLOY: ['bankId', 'location', 'merchant', 'branch', 'tid', 'mid', 'address', 'telco', 'simEi', 'engineer', 'occurredAt', 'remarks'],
+  DEPLOY: ['brand', 'model', 'deviceType', 'supplier', 'bankId', 'location', 'merchant', 'branch', 'tid', 'mid', 'address', 'telco', 'simEi', 'engineer', 'occurredAt', 'remarks'],
   TRANSFER: ['location', 'merchant', 'branch', 'tid', 'mid', 'address', 'telco', 'simEi', 'engineer', 'occurredAt', 'remarks'],
   FAULT: ['faultType', 'occurredAt', 'remarks'], REPAIR: ['technician', 'location', 'occurredAt', 'remarks'],
   REPAIR_UPDATE: ['technician', 'repairStatus', 'repairCost', 'occurredAt', 'remarks'], REPAIR_COMPLETE: ['repairCost', 'occurredAt', 'remarks'],
-  RETURN: ['location', 'receivedBy', 'occurredAt', 'remarks'], REPLACE: ['replacementSerial', 'location', 'engineer', 'dueDate', 'occurredAt', 'remarks'],
+  WITHDRAWAL: ['receivedBy', 'occurredAt', 'remarks'], REPLACE: ['replacementSerial', 'location', 'engineer', 'dueDate', 'occurredAt', 'remarks'],
   CONFIRM_RETURN: ['location', 'receivedBy', 'occurredAt', 'remarks'], SCRAP: ['occurredAt', 'remarks'], ARCHIVE: ['remarks']
 }
 const FIELD_LABELS = { serialNumbers: 'Serial numbers · one per line', bankId: 'Bank', deviceType: 'Device type', purchaseDate: 'Purchase date', warrantyUntil: 'Warranty expiry', receivedBy: 'Received by / receiving officer', deliveredBy: 'Delivered by', reference: 'PO / invoice / challan reference', occurredAt: 'Event date', dueDate: 'Expected delivery / deployment / return date', merchant: 'DBN / Merchant', branch: 'Branch', tid: 'TID', mid: 'MID', address: 'Address', telco: 'Telco', simEi: 'SIM EI', faultType: 'Fault type', repairStatus: 'Repair status', repairCost: 'Repair cost (BDT)', replacementSerial: 'Available replacement serial', technician: 'Technician / vendor', location: 'Destination / current location' }
@@ -30,7 +30,7 @@ export function DeviceForm({ action, device, devices, summary, token, onClose, o
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const change = e => setForm(f => ({ ...f, [e.target.name]: e.target.value }))
-  const required = action === 'STOCK_IN' ? ['serialNumbers', 'brand', 'model', 'supplier', 'reference', 'receivedBy', 'location'] : [...(summary.transitions[action]?.required || []), ...(action === 'RESTOCK' ? ['location'] : []), ...(action === 'EDIT' ? ['brand', 'model', 'deviceType'] : []), ...(action === 'TRANSFER' && device.status === 'DEPLOYED' ? ['merchant', 'tid', 'mid', 'address', 'engineer'] : [])]
+  const required = action === 'STOCK_IN' ? ['serialNumbers', 'brand', 'model', 'supplier', 'reference', 'receivedBy', 'location'] : [...(summary.transitions[action]?.required || []), ...(action === 'RESTOCK' ? ['location'] : []), ...(action === 'DEPLOY' ? ['brand', 'model', 'deviceType'] : []), ...(action === 'EDIT' ? ['brand', 'model', 'deviceType'] : []), ...(action === 'TRANSFER' && device.status === 'DEPLOYED' ? ['merchant', 'tid', 'mid', 'address', 'engineer'] : [])]
   async function submit(e) {
     e.preventDefault(); setBusy(true); setError('')
     try {
@@ -43,6 +43,7 @@ export function DeviceForm({ action, device, devices, summary, token, onClose, o
   }
   return <Modal title={TITLES[action] || label(action)} onClose={onClose} busy={busy} footer={<><button className={s.button} disabled={busy} onClick={onClose}>Cancel</button><button className={s.primary} disabled={busy} type="submit" form="device-action-form">{busy ? 'Saving…' : action === 'STOCK_IN' ? 'Receive stock' : 'Save update'}</button></>}>
     {device && <p className={s.sub} style={{ marginTop: 0, marginBottom: 16 }}>{devices ? `${devices.length} selected POS · ${devices.map(d => d.serialNumber).join(', ')}` : `${device.serialNumber} · ${device.brand} ${device.model} · ${label(device.status)}`}</p>}
+    {action === 'WITHDRAWAL' && <p className={s.alert}>Withdrawal clears all current device details except the POS serial. Enter fresh details when deploying again.</p>}
     {action === 'REPLACE' && <div className={s.alert} style={{ marginBottom: 15 }}>The replacement inherits this merchant, bank and TID/MID. The old device remains tracked until its return is confirmed.</div>}
     {action === 'ARCHIVE' && <div className={s.alert} style={{ marginBottom: 15 }}>This retired device will move to the archive. Its serial number and complete history remain available.</div>}
     {error && <div role="alert" className={`${s.message} ${s.error}`}>{error}</div>}

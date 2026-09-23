@@ -1,9 +1,10 @@
-const STATUSES = ['RECEIVED', 'IN_STOCK', 'RESERVED', 'DELIVERED', 'DEPLOYED', 'FAULTY', 'UNDER_REPAIR', 'REPAIRED', 'REPLACED', 'RETURNED', 'SCRAPPED'];
+const STATUSES = ['RECEIVED', 'IN_STOCK', 'RESERVED', 'DELIVERED', 'DEPLOYED', 'FAULTY', 'UNDER_REPAIR', 'REPAIRED', 'REPLACED', 'RETURNED', 'WITHDRAWN', 'SCRAPPED'];
 const TRANSITIONS = {
   RESTOCK: { from: ['RECEIVED', 'RETURNED', 'REPAIRED'], to: 'IN_STOCK' },
   RESERVE: { from: ['IN_STOCK'], to: 'RESERVED', required: ['bankId', 'dueDate'] },
   DELIVER: { from: ['IN_STOCK', 'RESERVED', 'REPAIRED'], to: 'DELIVERED', required: ['bankId', 'location', 'reference', 'deliveredBy', 'receivedBy', 'dueDate'] },
-  DEPLOY: { from: ['DELIVERED', 'REPAIRED'], to: 'DEPLOYED', required: ['bankId', 'location', 'merchant', 'tid', 'mid', 'address', 'engineer'] },
+  DEPLOY: { from: ['DELIVERED', 'REPAIRED', 'WITHDRAWN'], to: 'DEPLOYED', required: ['bankId', 'location', 'merchant', 'tid', 'mid', 'address', 'engineer'] },
+  WITHDRAWAL: { from: ['RESERVED', 'DELIVERED', 'DEPLOYED', 'FAULTY', 'UNDER_REPAIR', 'REPAIRED', 'REPLACED', 'RETURNED'], to: 'WITHDRAWN', required: ['receivedBy', 'remarks'] },
   TRANSFER: { from: ['IN_STOCK', 'RESERVED', 'DELIVERED', 'DEPLOYED', 'REPAIRED'], required: ['location', 'remarks'] },
   FAULT: { from: ['DELIVERED', 'DEPLOYED', 'IN_STOCK', 'REPAIRED'], to: 'FAULTY', required: ['faultType'] },
   REPAIR: { from: ['FAULTY', 'REPLACED', 'RETURNED'], to: 'UNDER_REPAIR', required: ['technician', 'location'] },
@@ -18,7 +19,7 @@ const TRANSITIONS = {
 };
 const ROLE_ACTIONS = {
   ADMIN: ['STOCK_IN', 'BANK', 'SETTINGS', ...Object.keys(TRANSITIONS), 'DOCUMENT'],
-  STORE: ['STOCK_IN', 'RESTOCK', 'RESERVE', 'DELIVER', 'TRANSFER', 'RETURN', 'CONFIRM_RETURN', 'EDIT', 'DOCUMENT'],
+  STORE: ['STOCK_IN', 'RESTOCK', 'RESERVE', 'DELIVER', 'TRANSFER', 'RETURN', 'WITHDRAWAL', 'CONFIRM_RETURN', 'EDIT', 'DOCUMENT'],
   OPERATIONS: ['RESERVE', 'DELIVER', 'DEPLOY', 'TRANSFER', 'DOCUMENT'],
   TECHNICIAN: ['DEPLOY', 'FAULT', 'REPAIR', 'REPAIR_UPDATE', 'REPAIR_COMPLETE', 'REPLACE', 'CONFIRM_RETURN', 'DOCUMENT'],
   MANAGEMENT: [], BANK: []

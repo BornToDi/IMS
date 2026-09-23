@@ -91,6 +91,46 @@ test('delivery, deployment, transfer and return retain one position with full hi
   assert.equal(device.bankId,null); assert.equal(device.tid,null); assert.equal(device.merchant,null);
   result = await action(device,'RESTOCK',{location:'Warehouse B'}); assert.equal(result.status,200); assert.equal(result.body.status,'IN_STOCK');
 });
+test('withdrawal clears device details and supports fresh deployment to another bank', async () => {
+  let device = await deployed('WITHDRAW-ONE');
+  device = await prisma.inventoryDevice.update({ where: { id: device.id }, data: { simEi: 'OLD-SIM', telco: 'Old operator', warrantyUntil: new Date(due), purchaseDate: new Date(today), repairCost: 100, faultType: 'Old fault', technician: 'Old technician', replacementSerial: 'OLD-REPLACEMENT', pendingReturn: true } });
+  const body = { receivedBy: 'Store', remarks: 'Bank withdrawal' };
+  assert.equal((await action(device, 'WITHDRAWAL', body, engineer)).status, 403);
+  const withdrawn = await action(device, 'WITHDRAWAL', body, store);
+  assert.equal(withdrawn.status, 200, JSON.stringify(withdrawn.body));
+  assert.equal(withdrawn.body.serialNumber, device.serialNumber);
+  assert.equal(withdrawn.body.id, device.id);
+  assert.equal(withdrawn.body.status, 'WITHDRAWN');
+  for (const key of ['brand', 'model', 'deviceType', 'location']) assert.equal(withdrawn.body[key], '', key);
+  for (const key of ['supplier', 'purchaseDate', 'warrantyUntil', 'bankId', 'merchant', 'branch', 'tid', 'mid', 'address', 'telco', 'simEi', 'engineer', 'deploymentDate', 'remarks', 'reference', 'dueDate', 'faultType', 'repairReceivedDate', 'technician', 'repairStatus', 'repairReturnDate', 'replacementSerial']) assert.equal(withdrawn.body[key], null, key);
+  assert.equal(withdrawn.body.repairCost, 0);
+  assert.equal(withdrawn.body.pendingReturn, false);
+  assert.equal((await action(device, 'WITHDRAWAL', body)).status, 409);
+  assert.equal((await request('/?q=OLD-SIM')).body.total, 0);
+  assert.equal((await request('/?q=WITHDRAW-ONE')).body.total, 1);
+  const fresh = { bankId: secondBank.id, location: 'New shop', merchant: 'New merchant', tid: 'NEW-TID-W', mid: 'NEW-MID', address: 'New address', engineer: 'New engineer', simEi: 'NEW-SIM' };
+  assert.equal((await action(withdrawn.body, 'DEPLOY', fresh)).status, 400);
+  const deployedAgain = await action(withdrawn.body, 'DEPLOY', { ...fresh, brand: 'PAX', model: 'A920', deviceType: 'POS' });
+  assert.equal(deployedAgain.status, 200, JSON.stringify(deployedAgain.body));
+  assert.equal(deployedAgain.body.bankId, secondBank.id);
+  assert.equal(deployedAgain.body.simEi, 'NEW-SIM');
+  const summary = (await request('/summary')).body;
+  assert.ok(summary.actions.includes('WITHDRAWAL'));
+  assert.ok(!summary.actions.includes('RETURN'));
+});
+
+test('bulk withdrawal checks bank ownership and rolls back invalid groups', async () => {
+  const first = await deployed('WITHDRAW-BULK-1');
+  const second = await deployed('WITHDRAW-BULK-2');
+  const body = { action: 'WITHDRAWAL', bankId: secondBank.id, serialNumbers: [first.serialNumber, second.serialNumber], receivedBy: 'Store', remarks: 'Withdrawal' };
+  assert.equal((await request('/actions/by-serial', { body })).status, 409);
+  assert.equal((await get(first.id)).body.status, 'DEPLOYED');
+  assert.equal((await request('/actions', { body: { ...body, devices: [{ id: first.id, version: first.version }, { id: second.id, version: second.version + 1 }] } })).status, 409);
+  assert.equal((await get(first.id)).body.status, 'DEPLOYED');
+  assert.equal((await request('/actions/by-serial', { body: { ...body, bankId: bank.id } })).status, 200);
+  for (const device of [first, second]) assert.equal((await get(device.id)).body.status, 'WITHDRAWN');
+});
+
 test('stale edits and duplicate active TIDs are rejected without adding history', async () => {
   const device = await deployed('VERSION');
   const first = await action(device,'EDIT',{remarks:'First save'}); assert.equal(first.status,200);
@@ -253,21 +293,27 @@ test('admin bulk upload adds Hardware atomically and bank uploads remain scoped 
 });
 
 
-test('old upload correction preserves history, excludes other receipts and is idempotent', async () => {
-  const { correctImportedPosStatus } = require('../../scripts/correct-imported-pos-status');
-  const data = { brand: 'Unknown', model: 'N910PRO', location: 'Dhaka', bankId: bank.id, status: 'RECEIVED' };
-  const old = await prisma.inventoryDevice.create({ data: { ...data, serialNumber: 'OLD-IMPORT', tid: 'CORRECTION-TID', events: { create: { action: 'IMPORT', newStatus: 'RECEIVED', actorId: admin.id, actorName: admin.name, details: JSON.stringify({ source: 'POS_SERIALS' }) } } } });
-  const other = await prisma.inventoryDevice.create({ data: { ...data, serialNumber: 'OTHER-RECEIPT' } });
-  const preview = await correctImportedPosStatus(prisma);
-  assert.equal(preview.eligible, 1); assert.equal(preview.corrected, 0);
-  assert.equal((await prisma.inventoryDevice.findUnique({ where: { id: old.id } })).status, 'RECEIVED');
-  const result = await correctImportedPosStatus(prisma, true);
-  assert.equal(result.corrected, 1);
-  const fixed = await prisma.inventoryDevice.findUnique({ where: { id: old.id }, include: { events: true } });
-  assert.equal(fixed.status, 'DEPLOYED'); assert.equal(fixed.version, 1); assert.equal(fixed.deploymentDate, null);
-  assert.equal(fixed.events.length, 2);
-  assert.equal(fixed.events.find(e => e.action === 'IMPORT').newStatus, 'RECEIVED');
-  assert.equal(fixed.events.find(e => e.action === 'STATUS_CORRECTION').newStatus, 'DEPLOYED');
-  assert.equal((await prisma.inventoryDevice.findUnique({ where: { id: other.id } })).status, 'RECEIVED');
-  assert.equal((await correctImportedPosStatus(prisma, true)).corrected, 0);
-});
+test('Excel bank-specific columns reach POS and Hardware without importing withdrawal sheets', async () => {
+  const ExcelJS = require('exceljs');
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet('Master Database');
+  sheet.addRow(['Monthly bank report']);
+  sheet.addRow(['SIM SERIAL', 'POS SERIAL', 'Merchant Name', 'DBA Name', 'ZONE AREA', 'TID', 'MID', 'Address', 'POS BRAND', 'POS MODEL', 'Configuration BY']);
+  sheet.addRow(['8988013502727207928F', 'EXCEL-MAPPED', 'Excel merchant', 'Excel outlet', 'Mirpur', '001200', '003400', 'Dhaka', 'UROVO', 'i9100', 'Installer']);
+  const withdrawn = workbook.addWorksheet('Withdraw sheets');
+  withdrawn.addRow(['POS SERIAL', 'Merchant Name']);
+  withdrawn.addRow(['EXCEL-WITHDRAWN', 'Old merchant']);
+  const bankRow = await prisma.bankMaster.findUnique({ where: { id: bank.id } });
+  const body = new FormData();
+  body.append('bankName', bankRow.name);
+  body.append('file', new Blob([await workbook.xlsx.writeBuffer()]), 'bank.xlsx');
+  const response = await fetch(base.replace('/api/hardware', '/api/pos-serials/import'), { method: 'POST', headers: { Authorization: `Bearer ${signAccess({ userId: admin.id })}` }, body });
+  const result = await response.json();
+  assert.equal(response.status, 200, JSON.stringify(result));
+  assert.equal(result.imported, 1);
+  assert.ok(result.mapping.sheets[1].skipped);
+  const pos = await prisma.posSerial.findUnique({ where: { serialNumber: 'EXCEL-MAPPED' } });
+  assert.equal(pos.simNumber, '8988013502727207928F');
+  assert.equal(pos.tidNumber, '001200');
+  assert.equal(pos.merchantName, 'Excel merchant');
+  const device = await prisma.invent

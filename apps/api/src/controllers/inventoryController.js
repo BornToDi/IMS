@@ -121,7 +121,7 @@ async function summary(req, res) {
   const movements = Object.fromEntries(eventCounts.map(row => [row.action, row._count._all]));
   if (req.inventoryRole === 'BANK') recent = recent.filter(event => visibleEvent(req, event)).slice(0,8);
   for (const event of recent) delete event.details;
-  res.json({ counts, total: statusCounts.reduce((sum, row) => sum + row._count._all, 0), modelCounts, bankCounts, movements, banks, models: models.map(r => r.model), settings, alerts: { lowStock: counts.IN_STOCK <= settings.lowStockThreshold, warranty, repairs, returns, overdue }, recent, role: req.inventoryRole, actions: ROLE_ACTIONS[req.inventoryRole] || [], transitions: TRANSITIONS });
+  res.json({ counts, total: statusCounts.reduce((sum, row) => sum + row._count._all, 0), modelCounts, bankCounts, movements, banks, models: models.map(r => r.model), settings, alerts: { lowStock: counts.IN_STOCK <= settings.lowStockThreshold, warranty, repairs, returns, overdue }, recent, role: req.inventoryRole, actions: (ROLE_ACTIONS[req.inventoryRole] || []).filter(action => action !== 'RETURN'), transitions: TRANSITIONS });
 }
 async function detail(req, res) {
   const row = await deviceFor(req);
@@ -176,11 +176,11 @@ async function applyAction(req, tx, id, body) {
       EDIT: ['brand', 'model', 'deviceType', 'supplier', 'telco', 'simEi', 'remarks'],
       RESTOCK: ['location', 'remarks'], RESERVE: ['remarks', 'reference'],
       DELIVER: ['location', 'reference', 'remarks'],
-      DEPLOY: ['location', 'merchant', 'branch', 'tid', 'mid', 'address', 'telco', 'simEi', 'engineer', 'remarks'],
+      DEPLOY: ['brand', 'model', 'deviceType', 'supplier', 'location', 'merchant', 'branch', 'tid', 'mid', 'address', 'telco', 'simEi', 'engineer', 'remarks'],
       TRANSFER: ['location', 'merchant', 'branch', 'tid', 'mid', 'address', 'telco', 'simEi', 'engineer', 'remarks'],
       FAULT: ['faultType', 'remarks'], REPAIR: ['technician', 'location', 'remarks'],
       REPAIR_UPDATE: ['technician', 'repairStatus', 'remarks'], REPAIR_COMPLETE: ['remarks'],
-      RETURN: ['location', 'remarks'], CONFIRM_RETURN: ['location', 'remarks'], REPLACE: ['remarks'], SCRAP: ['remarks'], ARCHIVE: ['remarks']
+      WITHDRAWAL: [], RETURN: ['location', 'remarks'], CONFIRM_RETURN: ['location', 'remarks'], REPLACE: ['remarks'], SCRAP: ['remarks'], ARCHIVE: ['remarks']
     };
     data = { ...data, ...fields(body, actionFields[action]) };
     if (action === 'EDIT') {
@@ -199,6 +199,7 @@ async function applyAction(req, tx, id, body) {
       data.dueDate = date(body.dueDate, 'due date');
       if (data.dueDate < new Date(now.toISOString().slice(0, 10))) fail('Due date cannot be before the event');
     }
+    if (action === 'DEPLOY' && (!clean(data.brand ?? before.brand) || !clean(data.model ?? before.model) || !clean(data.deviceType ?? before.deviceType))) fail('Brand, model and device type are required for deployment');
     if (action === 'DEPLOY') { data.deploymentDate = now; data.dueDate = null; }
     if (action === 'TRANSFER') {
       if (data.location === before.location && (!data.merchant || data.merchant === before.merchant) && (!data.branch || data.branch === before.branch)) fail('Choose a different destination');
@@ -219,6 +220,14 @@ async function applyAction(req, tx, id, body) {
     if (action === 'RETURN' || action === 'RESTOCK') {
       data = { ...data, bankId: null, merchant: null, branch: null, tid: null, mid: null, address: null, telco: null, simEi: null, engineer: null, deploymentDate: null, pendingReturn: false, dueDate: null };
       if (action === 'RESTOCK' && !clean(body.location)) fail('Warehouse location is required');
+    }
+    if (action === 'WITHDRAWAL') {
+      data = { ...data, brand: '', model: '', deviceType: '', location: '',
+        supplier: null, purchaseDate: null, warrantyUntil: null, bankId: null,
+        merchant: null, branch: null, tid: null, mid: null, address: null, telco: null, simEi: null, engineer: null,
+        deploymentDate: null, remarks: null, reference: null, dueDate: null, faultType: null,
+        repairReceivedDate: null, technician: null, repairStatus: null, repairCost: 0, repairReturnDate: null,
+        replacementSerial: null, pendingReturn: false };
     }
     if (action === 'CONFIRM_RETURN') {
       if (!before.pendingReturn) fail('Return already confirmed', 409);
@@ -256,7 +265,7 @@ async function act(req, res) {
 }
 async function bulkAct(req, res) {
   const { devices, ...body } = req.body || {};
-  if (!['DELIVER','RESERVE','TRANSFER','RETURN','RESTOCK'].includes(body.action)) fail('Choose a stock movement for bulk updates');
+  if (!['DELIVER','RESERVE','TRANSFER','RETURN','WITHDRAWAL','RESTOCK'].includes(body.action)) fail('Choose a stock movement for bulk updates');
   if (!Array.isArray(devices) || !devices.length || devices.length > 100 || devices.some(d => !d || typeof d.id !== 'string') || new Set(devices.map(d => d.id)).size !== devices.length) fail('Select 1–100 different devices');
   const rows = await prisma.$transaction(async tx => {
     const result = [];
@@ -267,7 +276,7 @@ async function bulkAct(req, res) {
 }
 async function bulkBySerial(req, res) {
   const { serialNumbers, ...body } = req.body || {};
-  if (!['DELIVER', 'RETURN', 'RESTOCK'].includes(body.action)) fail('Choose Deliver, Return or Restock');
+  if (!['DELIVER', 'RETURN', 'WITHDRAWAL', 'RESTOCK'].includes(body.action)) fail('Choose Deliver, Withdrawal or Restock');
   assertAction(req.inventoryRole, body.action);
   if (!Array.isArray(serialNumbers) || !serialNumbers.length || serialNumbers.length > 50) fail('Send 1–50 serial numbers per batch');
   const serials = serialNumbers.map(value => clean(value, 120).toUpperCase());
@@ -276,14 +285,14 @@ async function bulkBySerial(req, res) {
   if (body.action !== 'RESTOCK' && !bankId) fail('Select a bank');
   const rows = await prisma.$transaction(async tx => {
     if (body.action === 'DELIVER') await bankCheck(tx, bankId);
-    else if (body.action === 'RETURN' && !await tx.bankMaster.findUnique({ where: { id: bankId }, select: { id: true } })) fail('Bank not found');
+    else if (['RETURN', 'WITHDRAWAL'].includes(body.action) && !await tx.bankMaster.findUnique({ where: { id: bankId }, select: { id: true } })) fail('Bank not found');
     const devices = await tx.inventoryDevice.findMany({ where: { serialNumber: { in: serials } }, select: { id: true, serialNumber: true, version: true, bankId: true } });
     const bySerial = new Map(devices.map(device => [device.serialNumber, device]));
     const result = [];
     for (const serial of serials) {
       const device = bySerial.get(serial);
       if (!device) fail(`${serial}: POS is not in the Hardware register`, 404);
-      if (body.action === 'RETURN' && device.bankId !== bankId) fail(`${serial}: POS is not assigned to the selected bank`, 409);
+      if (['RETURN', 'WITHDRAWAL'].includes(body.action) && device.bankId !== bankId) fail(`${serial}: POS is not assigned to the selected bank`, 409);
       try { result.push(await applyAction(req, tx, device.id, { ...body, version: device.version })); }
       catch (error) { error.message = `${serial}: ${error.message}`; throw error; }
     }
@@ -345,7 +354,7 @@ async function reportRows(req) {
   if (type === 'warranty' && !req.query.warranty) where.warrantyUntil = { lte: new Date(Date.now() + 30 * 86400000) };
   if (['movement', 'audit', 'return'].includes(type)) {
     const { createdAt, ...deviceWhere } = where;
-    let events = await prisma.inventoryEvent.findMany({ where: { device: deviceWhere, ...(createdAt ? { occurredAt: createdAt } : {}), ...(type === 'return' ? { action: { in: ['RETURN','CONFIRM_RETURN'] } } : {}) }, include: { device: { select: { serialNumber: true } } }, orderBy: { createdAt: 'desc' }, take: 10001 });
+    let events = await prisma.inventoryEvent.findMany({ where: { device: deviceWhere, ...(createdAt ? { occurredAt: createdAt } : {}), ...(type === 'return' ? { action: { in: ['RETURN','WITHDRAWAL','CONFIRM_RETURN'] } } : {}) }, include: { device: { select: { serialNumber: true } } }, orderBy: { createdAt: 'desc' }, take: 10001 });
     if (events.length > 10000) fail('Narrow the filters to export 10,000 events or fewer');
     if (req.inventoryRole === 'BANK') events = events.filter(event => visibleEvent(req, event));
     const rows = events.map(e => ({ Serial: e.device.serialNumber, Action: e.action, Previous: e.previousStatus || '', Status: e.newStatus, User: e.actorName, Date: e.occurredAt.toISOString(), Remarks: e.remarks || '', ...(req.inventoryRole !== 'BANK' ? { Details: e.details } : {}) }));

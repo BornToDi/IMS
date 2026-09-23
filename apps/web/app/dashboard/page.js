@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import Layout from '../../components/Layout'
 import { useAuthStore } from '../../store/useAuthStore'
 import { apiFetch } from '../../lib/api'
@@ -91,6 +92,8 @@ function inDateRange(task, range) {
 }
 
 export default function DashboardPage() {
+  const router = useRouter()
+  const [inventoryQuery, setInventoryQuery] = useState('')
   const accessToken = useAuthStore((state) => state.accessToken)
   const [tasks, setTasks] = useState([])
   const [counts, setCounts] = useState({ tickets: 0, hardware: 0, meetings: 0, announcements: 0 })
@@ -161,6 +164,21 @@ export default function DashboardPage() {
               <button type="button" onClick={() => loadTasks()} className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-black text-black">Refresh</button>
             </div>
           </div>
+        </section>
+
+        <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm lg:p-7">
+          <form role="search" aria-label="Find POS in hardware inventory" onSubmit={(event) => {
+            event.preventDefault()
+            const query = inventoryQuery.trim()
+            if (query) router.push(`/hardware?${new URLSearchParams({ q: query })}`)
+          }}>
+            <label htmlFor="dashboard-pos-search" className="text-lg font-black">Find POS</label>
+            <p id="dashboard-pos-search-help" className="mt-1 text-sm text-black/60">Search by POS serial, merchant name, SIM, TID, MID or bank to view matching devices in Hardware Inventory.</p>
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+              <input id="dashboard-pos-search" type="search" value={inventoryQuery} onChange={(event) => setInventoryQuery(event.target.value)} aria-describedby="dashboard-pos-search-help" placeholder="POS serial, merchant name, SIM, TID..." className="min-w-0 flex-1 rounded-2xl border border-slate-300 px-4 py-3 text-sm focus:border-black focus:outline-none focus:ring-2 focus:ring-black/20" />
+              <button type="submit" disabled={!inventoryQuery.trim()} className="rounded-2xl bg-black px-5 py-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-40">Search inventory</button>
+            </div>
+          </form>
         </section>
 
         {error && (

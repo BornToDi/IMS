@@ -27,12 +27,12 @@ async function addPosToInventory(tx, rows, user) {
       where: { bankId: bank.id, tid: source.tidNumber, status: 'DEPLOYED', archived: false }
     })) { result.conflicts++; continue; }
     const device = await tx.inventoryDevice.create({ data: {
-      serialNumber, bankId: bank.id, status, brand: 'Unknown', model: source.model || 'Unknown',
+      serialNumber, bankId: bank.id, status, brand: source.brand || 'Unknown', model: source.model || 'Unknown',
       location: source.location || source.place || source.merchantAddress || 'Not specified',
       merchant: source.merchantName || null, tid: source.tidNumber || null,
       mid: source.midNumber || null, address: source.merchantAddress || null,
       telco: source.operator || null, simEi: source.simNumber || null,
-      remarks: source.remarks || null
+      engineer: source.engineer || null, remarks: source.remarks || null
     }, include: { bank: true } });
     await tx.inventoryEvent.create({ data: {
       deviceId: device.id, action: 'IMPORT', newStatus: status,

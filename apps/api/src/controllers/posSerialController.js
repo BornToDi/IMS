@@ -1,6 +1,6 @@
 const fs = require('fs');
 const { randomUUID } = require('crypto');
-const ExcelJS = require('exceljs');
+const { parseExcelFile, parseImportText } = require('../utils/posImport');
 const { PDFParse } = require('pdf-parse');
 const prisma = require('../prismaClient');
 const { validPosSerial, addPosToInventory } = require('../utils/posInventory');
@@ -80,136 +80,12 @@ async function upsertPosSerialRaw({ bankName, serialNumber, model = null, locati
   return row;
 }
 
-function parseCsvLine(line) {
-  const out = [];
-  let cur = '';
-  let quoted = false;
-  for (let i = 0; i < line.length; i += 1) {
-    const ch = line[i];
-    if (ch === '"' && quoted && line[i + 1] === '"') { cur += '"'; i += 1; continue; }
-    if (ch === '"') { quoted = !quoted; continue; }
-    if (ch === ',' && !quoted) { out.push(cur.trim()); cur = ''; continue; }
-    cur += ch;
-  }
-  out.push(cur.trim());
-  return out;
-}
-
-function parseImportText(text, selectedBank = '') {
-  const lines = String(text || '').replace(/^\uFEFF/, '').split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
-  if (!lines.length) return [];
-  const first = parseCsvLine(lines[0]).map(normalizedHeader);
-  const hasHeader = first.some(isSerialHeader);
-  const index = (names) => first.findIndex((x) => names.includes(x));
-  const bankIndex = hasHeader ? index(['bankname', 'bank']) : 0;
-  const serialIndex = hasHeader ? first.findIndex(isSerialHeader) : 1;
-  const modelIndex = index(['model', 'device', 'terminalmodel']);
-  const locationIndex = index(['location', 'poslocation', 'area', 'branch']);
-  const placeIndex = index(['place', 'building', 'buildingname', 'tower', 'site']);
-  const addressIndex = index(['address', 'merchantaddress']) >= 0 ? index(['address', 'merchantaddress']) : index(['addressline']);
-  const detailIndexes = {
-    tidNumber: index(['tid', 'tidnumber']), midNumber: index(['mid', 'midnumber']),
-    merchantName: index(['dba', 'dbaname', 'merchantname']), merchantAddress: addressIndex,
-    merchantStatus: index(['status']), operator: index(['operator', 'telco']),
-    simNumber: index(['simnumber', 'simei', 'sim']), remarks: index(['remarks'])
-  };
-  const start = hasHeader ? 1 : 0;
-  return lines.slice(start).map(parseCsvLine).map((cols) => ({
-    bankName: selectedBank || (bankIndex >= 0 ? clean(cols[bankIndex]) : ''),
-    serialNumber: clean(cols[serialIndex]),
-    model: modelIndex >= 0 ? clean(cols[modelIndex]) || null : null,
-    location: locationIndex >= 0 ? clean(cols[locationIndex]) || null : null,
-    place: placeIndex >= 0 ? clean(cols[placeIndex]) || null : null,
-    ...Object.fromEntries(detailFields.map((field) => [field, detailIndexes[field] >= 0 ? clean(cols[detailIndexes[field]]) || null : null]))
-  })).filter((r) => r.bankName && r.serialNumber);
-}
-
-function normalizedHeader(value) {
-  return clean(value).toLowerCase().replace(/[^a-z0-9]/g, '');
-}
-
-function isSerialHeader(value) {
-  return ['posserialno', 'posserialnumber', 'posserial', 'posslno', 'possl', 'serialnumber', 'serialno'].includes(normalizedHeader(value));
-}
-
-function excelCellText(cell) {
-  if (!cell) return '';
-  if (cell.text) return clean(cell.text);
-  if (cell.value && typeof cell.value === 'object') {
-    if (Array.isArray(cell.value.richText)) return clean(cell.value.richText.map((part) => part.text).join(''));
-    if (cell.value.result !== undefined) return clean(cell.value.result);
-  }
-  return clean(cell.value);
-}
-
-async function parseExcelFile(filePath, bankName) {
-  const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.readFile(filePath);
-  const rows = [];
-
-  const liveSheet = workbook.worksheets.find((sheet) => sheet.name.trim().toUpperCase() === 'LIVE MERCHANT');
-  (liveSheet ? [liveSheet] : workbook.worksheets).forEach((sheet) => {
-    let headerRowNumber = 0;
-    let serialColumns = [];
-    const columns = {};
-    const scanUntil = Math.min(sheet.rowCount, 20);
-
-    for (let rowNumber = 1; rowNumber <= scanUntil; rowNumber += 1) {
-      const row = sheet.getRow(rowNumber);
-      const matches = [];
-      row.eachCell({ includeEmpty: false }, (cell, columnNumber) => {
-        const header = normalizedHeader(excelCellText(cell));
-        if (isSerialHeader(header)) {
-          matches.push(columnNumber);
-        }
-      });
-      if (matches.length) {
-        headerRowNumber = rowNumber;
-        serialColumns = matches;
-        row.eachCell({ includeEmpty: false }, (cell, columnNumber) => {
-          const header = normalizedHeader(excelCellText(cell));
-          const field = {
-            model: 'model', device: 'model', terminalmodel: 'model',
-            location: 'location', poslocation: 'location', area: 'location', branch: 'location',
-            place: 'place', building: 'place', buildingname: 'place', tower: 'place', site: 'place',
-            tid: 'tidNumber', tidnumber: 'tidNumber', mid: 'midNumber', midnumber: 'midNumber',
-            dba: 'merchantName', dbaname: 'merchantName', merchantname: 'merchantName',
-            address: 'merchantAddress', addressline: 'merchantAddress', merchantaddress: 'merchantAddress',
-            status: 'merchantStatus', operator: 'operator', telco: 'operator', simnumber: 'simNumber', simei: 'simNumber', sim: 'simNumber', remarks: 'remarks'
-          }[header];
-          if (field && (!columns[field] || header === 'address')) columns[field] = columnNumber;
-        });
-        break;
-      }
-    }
-
-    if (!headerRowNumber) return;
-    for (let rowNumber = headerRowNumber + 1; rowNumber <= sheet.rowCount; rowNumber += 1) {
-      const row = sheet.getRow(rowNumber);
-      for (const columnNumber of serialColumns) {
-        const serialNumber = excelCellText(row.getCell(columnNumber));
-        if (serialNumber && !isSerialHeader(serialNumber)) {
-          rows.push({
-            bankName,
-            serialNumber,
-            ...Object.fromEntries(['model', 'location', 'place', ...detailFields].map((field) => [field, columns[field] ? excelCellText(row.getCell(columns[field])) || null : null]))
-          });
-        }
-      }
-    }
-  });
-
-  const unique = new Map();
-  for (const row of rows) unique.set(row.serialNumber, row);
-  return [...unique.values()];
-}
-
 async function parsePdfFile(filePath, bankName) {
   const parser = new PDFParse({ data: fs.readFileSync(filePath) });
   const data = await parser.getText();
   await parser.destroy();
   const text = String(data.text || '').replace(/\r/g, '');
-  const structured = parseImportText(text, bankName);
+  const { rows: structured } = parseImportText(text, bankName);
   if (structured.length) return structured;
 
   const unique = new Set();
@@ -402,13 +278,14 @@ async function importPosSerials(req, res) {
     const syncHardware = String(user.userRole).toUpperCase() === 'ADMIN';
     const extension = String(req.file.originalname || '').toLowerCase().split('.').pop();
     let rows = [];
+    let mapping = null;
 
     if (extension === 'xlsx') {
       if (!selectedBank) return res.status(400).json({ error: 'Select a bank before uploading Excel' });
-      rows = await parseExcelFile(req.file.path, selectedBank);
+      ({ rows, mapping } = await parseExcelFile(req.file.path, selectedBank));
     } else if (extension === 'csv') {
       const text = fs.readFileSync(req.file.path, 'utf8');
-      rows = parseImportText(text, selectedBank);
+      ({ rows, mapping } = parseImportText(text, selectedBank));
     } else if (extension === 'pdf') {
       if (!selectedBank) return res.status(400).json({ error: 'Select a bank before uploading PDF' });
       rows = await parsePdfFile(req.file.path, selectedBank);
@@ -416,10 +293,10 @@ async function importPosSerials(req, res) {
       return res.status(400).json({ error: 'Only .xlsx, .csv and .pdf files are supported' });
     }
 
-    const invalidSerials = rows.filter(row => !validPosSerial(row.serialNumber)).length;
+    const invalidSerials = (mapping?.invalidSerials || 0) + rows.filter(row => !validPosSerial(row.serialNumber)).length;
     rows = rows.filter(row => validPosSerial(row.serialNumber));
     if (!rows.length) {
-      return res.status(400).json({ error: 'No POS serial found. Excel must contain a POS Serial NO column.' });
+      return res.status(400).json({ error: 'No importable POS rows found. Use a POS Serial / Terminal Serial column in an active sheet; check invalid or conflicting serials.', mapping });
     }
     if (isBankRole(user.userRole) && rows.some((row) => row.bankName !== selectedBank)) {
       return res.status(403).json({ error: 'You can only import POS records for your bank' });
@@ -457,22 +334,22 @@ async function importPosSerials(req, res) {
             randomUUID(),
             item.bankName,
             item.serialNumber,
-            item.model,
-            item.location,
-            item.place,
+            item.model || null,
+            item.location || null,
+            item.place || null,
             ...detailFields.map((field) => item[field] || null)
           );
           inserted += Number(affected) || 0;
           if (syncHardware && affected) {
             const saved = await tx.posSerial.findUnique({ where: { serialNumber: item.serialNumber } });
-            const counts = await addPosToInventory(tx, [saved], user);
+            const counts = await addPosToInventory(tx, [{ ...saved, brand: item.brand, engineer: item.engineer }], user);
             for (const key of Object.keys(hardware)) hardware[key] += counts[key];
           }
         }
       }, { timeout: 30000 });
     }
     if (syncHardware) req.app.locals.io?.emit('inventory:updated');
-    res.json({ ok: true, bankName: selectedBank || null, processed: rows.length, imported: inserted, skipped: rows.length - inserted, invalidSerials, hardware: syncHardware ? hardware : null });
+    res.json({ ok: true, bankName: selectedBank || null, processed: rows.length, imported: inserted, skipped: rows.length - inserted, invalidSerials, mapping, hardware: syncHardware ? hardware : null });
   } finally {
     fs.unlink(req.file.path, () => {});
   }

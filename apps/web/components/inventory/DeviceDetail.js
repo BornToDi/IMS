@@ -3,11 +3,12 @@ import { useState } from 'react'
 import { s, Icon, Badge, Empty, day, label, downloadFile } from './shared'
 
 const NEXT_STEP = {
+  WITHDRAWN: ['Enter fresh device and merchant details to deploy this POS again.', 'Deploy'],
   IN_STOCK: ['এখন Bank-এর জন্য POS রাখুন', 'Reserve'],
   RESERVED: ['POSটি Bank-এ পাঠান', 'Deliver'],
   DELIVERED: ['Merchant location-এ install করুন', 'Deploy'],
   DEPLOYED: ['সব ঠিক থাকলে কিছু করার দরকার নেই', null],
-  FAULTY: ['নষ্ট POS-টি warehouse-এ ফেরত নিন', 'Return'],
+  FAULTY: ['নষ্ট POS-টি warehouse-এ ফেরত নিন', 'Withdrawal'],
   RETURNED: ['POSটি repair-এ পাঠান', 'Repair'],
   UNDER_REPAIR: ['Repair শেষ হলে status update করুন', 'Repair complete'],
   REPAIRED: ['ঠিক হওয়া POS আবার Bank-এ পাঠান', 'Deliver'],
