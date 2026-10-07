@@ -29,7 +29,10 @@ export async function apiFetch(path, token, options = {}) {
   if (!res.ok) {
     let body = {}
     try { body = await res.json() } catch (e) {}
-    throw new Error(body.error || `Request failed: ${res.status}`)
+    const error = new Error(body.error || `Request failed: ${res.status}`)
+    error.status = res.status
+    error.mapping = body.mapping
+    throw error
   }
   if (res.status === 204) return null
   return res.json()

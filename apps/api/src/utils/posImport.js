@@ -5,9 +5,9 @@ const importError = message => Object.assign(new Error(message), { status: 400 }
 const normalize = value => String(value ?? '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
 // Ordered aliases: prefer the exact field, then the most specific alternative.
 const ALIASES = {
-  serialNumber: ['posserialnumber', 'posserialno', 'posserial', 'posslno', 'possl', 'terminalserialnumber', 'terminalserialno', 'terminalserial', 'deviceserialnumber', 'deviceserialno', 'deviceserial', 'serialnumber', 'serialno', 'serial', 'sn'],
+  serialNumber: ['posserialnumber', 'posserialno', 'posserial', 'posslno', 'possl', 'possn', 'terminalserialnumber', 'terminalserialno', 'terminalserial', 'terminalsn', 'deviceserialnumber', 'deviceserialno', 'deviceserial', 'devicesn', 'serialnumber', 'serialno', 'serial', 'sn'],
   bankName: ['bankname', 'bank'],
-  model: ['model', 'posmodel', 'terminalmodel', 'devicemodel', 'device'],
+  model: ['model', 'posmodel', 'terminalmodel', 'devicemodel', 'posbrandmodel', 'device'],
   brand: ['posbrand', 'terminalbrand', 'devicebrand', 'brand', 'manufacturer'],
   location: ['location', 'poslocation', 'zonearea', 'area', 'region', 'zone', 'branch'],
   place: ['place', 'buildingname', 'building', 'tower', 'site'],
@@ -16,7 +16,7 @@ const ALIASES = {
   merchantName: ['merchantname', 'dbaname', 'dbnname', 'dba', 'dbn', 'outletname', 'storename', 'shopname', 'merchant'],
   merchantAddress: ['merchantaddress', 'address', 'outletaddress', 'installationaddress', 'addressline', 'aderessline'],
   merchantStatus: ['merchantstatus', 'installationstatus', 'deploystatus', 'status'],
-  operator: ['operator', 'telco', 'simoperator', 'networkoperator', 'mobileoperator'],
+  operator: ['operator', 'operatorname', 'telco', 'simoperator', 'networkoperator', 'mobileoperator'],
   simNumber: ['simnumber', 'simserialnumber', 'simserialno', 'simserial', 'simno', 'simei', 'sim', 'iccid', 'simiccid'],
   engineer: ['engineer', 'installationengineer', 'installedby', 'installationby', 'configurationby', 'rolloutby'],
   remarks: ['remarks', 'remark', 'comments', 'comment', 'notes', 'note']

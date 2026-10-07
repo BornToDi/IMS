@@ -308,7 +308,10 @@ async function importPosSerials(req, res) {
     await ensurePosSerialExtraColumns();
     for (let i = 0; i < rows.length; i += chunkSize) {
       const chunk = rows.slice(i, i + chunkSize);
+      let chunkInserted = 0;
+      let chunkHardware;
       await prisma.$transaction(async (tx) => {
+        const hardwareRows = [];
         for (const name of [...new Set(chunk.map((r) => r.bankName))]) {
           await tx.bankMaster.upsert({ where: { name }, update: { name }, create: { name } });
         }
@@ -339,14 +342,21 @@ async function importPosSerials(req, res) {
             item.place || null,
             ...detailFields.map((field) => item[field] || null)
           );
-          inserted += Number(affected) || 0;
+          chunkInserted += Number(affected) || 0;
           if (syncHardware && affected) {
-            const saved = await tx.posSerial.findUnique({ where: { serialNumber: item.serialNumber } });
-            const counts = await addPosToInventory(tx, [{ ...saved, brand: item.brand, engineer: item.engineer }], user);
-            for (const key of Object.keys(hardware)) hardware[key] += counts[key];
+            hardwareRows.push(item);
           }
         }
+        if (hardwareRows.length) {
+          const saved = await tx.posSerial.findMany({ where: { serialNumber: { in: hardwareRows.map(item => item.serialNumber) } } });
+          const savedBySerial = new Map(saved.map(item => [item.serialNumber, item]));
+          chunkHardware = await addPosToInventory(tx, hardwareRows.map(item => ({ ...savedBySerial.get(item.serialNumber), brand: item.brand, engineer: item.engineer })), user);
+        }
       }, { timeout: 30000 });
+      inserted += chunkInserted;
+      if (chunkHardware) for (const key of Object.keys(hardware)) hardware[key] += chunkHardware[key];
+      // Let queued dashboard requests run between committed SQLite batches.
+      await new Promise(resolve => setImmediate(resolve));
     }
     if (syncHardware) req.app.locals.io?.emit('inventory:updated');
     res.json({ ok: true, bankName: selectedBank || null, processed: rows.length, imported: inserted, skipped: rows.length - inserted, invalidSerials, mapping, hardware: syncHardware ? hardware : null });

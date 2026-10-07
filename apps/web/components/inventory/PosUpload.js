@@ -22,7 +22,10 @@ export default function PosUpload({ banks, initialBank = '', token, onClose, onU
       const data = await apiFetch('/api/pos-serials/import', token, { method: 'POST', body })
       setResult(data)
       fileRef.current.value = ''
-    } catch (e) { setError(`${e.message} Some rows may have been saved. You can retry the file safely.`) }
+    } catch (e) {
+      if (e.mapping) setResult({ mapping: e.mapping })
+      setError(e.status >= 500 || !e.status ? `${e.message} Some rows may have been saved. You can retry the file safely.` : e.message)
+    }
     finally { setBusy(false); onUpdated() }
   }
 
@@ -53,7 +56,7 @@ export default function PosUpload({ banks, initialBank = '', token, onClose, onU
       {result && <div role="status" className={s.stack}>
         {result.hardware && <p className={s.message}>{result.hardware.added} devices added; {result.hardware.existing} already present; {result.hardware.invalid} invalid; {result.hardware.conflicts} bank or active TID conflicts skipped.</p>}
         {result.imported !== undefined && <p className={s.sub}>{result.imported} POS records saved; {result.skipped || 0} cross-bank records skipped; {result.invalidSerials || 0} invalid serial entries skipped.</p>}
-        <button className={s.button} disabled={busy} onClick={() => onView(banks.find(b => b.name === bank)?.id)}>View bank inventory</button>
+        {(result.hardware || result.imported !== undefined) && <button className={s.button} disabled={busy} onClick={() => onView(banks.find(b => b.name === bank)?.id)}>View bank inventory</button>}
       </div>}
       {mapping && <section className={s.stack} aria-label="Import column mapping">
         <h3>Detected column mapping</h3>

@@ -2,6 +2,19 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { parseTables, parseImportText, cellText } = require('./posImport');
 
+test('Pubali merchant workbook headers recognize POS S/N and preserve combined model', () => {
+  const result = parseTables([{ name: 'MERCHANT', rows: [
+    ['SL.', 'TID', 'MID', 'MERCHANT NAME', 'DBA NAME', 'ADDRESS', 'ZONE', 'POS S/N', 'POS BRAND & MODEL', 'OPERATOR NAME', 'SIM NUMBER', 'RollOut By'],
+    ['1', '00123456', '00456789', 'Merchant', 'Outlet', 'Dhaka address', 'Dhaka', '80042346276647', 'Urovo i9100', 'GP', '01324114210', 'Engineer']
+  ] }], 'Pubali Bank');
+  assert.equal(result.rows.length, 1);
+  assert.deepEqual(result.rows[0], {
+    serialNumber: '80042346276647', bankName: 'Pubali Bank', tidNumber: '00123456', midNumber: '00456789',
+    merchantName: 'Merchant', merchantAddress: 'Dhaka address', location: 'Dhaka', model: 'Urovo i9100',
+    operator: 'GP', simNumber: '01324114210', engineer: 'Engineer'
+  });
+});
+
 test('EBL headers map by name with explicit field priority and withdrawal exclusion', () => {
   const result = parseTables([
     { name: 'Master Database', rows: [
