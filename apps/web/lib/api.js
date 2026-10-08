@@ -1,5 +1,6 @@
 import { useAuthStore } from '../store/useAuthStore'
 import { authRequest } from './authRequest.mjs'
+import { readApiJson } from './apiJson.mjs'
 
 // Keep browser API traffic on the website's origin (Nginx/Next proxies it).
 export const API_BASE_URL = ''
@@ -21,16 +22,8 @@ export function authHeaders(token, extra = {}) {
 export async function apiFetch(path, token, options = {}) {
   const res = await apiResponse(path, token, options)
 
-  if (!res.ok) {
-    let body = {}
-    try { body = await res.json() } catch (e) {}
-    const error = new Error(body.error || `Request failed: ${res.status}`)
-    error.status = res.status
-    error.mapping = body.mapping
-    throw error
-  }
   if (res.status === 204) return null
-  return res.json()
+  return readApiJson(res)
 }
 
 export function dateInputValue(value) {

@@ -90,6 +90,8 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
+app.use('/api', (req, res) => res.status(404).json({ error: 'API endpoint not found. Update and restart the API server.' }));
+
 app.use((err, req, res, next) => {
   if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
     return res.status(400).json({ error: 'Invalid JSON' });

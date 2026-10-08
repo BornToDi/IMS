@@ -3,6 +3,7 @@ import { memo, useEffect, useRef, useState } from 'react'
 import { getCurrentLocationWithPlace } from '../lib/location'
 import { apiResponse } from '../lib/api'
 import { createPortal } from 'react-dom'
+import { readApiJson } from '../lib/apiJson.mjs'
 
 const today = () => new Date(Date.now() + 21600000).toISOString().slice(0, 10)
 const time = value => value ? new Date(value).toLocaleTimeString('en-GB', { timeZone: 'Asia/Dhaka', hour: '2-digit', minute: '2-digit' }) : '—'
@@ -40,7 +41,7 @@ export default memo(function ChatAttendance({ accessToken, user, messages, onMes
     setStateReady(false)
     setStateError('')
     apiResponse('/api/chat/attendance/state', accessToken, { signal: controller.signal })
-      .then(async response => { const body = await response.json(); if (!response.ok) throw new Error(body.error || 'Could not load attendance status'); return body })
+      .then(readApiJson)
       .then(body => { if (!controller.signal.aborted) { setAttendanceEvent(body.latest); setStateReady(true) } })
       .catch(err => { if (err.name !== 'AbortError') setStateError(err.message || 'Could not load attendance status') })
     return () => controller.abort()
@@ -58,7 +59,7 @@ export default memo(function ChatAttendance({ accessToken, user, messages, onMes
     setLoading(true)
     setError('')
     apiResponse(`/api/chat/attendance?${query}`, accessToken, { signal: controller.signal })
-      .then(async response => { const body = await response.json(); if (!response.ok) throw new Error(body.error); return body })
+      .then(readApiJson)
       .then(setReport)
       .catch(err => { if (err.name !== 'AbortError') { setError(err.message || 'Unable to load attendance'); setReport(null) } })
       .finally(() => { if (!controller.signal.aborted) setLoading(false) })
@@ -82,8 +83,7 @@ export default memo(function ChatAttendance({ accessToken, user, messages, onMes
       catch (err) { throw new Error(`Location is required to sign ${action}. Allow location access and retry. ${err.message || ''}`) }
       finally { setLocating(false) }
       const response = await apiResponse('/api/chat', accessToken, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: `sign ${action}`, attendanceAction: action, ...location, ...(action === 'in' ? { attendanceReason: reason.trim() } : {}) }) })
-      const body = await response.json()
-      if (!response.ok) throw new Error(body.error || 'Could not record attendance')
+      const body = await readApiJson(response)
       onMessage(body)
       setAttendanceEvent(body)
       setNotice(`Sign ${action} recorded at ${time(body.createdAt)} (Dhaka).`)
