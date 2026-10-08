@@ -1,8 +1,15 @@
 import { useAuthStore } from '../store/useAuthStore'
+import { authRequest } from './authRequest.mjs'
 
 // Keep browser API traffic on the website's origin (Nginx/Next proxies it).
 export const API_BASE_URL = ''
 export const SOCKET_BASE_URL = process.env.NEXT_PUBLIC_SOCKET_URL || undefined
+
+export function apiResponse(path, token, options = {}) {
+  return authRequest(`${API_BASE_URL}${path}`, token, options, {
+    refreshAccessToken: () => useAuthStore.getState().refreshAccessToken()
+  })
+}
 
 export function authHeaders(token, extra = {}) {
   return {
@@ -12,19 +19,7 @@ export function authHeaders(token, extra = {}) {
 }
 
 export async function apiFetch(path, token, options = {}) {
-  async function request(accessToken) {
-    return fetch(`${API_BASE_URL}${path}`, {
-      credentials: 'include',
-      ...options,
-      headers: authHeaders(accessToken, options.headers || {})
-    })
-  }
-
-  let res = await request(token)
-  if (res.status === 401) {
-    const nextToken = await useAuthStore.getState().refreshAccessToken()
-    if (nextToken) res = await request(nextToken)
-  }
+  const res = await apiResponse(path, token, options)
 
   if (!res.ok) {
     let body = {}

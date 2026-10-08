@@ -1,6 +1,6 @@
 const prisma = require('../prismaClient');
 const ExcelJS = require('exceljs');
-const { reportRange, buildReport, TIME_ZONE } = require('../utils/attendance');
+const { reportRange, buildReport, command, TIME_ZONE } = require('../utils/attendance');
 const { compareAttendanceEmployees } = require('../utils/attendanceOrder');
 const { buildAttendanceMatrix, addAttendanceMatrixSheet } = require('../utils/attendanceMatrix');
 
@@ -53,4 +53,21 @@ async function getAttendance(req, res) {
     return res.status(500).json({ error: 'Could not load attendance report' });
   }
 }
-module.exports = { getAttendance };
+async function getAttendanceState(req, res) {
+  try {
+    const viewer = await prisma.user.findUnique({ where: { id: req.userId }, select: { userRole: true } });
+    if (!viewer || !['ADMIN', 'ASSISTANT', 'EMPLOYEE', 'FIELD_EMPLOYEE'].includes(viewer.userRole)) return res.status(403).json({ error: 'Attendance is available to employees, assistants and admins only' });
+    const range = reportRange();
+    const events = await prisma.globalMessage.findMany({
+      where: { authorId: req.userId, createdAt: { gte: range.start, lt: range.end }, attachmentType: null, replyToId: null },
+      select: { id: true, authorId: true, content: true, createdAt: true },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }]
+    });
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json({ latest: events.find(event => command(event.content)) || null });
+  } catch (error) {
+    console.error('[attendance] state:', error);
+    return res.status(503).json({ error: 'Could not load attendance status. Please retry.' });
+  }
+}
+module.exports = { getAttendance, getAttendanceState };

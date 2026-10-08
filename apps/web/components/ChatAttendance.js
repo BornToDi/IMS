@@ -1,14 +1,15 @@
 "use client"
 import { memo, useEffect, useRef, useState } from 'react'
 import { getCurrentLocationWithPlace } from '../lib/location'
+import { apiResponse } from '../lib/api'
+import { createPortal } from 'react-dom'
 
-const API = ''
 const today = () => new Date(Date.now() + 21600000).toISOString().slice(0, 10)
 const time = value => value ? new Date(value).toLocaleTimeString('en-GB', { timeZone: 'Asia/Dhaka', hour: '2-digit', minute: '2-digit' }) : '—'
 const control = 'rounded-xl border border-white/15 bg-[#202c33] px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:opacity-50'
 const compactControl = 'shrink-0 rounded-lg border border-white/15 bg-[#202c33] px-2.5 py-1.5 text-xs font-medium text-white focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:opacity-40'
 
-export default memo(function ChatAttendance({ accessToken, user, messages, onMessage, historyLoading }) {
+export default memo(function ChatAttendance({ accessToken, user, messages, onMessage, controlsTarget }) {
   const canUseAttendance = ['ADMIN', 'ASSISTANT', 'EMPLOYEE', 'FIELD_EMPLOYEE'].includes(user?.userRole)
   const canViewReports = ['ADMIN', 'ASSISTANT'].includes(user?.userRole)
   const [expanded, setExpanded] = useState(false)
@@ -25,6 +26,25 @@ export default memo(function ChatAttendance({ accessToken, user, messages, onMes
   const [reason, setReason] = useState('')
   const [reasonError, setReasonError] = useState('')
   const [locating, setLocating] = useState(false)
+  const [attendanceEvent, setAttendanceEvent] = useState(null)
+  const [stateReady, setStateReady] = useState(false)
+  const [stateError, setStateError] = useState('')
+  const [day, setDay] = useState(today)
+  useEffect(() => {
+    const timer = setInterval(() => setDay(today()), 30000)
+    return () => clearInterval(timer)
+  }, [])
+  useEffect(() => {
+    if (!canUseAttendance || !accessToken) return
+    const controller = new AbortController()
+    setStateReady(false)
+    setStateError('')
+    apiResponse('/api/chat/attendance/state', accessToken, { signal: controller.signal })
+      .then(async response => { const body = await response.json(); if (!response.ok) throw new Error(body.error || 'Could not load attendance status'); return body })
+      .then(body => { if (!controller.signal.aborted) { setAttendanceEvent(body.latest); setStateReady(true) } })
+      .catch(err => { if (err.name !== 'AbortError') setStateError(err.message || 'Could not load attendance status') })
+    return () => controller.abort()
+  }, [canUseAttendance, accessToken, user?.id, day, revision])
   const reasonDialog = useRef(null)
   const submitting = useRef(false)
   useEffect(() => {
@@ -37,7 +57,7 @@ export default memo(function ChatAttendance({ accessToken, user, messages, onMes
     const controller = new AbortController()
     setLoading(true)
     setError('')
-    fetch(`${API}/api/chat/attendance?${query}`, { headers: { Authorization: `Bearer ${accessToken}` }, signal: controller.signal })
+    apiResponse(`/api/chat/attendance?${query}`, accessToken, { signal: controller.signal })
       .then(async response => { const body = await response.json(); if (!response.ok) throw new Error(body.error); return body })
       .then(setReport)
       .catch(err => { if (err.name !== 'AbortError') { setError(err.message || 'Unable to load attendance'); setReport(null) } })
@@ -46,8 +66,8 @@ export default memo(function ChatAttendance({ accessToken, user, messages, onMes
   }, [canViewReports, expanded, accessToken, query, messages.length, revision])
 
   if (!canUseAttendance) return null
-  const ownEvents = messages.filter(message => message.authorId === user?.id && !message.replyToId && !message.attachmentType && /^sign[\s-]*(in|out)[.!]?(?:\nReason: ([\s\S]+))?$/i.test(message.content.trim()) && new Date(new Date(message.createdAt).getTime() + 21600000).toISOString().slice(0, 10) === today())
-  const latest = ownEvents[ownEvents.length - 1]
+  const ownEvents = [...messages, ...(attendanceEvent ? [attendanceEvent] : [])].filter(message => message.authorId === user?.id && !message.replyToId && !message.attachmentType && /^sign[\s-]*(in|out)[.!]?(?:\nReason: ([\s\S]+))?$/i.test(message.content.trim()) && new Date(new Date(message.createdAt).getTime() + 21600000).toISOString().slice(0, 10) === day)
+  const latest = ownEvents.reduce((latest, event) => !latest || new Date(event.createdAt) > new Date(latest.createdAt) || (event.createdAt === latest.createdAt && event.id > latest.id) ? event : latest, null)
   const signedIn = latest && /^sign[\s-]*in[.!]?(?:\nReason: ([\s\S]+))?$/i.test(latest.content.trim())
   async function mark(action) {
     if (submitting.current) return
@@ -61,10 +81,11 @@ export default memo(function ChatAttendance({ accessToken, user, messages, onMes
       try { location = await getCurrentLocationWithPlace({ maximumAge: 0 }) }
       catch (err) { throw new Error(`Location is required to sign ${action}. Allow location access and retry. ${err.message || ''}`) }
       finally { setLocating(false) }
-      const response = await fetch(`${API}/api/chat`, { method: 'POST', headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ content: `sign ${action}`, attendanceAction: action, ...location, ...(action === 'in' ? { attendanceReason: reason.trim() } : {}) }) })
+      const response = await apiResponse('/api/chat', accessToken, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: `sign ${action}`, attendanceAction: action, ...location, ...(action === 'in' ? { attendanceReason: reason.trim() } : {}) }) })
       const body = await response.json()
       if (!response.ok) throw new Error(body.error || 'Could not record attendance')
       onMessage(body)
+      setAttendanceEvent(body)
       setNotice(`Sign ${action} recorded at ${time(body.createdAt)} (Dhaka).`)
       if (action === 'in') { setReasonOpen(false); setReason('') }
     } catch (err) { if (action === 'in') setReasonError(err.message); else setError(err.message) } finally { submitting.current = false; setBusy('') }
@@ -72,7 +93,7 @@ export default memo(function ChatAttendance({ accessToken, user, messages, onMes
   async function download() {
     setBusy('export'); setError('')
     try {
-      const response = await fetch(`${API}/api/chat/attendance?${query}&format=xlsx`, { headers: { Authorization: `Bearer ${accessToken}` } })
+      const response = await apiResponse(`/api/chat/attendance?${query}&format=xlsx`, accessToken)
       if (!response.ok) throw new Error('Could not export attendance. Please try again.')
       const url = URL.createObjectURL(await response.blob())
       const link = document.createElement('a'); link.href = url; link.download = `attendance-${period}-${date}.xlsx`; link.click()
@@ -104,13 +125,16 @@ export default memo(function ChatAttendance({ accessToken, user, messages, onMes
         <span className="truncate tabular-nums">{latest ? `${signedIn ? 'In' : 'Out'} ${time(latest.createdAt)}` : 'Today'}</span>
       </div>
       <div className="flex shrink-0 gap-1.5">
-        <button type="button" disabled={historyLoading || !!busy || !!signedIn} onClick={() => { setReasonError(''); setReasonOpen(true) }} className="shrink-0 rounded-lg bg-emerald-400 px-2.5 py-1.5 text-xs font-semibold text-emerald-950 hover:bg-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-200 disabled:opacity-40">{busy === 'in' ? 'Saving…' : 'Sign in'}</button>
-        <button type="button" title="Sign out and save your current location" disabled={historyLoading || !!busy || !signedIn} onClick={() => mark('out')} className={compactControl}>{busy === 'out' ? locating ? 'Locating…' : 'Saving…' : 'Sign out'}</button>
         {canViewReports && <button type="button" aria-expanded={expanded} onClick={() => setExpanded(!expanded)} className={compactControl}>{expanded ? 'Close' : 'Reports'}</button>}
       </div>
     </div>
+    {controlsTarget && createPortal(<>
+        <button type="button" disabled={!stateReady || !!busy || !!signedIn} onClick={() => { setReasonError(''); setReasonOpen(true) }} className="inline-flex h-11 min-w-[68px] shrink-0 items-center justify-center whitespace-nowrap rounded-xl bg-emerald-400/15 px-3 text-xs font-semibold text-emerald-300 ring-1 ring-inset ring-emerald-400/25 transition hover:bg-emerald-400/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 disabled:cursor-not-allowed disabled:opacity-35">{busy === 'in' ? 'Saving…' : 'Sign in'}</button>
+        <button type="button" title="Sign out and save your current location" disabled={!stateReady || !!busy || !signedIn} onClick={() => mark('out')} className="inline-flex h-11 min-w-[68px] shrink-0 items-center justify-center whitespace-nowrap rounded-xl border border-white/10 px-3 text-xs font-medium text-slate-300 transition hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 disabled:cursor-not-allowed disabled:opacity-35">{busy === 'out' ? locating ? 'Locating…' : 'Saving…' : 'Sign out'}</button>
+    </>, controlsTarget)}
     <span role="status" className="sr-only">{notice}</span>
     {error && <p role="alert" className="px-6 pb-2 text-sm text-rose-300">{error}</p>}
+    {stateError && <p role="alert" className="px-6 pb-2 text-sm text-rose-300">{stateError} <button type="button" className="underline" onClick={() => setRevision(value => value + 1)}>Retry</button></p>}
     {canViewReports && expanded && <div className="max-h-[55vh] overflow-y-auto border-t border-white/10 px-4 py-4 sm:px-6">
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <div className="mr-auto"><h2 className="text-lg font-semibold text-white">{report?.canViewTeam ? 'Team attendance' : 'My attendance'}</h2><p className="mt-1 text-xs text-slate-400">Type “sign in” or “sign out” as a standalone chat message, or use the buttons.</p></div>

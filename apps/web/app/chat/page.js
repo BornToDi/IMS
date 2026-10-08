@@ -7,6 +7,7 @@ import ChatLocation from '../../components/ChatLocation'
 import Layout from '../../components/Layout'
 import ChatAttendance from '../../components/ChatAttendance'
 import { fetchChatHistoryPage } from '../../lib/chatHistory.mjs'
+import { apiResponse } from '../../lib/api'
 
 const API_BASE_URL = ''
 
@@ -240,6 +241,7 @@ function CompanyChatContent() {
   const [historyError, setHistoryError] = useState('')
   const [historyAttempt, setHistoryAttempt] = useState(0)
   const [newMessage, setNewMessage] = useState('')
+  const [attendanceControlsTarget, setAttendanceControlsTarget] = useState(null)
   const [socket, setSocket] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedDate, setSelectedDate] = useState('')
@@ -321,6 +323,14 @@ function CompanyChatContent() {
             refreshAccessToken: () => useAuthStore.getState().refreshAccessToken()
           })
           history = [...page, ...history]
+          if (!cancelled) {
+            setMessages(current => {
+              const byId = new Map([...history, ...current].map(message => [message.id, message]))
+              return [...byId.values()].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt) || a.id.localeCompare(b.id))
+            })
+            // Show chat and attendance as soon as the newest page is available.
+            setLoading(false)
+          }
           if (page.length < pageSize) break
           offset += pageSize
         }
@@ -373,6 +383,10 @@ function CompanyChatContent() {
     newSocket.on('error', (err) => {
       console.error('[socket] error:', err)
     })
+    newSocket.on('connect_error', () => setConnectionState('offline'))
+    newSocket.on('global-message-error', error => {
+      setLocationStatus(error?.message || 'Failed to send message. Please retry.')
+    })
 
     setSocket(newSocket)
     return () => {
@@ -384,7 +398,7 @@ function CompanyChatContent() {
 
   useEffect(() => {
     if (!accessToken) return
-    fetch(`${API_BASE_URL}/api/auth/users`, {
+    apiResponse('/api/auth/users', accessToken, {
       headers: { Authorization: `Bearer ${accessToken}` },
       credentials: 'include'
     })
@@ -525,7 +539,7 @@ function CompanyChatContent() {
     const locationPayload = await buildLocationPayload()
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/chat`, {
+      const response = await apiResponse('/api/chat', accessToken, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -635,7 +649,7 @@ function CompanyChatContent() {
 
     try {
       setIsUploading(true)
-      const res = await fetch(`${API_BASE_URL}/api/chat/files`, {
+      const res = await apiResponse('/api/chat/files', accessToken, {
         method: 'POST',
         headers: { Authorization: `Bearer ${accessToken}` },
         credentials: 'include',
@@ -652,9 +666,12 @@ function CompanyChatContent() {
         if (fileInputRef.current) fileInputRef.current.value = ''
         return true
       }
+      const body = await res.json().catch(() => ({}))
+      setLocationStatus(body.error || 'File upload failed. Please retry.')
       return false
     } catch (err) {
       console.error('File upload failed', err)
+      setLocationStatus(err.message || 'File upload failed. Please retry.')
       return false
     } finally {
       setIsUploading(false)
@@ -772,7 +789,7 @@ function CompanyChatContent() {
             </div>
           </div>
 
-          <ChatAttendance accessToken={accessToken} user={user} messages={messages} historyLoading={loading || !!historyError} onMessage={appendMessage} />
+          <ChatAttendance accessToken={accessToken} user={user} messages={messages} controlsTarget={attendanceControlsTarget} onMessage={appendMessage} />
           <div className="flex flex-none flex-wrap items-center gap-2 border-b border-white/10 bg-[#111b21] px-3 py-2 sm:px-6">
             <label htmlFor="chat-date-filter" className="text-xs font-semibold text-slate-300">Show chat from date</label>
             <input
@@ -867,24 +884,24 @@ function CompanyChatContent() {
               ) : null}
 
               {locationStatus ? <div className="mb-2 rounded-2xl border border-blue-400/20 bg-blue-500/10 px-3 py-2 text-xs font-semibold text-blue-100">📍 {locationStatus}</div> : null}
-              <div className="flex items-end gap-2 rounded-[24px] border border-white/10 bg-[#2a3942] px-3 py-2 shadow-inner shadow-black/10 sm:rounded-[28px] sm:px-4 sm:py-2.5">
+              <div className="grid grid-cols-[44px_44px_minmax(0,1fr)] items-center gap-1.5 rounded-2xl border border-white/10 bg-[#111b21] p-2 shadow-sm sm:flex sm:gap-2 sm:p-2.5">
                 <button
                   type="button"
-                  className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/5 text-lg text-slate-200 transition hover:bg-white/10 sm:h-11 sm:w-11"
-                  title="Attach file"
+                  className="row-start-2 grid h-11 w-11 shrink-0 place-items-center rounded-xl text-xl text-slate-400 transition hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 sm:order-1"
+                  aria-label="Attach file" title="Attach file"
                   onClick={openFilePicker}
                 >
                   +
                 </button>
                 <button
                   type="button"
-                  className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/5 text-lg text-slate-200 transition hover:bg-white/10 sm:h-11 sm:w-11"
-                  title="Stickers"
+                  className="row-start-2 grid h-11 w-11 shrink-0 place-items-center rounded-xl text-xl text-slate-400 transition hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 sm:order-1"
+                  aria-label="Choose a sticker" title="Stickers"
                   onClick={openStickerTray}
                 >
                   ✦
                 </button>
-                <div className="relative flex min-w-0 flex-1 items-end gap-2 rounded-[20px] border border-white/10 bg-[#111b21] px-3 py-2 sm:rounded-[24px] sm:px-4 sm:py-2.5">
+                <div className="relative col-span-3 row-start-1 flex min-w-0 flex-1 items-end gap-2 rounded-xl border border-white/10 bg-[#202c33] px-3 py-2 transition focus-within:border-emerald-400/40 sm:order-2 sm:px-4">
                   {mentionOpen ? (
                     <div className="absolute inset-x-0 bottom-[calc(100%+0.5rem)] z-30 max-h-64 overflow-y-auto border border-white/10 bg-[#111b21] py-1 shadow-2xl chat-scroll">
                       {filteredMentionUsers.length ? filteredMentionUsers.map((candidate) => (
@@ -903,12 +920,14 @@ function CompanyChatContent() {
                       )) : <p className="px-3 py-4 text-sm text-white/70">No matching user</p>}
                     </div>
                   ) : null}
+
                   <textarea
                     ref={messageInputRef}
                     rows={1}
                     value={newMessage}
                     onChange={handleMessageChange}
                     onKeyDown={handleMessageKeyDown}
+                    aria-label="Message"
                     placeholder="Type a message"
                     className="max-h-[120px] min-h-9 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent py-1.5 text-[13px] leading-5 text-white outline-none placeholder:text-slate-400 sm:text-sm"
                   />
@@ -916,11 +935,13 @@ function CompanyChatContent() {
                     type="submit"
                     disabled={(!newMessage.trim() && !selectedFile) || isUploading}
                     className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-emerald-500 text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50 sm:h-10 sm:w-10"
+                    aria-label={selectedFile ? 'Send file' : 'Send message'}
                     title={selectedFile ? 'Send file' : 'Send message'}
                   >
                     {isUploading ? '…' : '➤'}
                   </button>
                 </div>
+                <div ref={setAttendanceControlsTarget} role="group" aria-label="Attendance actions" className="col-start-3 row-start-2 flex shrink-0 items-center justify-end gap-1.5 sm:order-3 sm:pl-1" />
               </div>
             </form>
           </div>
