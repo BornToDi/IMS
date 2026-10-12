@@ -204,6 +204,48 @@ test('bank queries, detail and exports cannot access another bank or internal co
   const list=await request('/',{user:bankUser}); assert.ok(list.body.rows.every(r=>r.bankId===bank.id && r.repairCost===undefined));
   const report=await request('/reports?type=stock',{user:bankUser}); assert.ok(report.body.rows.every(r=>r.Bank===bank.name && r.RepairCost===undefined));
 });
+test('device previews, grouped totals and Excel include more than 10,000 matching devices', async () => {
+  const count = 11250;
+  const prefix = 'LARGE-REPORT-';
+  const where = { serialNumber: { startsWith: prefix } };
+  try {
+    for (let offset = 0; offset < count; offset += 500) {
+      await prisma.inventoryDevice.createMany({ data: Array.from({ length: Math.min(500, count - offset) }, (_, i) => ({
+        serialNumber: `${prefix}${String(offset + i).padStart(5, '0')}`,
+        brand: 'PAX', model: 'Large report model', location: 'Warehouse', bankId: bank.id
+      })) });
+    }
+    const query = `q=${prefix}`;
+    const preview = await request(`/reports?type=stock&${query}`, { user: bankUser });
+    assert.equal(preview.status, 200, JSON.stringify(preview.body.error));
+    assert.equal(preview.body.rows.length, count);
+    assert.equal(new Set(preview.body.rows.map(row => row.Serial)).size, count);
+    assert.equal(preview.body.rows.at(-1).Serial, `${prefix}11249`);
+    assert.ok(preview.body.rows.every(row => row.Bank === bank.name && row.RepairCost === undefined));
+    const otherBank = await request(`/reports?type=stock&${query}`, { user: otherBankUser });
+    assert.equal(otherBank.status, 200);
+    assert.equal(otherBank.body.rows.length, 0);
+    for (const type of ['bank', 'model']) {
+      const grouped = await request(`/reports?type=${type}&${query}`);
+      assert.equal(grouped.status, 200);
+      assert.equal(grouped.body.rows.length, 1);
+      assert.equal(grouped.body.rows[0].Total, count);
+      assert.equal(grouped.body.rows[0].IN_STOCK, count);
+    }
+    const exported = await request(`/reports?type=stock&${query}&format=xlsx`, { raw: true });
+    assert.equal(exported.status, 200);
+    const ExcelJS = require('exceljs');
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(exported.body);
+    const sheet = workbook.getWorksheet('POS inventory');
+    assert.equal(sheet.rowCount, count + 1);
+    assert.equal(sheet.getRow(2).getCell(1).value, `${prefix}00000`);
+    assert.equal(sheet.getRow(count + 1).getCell(1).value, `${prefix}11249`);
+  } finally {
+    await prisma.inventoryDevice.deleteMany({ where });
+  }
+});
+
 test('documents are validated, authenticated and preserved in history', async () => {
   const device=await deployed('DOC-POS');
   const invalid=new FormData(); invalid.append('category','INVOICE'); invalid.append('file',new Blob(['<script>bad</script>'],{type:'application/pdf'}),'fake.pdf');

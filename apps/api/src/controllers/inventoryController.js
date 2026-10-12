@@ -410,8 +410,7 @@ async function reportRows(req) {
     }
     return rows;
   }
-  const rows = await prisma.inventoryDevice.findMany({ where, include, orderBy: { serialNumber: 'asc' }, take: 10001 });
-  if (rows.length > 10000) fail('Narrow the filters to export 10,000 devices or fewer');
+  const rows = await prisma.inventoryDevice.findMany({ where, include, orderBy: { serialNumber: 'asc' } });
   if (['bank', 'model'].includes(type)) {
     const groups = new Map();
     for (const row of rows) {
