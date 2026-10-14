@@ -10,9 +10,8 @@ export default function LoginPage() {
   const login = useAuthStore((s) => s.login)
 
   async function handleLogin(email, password) {
-    const user = await login(email, password)
-    const role = String(user?.userRole || '').toUpperCase()
-    router.push(role === 'BANK' ? '/tickets' : '/dashboard')
+    await login(email, password)
+    router.push('/dashboard')
   }
 
   return (

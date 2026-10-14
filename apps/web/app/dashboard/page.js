@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import Layout from '../../components/Layout'
 import { useAuthStore } from '../../store/useAuthStore'
 import { apiFetch } from '../../lib/api'
+import BankDashboard from '../../components/BankDashboard'
 
 function niceDate(value) {
   if (!value) return ''
@@ -92,6 +93,11 @@ function inDateRange(task, range) {
 }
 
 export default function DashboardPage() {
+  const user = useAuthStore(state => state.user)
+  return <Layout>{user && (String(user.userRole).toUpperCase() === 'BANK' ? <BankDashboard /> : <AdminDashboard />)}</Layout>
+}
+
+function AdminDashboard() {
   const router = useRouter()
   const [inventoryQuery, setInventoryQuery] = useState('')
   const accessToken = useAuthStore((state) => state.accessToken)
@@ -150,7 +156,7 @@ export default function DashboardPage() {
   
 
   return (
-    <Layout>
+    <>
       <div className="mx-auto max-w-[1700px] space-y-5 text-black">
         <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm lg:p-7">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
@@ -253,6 +259,6 @@ export default function DashboardPage() {
           </div>
         </section>
       </div>
-    </Layout>
+    </>
   )
 }

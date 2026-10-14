@@ -54,6 +54,10 @@ export default function TicketsPage() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
+  useEffect(() => {
+    if (canCreate && new URLSearchParams(window.location.search).get('new') === '1') setOpen(true)
+  }, [canCreate])
+
   const bankName = clean(user?.bankName) || (role === 'BANK' ? clean(user?.name) : '')
 
   async function searchPos(bank = role === 'BANK' ? bankName : form.bankName, q = form.posSerial) {

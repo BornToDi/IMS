@@ -28,7 +28,7 @@ export default function BankRegisterPage(){
 
   async function handleRegister(name,email,password,userRole,bankName){
     await register(name,email,password,userRole,bankName)
-    router.push('/tickets')
+    router.push('/dashboard')
   }
 
   return (

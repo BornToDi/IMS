@@ -59,7 +59,7 @@ export default function ProtectedRoute({ children }) {
   useEffect(() => {
     if (!user || loading) return
     const role = String(user.userRole || '').toUpperCase()
-    const bankBlockedPaths = ['/dashboard', '/workspaces', '/meetings', '/announcements', '/chat', '/goals', '/action-items']
+    const bankBlockedPaths = ['/workspaces', '/meetings', '/announcements', '/chat', '/goals', '/action-items']
     const blocked = role === 'BANK' && bankBlockedPaths.some((path) => pathname === path || pathname.startsWith(`${path}/`))
     if (blocked) router.replace('/tickets')
   }, [user, loading, pathname, router])
