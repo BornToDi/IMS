@@ -1,7 +1,21 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { fetchChatHistoryPage } from './chatHistory.mjs'
+import { fetchChatHistoryPage, isNearChatBottom, restoreChatAnchor } from './chatHistory.mjs'
 const reply = (body, status = 200) => new Response(JSON.stringify(body), { status })
+
+test('new messages follow only when reading near the bottom', () => {
+  assert.equal(isNearChatBottom({ scrollHeight: 3000, scrollTop: 2400, clientHeight: 600 }), true)
+  assert.equal(isNearChatBottom({ scrollHeight: 3000, scrollTop: 2350, clientHeight: 600 }), true)
+  assert.equal(isNearChatBottom({ scrollHeight: 3000, scrollTop: 500, clientHeight: 600 }), false)
+});
+
+test('prepending history restores the visible message without double browser anchoring', () => {
+  const container = { scrollTop: 500 };
+  restoreChatAnchor(container, { getBoundingClientRect: () => ({ top: 1100 }) }, 100)
+  assert.equal(container.scrollTop, 1500)
+  restoreChatAnchor(container, { getBoundingClientRect: () => ({ top: 100 }) }, 100)
+  assert.equal(container.scrollTop, 1500)
+});
 test('refreshes expired token and retries with credentials', async () => {
   const requests = []
   let refreshes = 0

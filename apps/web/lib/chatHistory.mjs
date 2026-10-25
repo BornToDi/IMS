@@ -1,3 +1,11 @@
+export function isNearChatBottom(container) {
+  return container.scrollHeight - container.scrollTop - container.clientHeight < 80
+}
+
+export function restoreChatAnchor(container, element, previousTop) {
+  container.scrollTop += element.getBoundingClientRect().top - previousTop
+}
+
 export async function fetchChatHistoryPage(url, token, { signal, refreshAccessToken, fetcher = fetch }) {
   const request = accessToken => fetcher(url, { headers: { Authorization: `Bearer ${accessToken}` }, credentials: 'include', signal })
   let response = await request(token)

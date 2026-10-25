@@ -59,9 +59,27 @@ async function getGlobalMessages(req, res) {
     const parsedOffset = Number.parseInt(offset, 10);
     const take = Number.isFinite(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 200) : 100;
     const skip = Number.isFinite(parsedOffset) ? Math.max(parsedOffset, 0) : 0;
+    const where = {};
+    if (req.query.from || req.query.until) {
+      const from = new Date(req.query.from);
+      const until = new Date(req.query.until);
+      if (!Number.isFinite(from.getTime()) || !Number.isFinite(until.getTime()) || from >= until) return res.status(400).json({ error: 'Invalid chat date range' });
+      where.createdAt = { gte: from, lt: until };
+    }
+    const anchorId = req.query.before || req.query.through;
+    if (anchorId) {
+      if (typeof anchorId !== 'string') return res.status(400).json({ error: 'Invalid chat cursor' });
+      const anchor = await prisma.globalMessage.findUnique({ where: { id: anchorId }, select: { id: true, createdAt: true } });
+      if (!anchor) return res.status(404).json({ error: 'Chat message no longer exists' });
+      where.OR = [
+        { createdAt: { lt: anchor.createdAt } },
+        { createdAt: anchor.createdAt, id: req.query.before ? { lt: anchor.id } : { lte: anchor.id } }
+      ];
+    }
     const messages = await prisma.globalMessage.findMany({
+      where,
       include: { author: { select: publicUser }, replyTo: replyInclude },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take,
       skip
     });

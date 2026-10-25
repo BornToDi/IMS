@@ -1,12 +1,12 @@
 "use client"
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useAuthStore } from '../../store/useAuthStore'
 import { io } from 'socket.io-client'
 import { getCurrentLocationWithPlace } from '../../lib/location'
 import ChatLocation from '../../components/ChatLocation'
 import Layout from '../../components/Layout'
 import ChatAttendance from '../../components/ChatAttendance'
-import { fetchChatHistoryPage } from '../../lib/chatHistory.mjs'
+import { fetchChatHistoryPage, isNearChatBottom, restoreChatAnchor } from '../../lib/chatHistory.mjs'
 import { apiResponse } from '../../lib/api'
 
 const API_BASE_URL = ''
@@ -36,7 +36,7 @@ function localDateKey(value) {
 }
 
 function getInitials(name) {
-  return name
+  return String(name || '')
     .split(' ')
     .filter(Boolean)
     .slice(0, 2)
@@ -240,6 +240,14 @@ function CompanyChatContent() {
   const [loading, setLoading] = useState(true)
   const [historyError, setHistoryError] = useState('')
   const [historyAttempt, setHistoryAttempt] = useState(0)
+  const [hasOlder, setHasOlder] = useState(false)
+  const [loadingOlder, setLoadingOlder] = useState(false)
+  const followLatestRef = useRef(true)
+  const initialScrollRef = useRef(true)
+  const prependAnchorRef = useRef(null)
+  const olderRequestRef = useRef(false)
+  const historyGenerationRef = useRef(0)
+  const oldestMessageRef = useRef(null)
   const [newMessage, setNewMessage] = useState('')
   const [attendanceControlsTarget, setAttendanceControlsTarget] = useState(null)
   const [socket, setSocket] = useState(null)
@@ -292,6 +300,13 @@ function CompanyChatContent() {
         return
       }
 
+      if (messageId) {
+        targetMessageHandledRef.current = false
+        setTargetMessageId(messageId)
+        setSelectedDate('')
+        setHistoryAttempt(value => value + 1)
+        return
+      }
       const container = chatScrollRef.current
       if (container) container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' })
     }
@@ -306,6 +321,13 @@ function CompanyChatContent() {
     setConnectionState('connecting')
     setLoading(true)
     setHistoryError('')
+    historyGenerationRef.current++
+    initialScrollRef.current = true
+    followLatestRef.current = true
+    prependAnchorRef.current = null
+    oldestMessageRef.current = null
+    setMessages([])
+    setHasOlder(false)
 
     let cancelled = false
     const historyController = new AbortController()
@@ -313,32 +335,24 @@ function CompanyChatContent() {
     // Load initial messages from API
     async function loadInitialMessages() {
       try {
-        const pageSize = 200
-        let offset = 0
-        let history = []
-
-        while (!cancelled) {
-          const page = await fetchChatHistoryPage(`${API_BASE_URL}/api/chat?limit=${pageSize}&offset=${offset}`, useAuthStore.getState().accessToken || accessToken, {
-            signal: historyController.signal,
-            refreshAccessToken: () => useAuthStore.getState().refreshAccessToken()
-          })
-          history = [...page, ...history]
-          if (!cancelled) {
-            setMessages(current => {
-              const byId = new Map([...history, ...current].map(message => [message.id, message]))
-              return [...byId.values()].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt) || a.id.localeCompare(b.id))
-            })
-            // Show chat and attendance as soon as the newest page is available.
-            setLoading(false)
-          }
-          if (page.length < pageSize) break
-          offset += pageSize
+        const query = new URLSearchParams({ limit: '100' })
+        if (selectedDate) {
+          const start = new Date(selectedDate + 'T00:00:00')
+          const end = new Date(start); end.setDate(end.getDate() + 1)
+          query.set('from', start.toISOString()); query.set('until', end.toISOString())
         }
-
+        const target = !targetMessageHandledRef.current && (targetMessageId || new URLSearchParams(window.location.search).get('message'))
+        if (target && !selectedDate) query.set('through', target)
+        const page = await fetchChatHistoryPage(API_BASE_URL + '/api/chat?' + query, useAuthStore.getState().accessToken || accessToken, {
+          signal: historyController.signal,
+          refreshAccessToken: () => useAuthStore.getState().refreshAccessToken()
+        })
         if (!cancelled) {
-          setMessages((current) => {
-            const byId = new Map([...history, ...current].map((message) => [message.id, message]))
-            return [...byId.values()].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+          oldestMessageRef.current = page[0]?.id || null
+          setHasOlder(page.length === 100)
+          setMessages(current => {
+            const byId = new Map([...page, ...current].map(message => [message.id, message]))
+            return [...byId.values()].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt) || a.id.localeCompare(b.id))
           })
         }
       } catch (err) {
@@ -356,7 +370,7 @@ function CompanyChatContent() {
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
       reconnectionAttempts: 5,
-      auth: { token: accessToken },
+      auth: callback => callback({ token: useAuthStore.getState().accessToken }),
       extraHeaders: {
         Authorization: `Bearer ${accessToken}`
       }
@@ -371,7 +385,6 @@ function CompanyChatContent() {
     newSocket.on('new-global-message', (message) => {
       if (!cancelled) {
         setMessages(prev => prev.some((m) => m.id === message.id) ? prev : [...prev, message])
-        setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
       }
     })
 
@@ -391,10 +404,11 @@ function CompanyChatContent() {
     setSocket(newSocket)
     return () => {
       cancelled = true
+      historyGenerationRef.current++
       historyController.abort()
       newSocket.disconnect()
     }
-  }, [accessToken, user, historyAttempt])
+  }, [Boolean(accessToken), user?.id, historyAttempt, selectedDate])
 
   useEffect(() => {
     if (!accessToken) return
@@ -447,7 +461,7 @@ function CompanyChatContent() {
         id: authorId,
         name: authorName,
         initials: getInitials(authorName),
-        lastMessage: message.attachmentName ? `📎 ${message.attachmentName}` : message.content,
+        lastMessage: message.attachmentName ? `📎 ${message.attachmentName}` : String(message.content || ''),
         createdAt: message.createdAt,
         isMe: authorId === user?.id
       })
@@ -488,34 +502,74 @@ function CompanyChatContent() {
     return groups
   }, [visibleMessages])
 
-  // Open a notification at its exact message; normal chat visits open at the latest message.
-  useEffect(() => {
-    if (loading) return
-
-    let highlightTimer
-    const scrollTimer = setTimeout(() => {
-      if (targetMessageId && !targetMessageHandledRef.current) {
-        const target = document.getElementById(`message-${targetMessageId}`)
-        if (target) {
-          targetMessageHandledRef.current = true
-          target.scrollIntoView({ behavior: 'smooth', block: 'center' })
-          setHighlightedMessageId(targetMessageId)
-          highlightTimer = setTimeout(() => setHighlightedMessageId(''), 2200)
-          return
-        }
-      }
-
-      const container = chatScrollRef.current
-      if (container) container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' })
-      else messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-    }, 150)
-
-    return () => {
-      clearTimeout(scrollTimer)
-      clearTimeout(highlightTimer)
+  // Prepending history preserves the reading position; new messages follow only at the bottom.
+  useLayoutEffect(() => {
+    const container = chatScrollRef.current
+    if (!container || loading) return
+    const anchor = prependAnchorRef.current
+    if (anchor) {
+      const element = document.getElementById('message-' + anchor.id)
+      if (element) restoreChatAnchor(container, element, anchor.top)
+      prependAnchorRef.current = null
+      return
     }
-  }, [loading, targetMessageId, visibleMessages])
+    if (targetMessageId && !targetMessageHandledRef.current) {
+      const target = document.getElementById('message-' + targetMessageId)
+      if (target) {
+        container.scrollTop += target.getBoundingClientRect().top - container.getBoundingClientRect().top - container.clientHeight / 2
+        targetMessageHandledRef.current = true
+        followLatestRef.current = false
+        initialScrollRef.current = false
+        setHighlightedMessageId(targetMessageId)
+        return
+      }
+    }
+    if (initialScrollRef.current || (!selectedDate && followLatestRef.current)) {
+      container.scrollTop = container.scrollHeight
+      initialScrollRef.current = false
+    }
+  }, [loading, targetMessageId, visibleMessages, selectedDate])
 
+  useEffect(() => {
+    if (!highlightedMessageId) return
+    const timer = setTimeout(() => setHighlightedMessageId(''), 2200)
+    return () => clearTimeout(timer)
+  }, [highlightedMessageId])
+
+  async function loadOlderMessages() {
+    if (olderRequestRef.current || !hasOlder || !oldestMessageRef.current) return
+    olderRequestRef.current = true
+    setLoadingOlder(true)
+    setHistoryError('')
+    const generation = historyGenerationRef.current
+    try {
+      const query = new URLSearchParams({ limit: '100', before: oldestMessageRef.current })
+      if (selectedDate) {
+        const start = new Date(selectedDate + 'T00:00:00')
+        const end = new Date(start); end.setDate(end.getDate() + 1)
+        query.set('from', start.toISOString()); query.set('until', end.toISOString())
+      }
+      const page = await fetchChatHistoryPage(API_BASE_URL + '/api/chat?' + query, accessToken, {
+        refreshAccessToken: () => useAuthStore.getState().refreshAccessToken()
+      })
+      if (generation !== historyGenerationRef.current) return
+      const container = chatScrollRef.current
+      const firstVisible = container && [...container.querySelectorAll('[id^="message-"]')].find(element => element.getBoundingClientRect().bottom >= container.getBoundingClientRect().top)
+      if (firstVisible) prependAnchorRef.current = { id: firstVisible.id.slice(8), top: firstVisible.getBoundingClientRect().top }
+      followLatestRef.current = false
+      oldestMessageRef.current = page[0]?.id || oldestMessageRef.current
+      setHasOlder(page.length === 100)
+      setMessages(current => {
+        const byId = new Map([...page, ...current].map(message => [message.id, message]))
+        return [...byId.values()].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt) || a.id.localeCompare(b.id))
+      })
+    } catch (error) {
+      if (generation === historyGenerationRef.current) setHistoryError(error.message || 'Could not load older messages')
+    } finally {
+      olderRequestRef.current = false
+      setLoadingOlder(false)
+    }
+  }
 
   async function buildLocationPayload() {
     try {
@@ -807,15 +861,16 @@ function CompanyChatContent() {
                 </button>
               </>
             ) : (
-              <span className="text-xs text-slate-400">All {messages.length} messages</span>
+              <span className="text-xs text-slate-400">{messages.length} loaded messages</span>
             )}
+            <button type="button" disabled={loading} onClick={() => { targetMessageHandledRef.current = true; setTargetMessageId(''); setSelectedDate(''); setHistoryAttempt(value => value + 1) }} className="ml-auto rounded-lg bg-white/10 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/15 disabled:opacity-50">Latest messages</button>
           </div>
 
-          <div ref={chatScrollRef} className="flex-1 min-h-0 overflow-y-auto chat-scroll chat-wallpaper px-3 py-4 sm:px-6 sm:py-6">
+          <div ref={chatScrollRef} onScroll={event => { followLatestRef.current = isNearChatBottom(event.currentTarget) }} className="flex-1 min-h-0 overflow-y-auto chat-scroll chat-wallpaper px-3 py-4 sm:px-6 sm:py-6">
             <div className="mx-auto flex w-full max-w-6xl flex-col gap-3 sm:gap-4">
               {loading ? (
                 <div className="mx-auto mt-10 rounded-3xl border border-white/10 bg-black/20 px-5 py-4 text-sm text-slate-300 backdrop-blur">
-                  Loading complete chat history...
+                  Loading messages...
                 </div>
               ) : null}
 
@@ -827,6 +882,7 @@ function CompanyChatContent() {
                 </div>
               ) : null}
 
+              {!loading && hasOlder && <button type="button" disabled={loadingOlder} onClick={loadOlderMessages} className="mx-auto rounded-xl bg-[#202c33] px-4 py-2 text-sm text-emerald-300 disabled:opacity-50">{loadingOlder ? 'Loading older messages...' : 'Load older messages'}</button>}
               <ChatMessageHistory groupedMessages={groupedMessages} userId={user.id} highlightedMessageId={highlightedMessageId} mentionUsers={mentionUsers} setLightbox={setLightbox} setReplyingTo={setReplyingTo} />
 
               <div ref={messagesEndRef} />
