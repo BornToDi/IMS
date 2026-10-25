@@ -90,11 +90,11 @@ test('only admins and assistants can access team reports and export; employees a
     assert.equal(res.code, 400);
 
     // Actual XLSX round-trip: formatting differences must not drop one person's events.
-    const staff = ['normal', 'crlf', 'spacing'].map(id => ({ id, name: id, employeeCode: id }));
+    const staff = ['normal', 'crlf', 'spacing', 'ariful'].map(id => ({ id, name: id, employeeCode: id }));
     prisma.user.findMany = async () => staff;
     prisma.globalMessage.findMany = async () => staff.flatMap((employee, index) => [
-      { id: `${employee.id}-in`, authorId: employee.id, author: employee, content: ['sign in\nReason: Bank visit', 'sign in\r\nReason: Bank visit', 'sign in  \r\nReason :Bank visit'][index], createdAt: new Date('2026-09-06T03:00:00Z') },
-      { id: `${employee.id}-out`, authorId: employee.id, author: employee, content: 'sign out', createdAt: new Date('2026-09-06T11:00:00Z') }
+      { id: `${employee.id}-in`, authorId: employee.id, author: employee, content: ['sign in\nReason: Bank visit', 'sign in\r\nReason: Bank visit', 'sign in  \r\nReason :Bank visit', 'Sing in'][index], latitude: 23.75, longitude: 90.39, locationLabel: 'Kawran Bazar', createdAt: new Date('2026-09-06T03:00:00Z') },
+      { id: `${employee.id}-out`, authorId: employee.id, author: employee, content: employee.id === 'ariful' ? 'Sing out' : 'sign out', createdAt: new Date('2026-09-06T11:00:00Z') }
     ]);
     req.query = { period: 'daily', date: '2026-09-06', format: 'xlsx' };
     res = response();
@@ -102,13 +102,15 @@ test('only admins and assistants can access team reports and export; employees a
     assert.equal(res.code, 200);
     const formattedAttendance = new ExcelJS.Workbook();
     await formattedAttendance.xlsx.load(res.body);
-    assert.equal(formattedAttendance.getWorksheet('All sign events').rowCount, 7);
+    assert.equal(formattedAttendance.getWorksheet('All sign events').rowCount, 9);
     const daily = formattedAttendance.getWorksheet('Daily attendance');
-    assert.equal(daily.rowCount, 4);
-    for (let row = 2; row <= 4; row++) {
+    assert.equal(daily.rowCount, 5);
+    for (let row = 2; row <= 5; row++) {
       assert.equal(daily.getCell(row, 6).value, 480);
       assert.equal(daily.getCell(row, 9).value, 'Complete');
-      assert.equal(daily.getCell(row, 11).value, 'Bank visit');
+      if (daily.getCell(row, 2).value !== 'ariful') assert.equal(daily.getCell(row, 11).value, 'Bank visit');
+      assert.equal(daily.getCell(row, 12).value, 'Kawran Bazar');
+      assert.equal(daily.getCell(row, 13).value, 'https://www.google.com/maps?q=23.75,90.39');
       const matrix = formattedAttendance.getWorksheet('Attendance report');
       assert.equal(matrix.getCell(row + 1, 4).value, '09:00 AM');
       assert.equal(matrix.getCell(row + 1, 5).value, '05:00 PM');

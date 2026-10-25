@@ -43,6 +43,20 @@ test('Dhaka dates and calendar report boundaries', () => {
   assert.throws(() => reportRange('yearly', '2026-09-06'));
 });
 
+test('screenshot Sing in spelling retains employee attendance and location', () => {
+  assert.equal(command('Sing in'), 'in');
+  assert.equal(command('SING-OUT!'), 'out');
+  assert.equal(command('please sing in'), null);
+  const report = buildReport([
+    message('in', 'Sing in', '2026-10-25T03:15:00Z', { locationLabel: 'Kawran Bazar', latitude: 23.75, longitude: 90.39 }),
+    message('out', 'Sing out', '2026-10-25T11:15:00Z')
+  ], [{ id: 'employee-1', name: 'Md. Ariful Islam' }], reportRange('daily', '2026-10-25'));
+  assert.equal(report.rows[0].status, 'Complete');
+  assert.equal(report.rows[0].minutes, 480);
+  assert.equal(report.rows[0].signInLocation.locationLabel, 'Kawran Bazar');
+  assert.equal(report.events.length, 2);
+});
+
 test('recognizes CRLF and whitespace around attendance reasons without accepting conversation', () => {
   for (const content of ['sign in\r\nReason: Bank visit', 'sign in  \r\nReason:Bank visit', 'sign in\nReason : Bank visit']) {
     assert.equal(command(content), 'in');

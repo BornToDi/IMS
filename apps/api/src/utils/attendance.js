@@ -1,7 +1,7 @@
 const TIME_ZONE = 'Asia/Dhaka';
 const { compareAttendanceEmployees } = require('./attendanceOrder');
 function command(content) {
-  const match = String(content || '').trim().match(/^sign(?:[^\S\r\n]|-)*(in|out)[.!]?[^\S\r\n]*(?:\r?\nReason[^\S\r\n]*:[^\S\r\n]*([\s\S]+))?$/i);
+  const match = String(content || '').trim().match(/^(?:sign|sing)(?:[^\S\r\n]|-)*(in|out)[.!]?[^\S\r\n]*(?:\r?\nReason[^\S\r\n]*:[^\S\r\n]*([\s\S]+))?$/i);
   return match ? match[1].toLowerCase() : null;
 }
 function dateKey(value) {

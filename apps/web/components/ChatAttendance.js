@@ -67,9 +67,9 @@ export default memo(function ChatAttendance({ accessToken, user, messages, onMes
   }, [canViewReports, expanded, accessToken, query, messages.length, revision])
 
   if (!canUseAttendance) return null
-  const ownEvents = [...messages, ...(attendanceEvent ? [attendanceEvent] : [])].filter(message => message.authorId === user?.id && !message.replyToId && !message.attachmentType && /^sign(?:[^\S\r\n]|-)*(in|out)[.!]?[^\S\r\n]*(?:\r?\nReason[^\S\r\n]*:[^\S\r\n]*([\s\S]+))?$/i.test(message.content.trim()) && new Date(new Date(message.createdAt).getTime() + 21600000).toISOString().slice(0, 10) === day)
+  const ownEvents = [...messages, ...(attendanceEvent ? [attendanceEvent] : [])].filter(message => message.authorId === user?.id && !message.replyToId && !message.attachmentType && /^(?:sign|sing)(?:[^\S\r\n]|-)*(in|out)[.!]?[^\S\r\n]*(?:\r?\nReason[^\S\r\n]*:[^\S\r\n]*([\s\S]+))?$/i.test(message.content.trim()) && new Date(new Date(message.createdAt).getTime() + 21600000).toISOString().slice(0, 10) === day)
   const latest = ownEvents.reduce((latest, event) => !latest || new Date(event.createdAt) > new Date(latest.createdAt) || (event.createdAt === latest.createdAt && event.id > latest.id) ? event : latest, null)
-  const signedIn = latest && /^sign(?:[^\S\r\n]|-)*in[.!]?[^\S\r\n]*(?:\r?\nReason[^\S\r\n]*:[^\S\r\n]*([\s\S]+))?$/i.test(latest.content.trim())
+  const signedIn = latest && /^(?:sign|sing)(?:[^\S\r\n]|-)*in[.!]?[^\S\r\n]*(?:\r?\nReason[^\S\r\n]*:[^\S\r\n]*([\s\S]+))?$/i.test(latest.content.trim())
   async function mark(action) {
     if (submitting.current) return
     if (action === 'in' && (!reason.trim() || reason.trim().length > 500)) { setReasonError('Enter a reason between 1 and 500 characters.'); return }
