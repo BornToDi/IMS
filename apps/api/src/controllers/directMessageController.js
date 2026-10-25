@@ -1,5 +1,8 @@
 const prisma = require('../prismaClient');
 const { createNotification } = require('../utils/workflow');
+const fs = require('fs/promises');
+const path = require('path');
+const { DIRECTORY, imageType } = require('../utils/privateAttachments');
 const publicUser = { id: true, name: true, userRole: true, bankName: true, avatarUrl: true };
 const pairWhere = (senderId, recipientId) => ({ OR: [{ senderId, recipientId }, { senderId: recipientId, recipientId: senderId }] });
 
@@ -22,6 +25,57 @@ async function contactFor(req, res) {
     return null;
   }
   return contact;
+}
+
+async function authorizeContact(req, res, next) {
+  try { const contact = await contactFor(req, res); if (contact) { req.inboxContact = contact; next(); } }
+  catch (error) { next(error); }
+}
+
+async function deliver(req, contact, message) {
+  await createNotification(req, { userId: contact.id, type: 'DIRECT_MESSAGE', message: `${req.inboxUser.name} sent you a private message`, targetUrl: `/support?contact=${encodeURIComponent(req.userId)}` }).catch(error => console.error('[direct-message] notification:', error));
+  const io = req.app?.locals?.io;
+  if (io) {
+    io.to(`user:${contact.id}`).emit('direct-message:new', message);
+    io.to(`user:${req.userId}`).emit('direct-message:new', message);
+  }
+}
+
+async function sendAttachment(req, res, next) {
+  let saved = false;
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Choose a file or image to upload' });
+    const content = typeof req.body?.content === 'string' ? req.body.content.trim() : '';
+    if (content.length > 4000 || !req.file.size) {
+      await fs.unlink(req.file.path);
+      return res.status(400).json({ error: content.length > 4000 ? 'Caption must be 4,000 characters or fewer' : 'Empty files cannot be uploaded' });
+    }
+    const decodedName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+    const originalName = decodedName.includes('\ufffd') ? req.file.originalname : decodedName;
+    const attachmentName = path.basename(originalName.replaceAll('\\', '/')).replace(/[\x00-\x1f\x7f]/g, '').slice(0, 200) || 'Attachment';
+    const attachmentType = await imageType(req.file.path);
+    const message = await prisma.directMessage.create({ data: { senderId: req.userId, recipientId: req.inboxContact.id, content, attachmentKey: req.file.filename, attachmentName, attachmentType, attachmentSize: req.file.size } });
+    saved = true;
+    await deliver(req, req.inboxContact, message);
+    return res.status(201).json(message);
+  } catch (error) {
+    if (req.file && !saved) await fs.unlink(req.file.path).catch(() => {});
+    next(error);
+  }
+}
+
+async function downloadAttachment(req, res, next) {
+  try {
+    const message = await prisma.directMessage.findFirst({ where: { id: req.params.messageId, OR: [{ senderId: req.userId }, { recipientId: req.userId }] } });
+    if (!message?.attachmentKey || !/^[a-f0-9-]{36}$/.test(message.attachmentKey)) return res.status(404).json({ error: 'Attachment not found' });
+    const filePath = path.join(DIRECTORY, message.attachmentKey);
+    try { await fs.access(filePath); } catch { return res.status(404).json({ error: 'This attachment is no longer available' }); }
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
+    res.attachment(message.attachmentName || 'Attachment');
+    res.type(message.attachmentType || 'application/octet-stream');
+    res.sendFile(filePath, error => { if (error && !res.headersSent) next(error); });
+  } catch (error) { next(error); }
 }
 
 async function listContacts(req, res, next) {
@@ -60,13 +114,7 @@ async function sendMessage(req, res, next) {
     const content = typeof req.body?.content === 'string' ? req.body.content.trim() : '';
     if (!content || content.length > 4000) return res.status(400).json({ error: 'Enter a message between 1 and 4,000 characters' });
     const message = await prisma.directMessage.create({ data: { senderId: req.userId, recipientId: contact.id, content } });
-    // Persist the notification before live delivery so an immediate read cannot leave a stale alert.
-    await createNotification(req, { userId: contact.id, type: 'DIRECT_MESSAGE', message: `${req.inboxUser.name} sent you a private message`, targetUrl: `/support?contact=${encodeURIComponent(req.userId)}` }).catch(error => console.error('[direct-message] notification:', error));
-    const io = req.app?.locals?.io;
-    if (io) {
-      io.to(`user:${contact.id}`).emit('direct-message:new', message);
-      io.to(`user:${req.userId}`).emit('direct-message:new', message);
-    }
+    await deliver(req, contact, message);
     res.status(201).json(message);
   } catch (error) { next(error); }
 }
@@ -87,4 +135,4 @@ async function markConversationRead(req, res, next) {
   } catch (error) { next(error); }
 }
 
-module.exports = { authorizeInbox, listContacts, listMessages, sendMessage, markConversationRead };
+module.exports = { authorizeInbox, authorizeContact, listContacts, listMessages, sendMessage, markConversationRead, sendAttachment, downloadAttachment };

@@ -11,6 +11,7 @@ const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'ims-bank-support-'));
 const dbPath = path.join(directory, 'test.db');
 process.env.DATABASE_URL = `file:${dbPath.replaceAll('\\', '/')}`;
 process.env.JWT_ACCESS_SECRET = 'bank-support-test-only-secret';
+process.env.PRIVATE_MESSAGE_UPLOAD_DIR = path.join(directory, 'private-files');
 const schema = execFileSync(process.execPath, [path.join(root, 'node_modules/prisma/build/index.js'), 'migrate', 'diff', '--from-empty', '--to-schema-datamodel', path.join(root, 'apps/api/prisma/schema.prisma'), '--script'], { encoding: 'utf8' });
 const db = new DatabaseSync(dbPath); db.exec(schema); db.close();
 const prisma = require('../prismaClient');
@@ -23,9 +24,10 @@ app.use('/api/direct-messages', require('../routes/directMessages'));
 app.use('/api/tickets', require('../routes/tickets'));
 app.use((err, req, res, next) => { console.error(err); res.status(500).json({ error: 'Unexpected server error' }); });
 let server, base, admin, otherAdmin, bank, otherBank, employee, manager;
-async function request(url, { user = bank, body, method = body ? 'POST' : 'GET' } = {}) {
-  const res = await fetch(base + url, { method, headers: { ...(user ? { Authorization: `Bearer ${signAccess({ userId: user.id })}` } : {}), ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
-  return { status: res.status, body: await res.json() };
+async function request(url, { user = bank, body, method = body ? 'POST' : 'GET', raw = false } = {}) {
+  const multipart = body instanceof FormData;
+  const res = await fetch(base + url, { method, headers: { ...(user ? { Authorization: `Bearer ${signAccess({ userId: user.id })}` } : {}), ...(body && !multipart ? { 'Content-Type': 'application/json' } : {}) }, body: body ? multipart ? body : JSON.stringify(body) : undefined });
+  return { status: res.status, body: raw ? Buffer.from(await res.arrayBuffer()) : await res.json(), headers: res.headers };
 }
 test.before(async () => {
   const user = (name, userRole, bankName) => prisma.user.create({ data: { name, userRole, email: `${name}@bank-support.test`, passwordHash: 'not-used', bankName } });
@@ -107,8 +109,45 @@ test('private-message migration creates indexes and cascading participant refere
   try {
     database.exec('PRAGMA foreign_keys=ON; CREATE TABLE User (id TEXT PRIMARY KEY);');
     database.exec(fs.readFileSync(path.join(root, 'apps/api/prisma/migrations/20261025000000_private_bank_messages/migration.sql'), 'utf8'));
+    database.exec(fs.readFileSync(path.join(root, 'apps/api/prisma/migrations/20261025010000_private_message_attachments/migration.sql'), 'utf8'));
     database.exec("INSERT INTO User VALUES ('bank'), ('admin'); INSERT INTO DirectMessage (id, senderId, recipientId, content) VALUES ('message','bank','admin','Hello'); DELETE FROM User WHERE id='bank';");
     assert.equal(database.prepare('SELECT COUNT(*) AS total FROM DirectMessage').get().total, 0);
     assert.equal(database.prepare("PRAGMA index_list('DirectMessage')").all().filter(row => row.origin === 'c').length, 2);
   } finally { database.close(); }
+});
+
+test('private images and documents support captions, authorized download and upload validation', async () => {
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aY9sAAAAASUVORK5CYII=', 'base64');
+  const form = (data, name, type, caption = '') => { const body = new FormData(); body.append('file', new Blob([data], { type }), name); body.append('content', caption); return body; };
+  const uploaded = await request(`/direct-messages/${admin.id}/attachments`, { body: form(png, 'terminal.png', 'image/png', 'Terminal error screen') });
+  assert.equal(uploaded.status, 201); assert.equal(uploaded.body.attachmentType, 'image/png');
+  assert.equal(uploaded.body.content, 'Terminal error screen'); assert.equal(uploaded.body.attachmentSize, png.length);
+  const url = `/direct-messages/attachments/${uploaded.body.id}`;
+  for (const user of [bank, admin]) {
+    const file = await request(url, { user, raw: true });
+    assert.equal(file.status, 200); assert.deepEqual(file.body, png);
+    assert.equal(file.headers.get('content-type'), 'image/png');
+    assert.match(file.headers.get('content-disposition'), /^attachment;/);
+    assert.equal(file.headers.get('x-content-type-options'), 'nosniff');
+  }
+  for (const user of [otherAdmin, otherBank]) assert.equal((await request(url, { user })).status, 404);
+  assert.equal((await request(url, { user: null })).status, 401);
+  const document = await request(`/direct-messages/${bank.id}/attachments`, { user: admin, body: form('Sample report', 'report.csv', 'text/csv') });
+  assert.equal(document.status, 201); assert.equal(document.body.content, ''); assert.equal(document.body.attachmentName, 'report.csv');
+  const bangla = await request(`/direct-messages/${admin.id}/attachments`, { body: form('Report', 'রিপোর্ট.txt', 'text/plain') });
+  assert.equal(bangla.status, 201); assert.equal(bangla.body.attachmentName, 'রিপোর্ট.txt');
+  const fake = await request(`/direct-messages/${admin.id}/attachments`, { body: form('<script>alert(1)</script>', 'fake.png', 'image/png') });
+  assert.equal(fake.status, 201); assert.equal(fake.body.attachmentType, 'application/octet-stream');
+  const fakeDownload = await request(`/direct-messages/attachments/${fake.body.id}`, { raw: true });
+  assert.equal(fakeDownload.headers.get('content-type'), 'application/octet-stream');
+  const count = await prisma.directMessage.count();
+  const filesBefore = fs.readdirSync(process.env.PRIVATE_MESSAGE_UPLOAD_DIR).length;
+  assert.equal((await request(`/direct-messages/${otherBank.id}/attachments`, { body: form(png, 'blocked.png', 'image/png') })).status, 403);
+  assert.equal((await request(`/direct-messages/${admin.id}/attachments`, { body: form('', 'empty.txt', 'text/plain') })).status, 400);
+  assert.equal((await request(`/direct-messages/${admin.id}/attachments`, { body: form(png, 'caption.png', 'image/png', 'x'.repeat(4001)) })).status, 400);
+  assert.equal((await request(`/direct-messages/${admin.id}/attachments`, { body: form(Buffer.alloc(20 * 1024 * 1024 + 1), 'large.bin', 'application/octet-stream') })).status, 413);
+  assert.equal(await prisma.directMessage.count(), count);
+  assert.equal(fs.readdirSync(process.env.PRIVATE_MESSAGE_UPLOAD_DIR).length, filesBefore);
+  fs.unlinkSync(path.join(process.env.PRIVATE_MESSAGE_UPLOAD_DIR, uploaded.body.attachmentKey));
+  assert.equal((await request(url)).status, 404);
 });

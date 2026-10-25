@@ -58,6 +58,10 @@ model DirectMessage {
   sender      User     @relation("directMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
   recipient   User     @relation("directMessageRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
   content     String
+  attachmentKey String?
+  attachmentName String?
+  attachmentType String?
+  attachmentSize Int?
   readAt      DateTime?
   createdAt   DateTime @default(now())
 

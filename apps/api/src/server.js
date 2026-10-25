@@ -83,7 +83,7 @@ app.use('/api/location', require('./routes/location'));
 app.get('/api/health', async (req, res) => {
   try {
     await prisma.globalMessage.findFirst({ select: { id: true, replyToId: true } });
-    await prisma.directMessage.findFirst({ select: { id: true } });
+    await prisma.directMessage.findFirst({ select: { id: true, attachmentKey: true } });
     await prisma.inventoryDevice.findFirst({ select: { id: true } });
     res.json({ status: 'ok', database: 'ok', allowedOrigins });
   } catch (error) {

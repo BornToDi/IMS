@@ -7,6 +7,7 @@ node_modules
 *.log
 *.db
 apps/api/uploads/
+apps/api/private-uploads/
 **/.turbo
 pnpm-lock.yaml
 yarn.lock
