@@ -37,6 +37,23 @@ test('deployed location lookup uses the website origin, retries failures and pre
     assert.equal(calls, 2)
     window.isSecureContext = false
     await assert.rejects(getCurrentLocationWithPlace(), /HTTPS/)
+    window.isSecureContext = true
+    navigator.geolocation.getCurrentPosition = (success, error, options) => {
+      assert.equal(options.enableHighAccuracy, true)
+      assert.equal(options.maximumAge, 0)
+      assert.equal(options.timeout, 12000)
+      error({ message: 'Location permission denied' })
+    }
+    await assert.rejects(getCurrentLocationWithPlace({ maximumAge: 0 }), /permission denied/)
+    navigator.geolocation.getCurrentPosition = (success, error) => error({ message: 'Location request timed out' })
+    await assert.rejects(getCurrentLocationWithPlace({ maximumAge: 0 }), /timed out/)
+    navigator.geolocation.getCurrentPosition = success => success({ coords: { latitude: 23.76, longitude: 90.36 } })
+    fail = true
+    assert.deepEqual(await getCurrentLocationWithPlace({ maximumAge: 0 }), {
+      latitude: 23.76, longitude: 90.36, locationLabel: 'Tap to view exact location'
+    })
+    navigator.geolocation = undefined
+    await assert.rejects(getCurrentLocationWithPlace(), /not supported/)
   } finally {
     globalThis.fetch = originalFetch
     if (originalWindow === undefined) delete globalThis.window

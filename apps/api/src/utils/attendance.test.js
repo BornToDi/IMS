@@ -42,6 +42,21 @@ test('Dhaka dates and calendar report boundaries', () => {
   assert.throws(() => reportRange('daily', '2026-02-30'));
   assert.throws(() => reportRange('yearly', '2026-09-06'));
 });
+
+test('recognizes CRLF and whitespace around attendance reasons without accepting conversation', () => {
+  for (const content of ['sign in\r\nReason: Bank visit', 'sign in  \r\nReason:Bank visit', 'sign in\nReason : Bank visit']) {
+    assert.equal(command(content), 'in');
+    const report = buildReport([
+      message('in', content, '2026-09-06T03:00:00Z'),
+      message('out', 'sign out', '2026-09-06T11:00:00Z')
+    ]);
+    assert.equal(report.rows[0].status, 'Complete');
+    assert.equal(report.rows[0].minutes, 480);
+    assert.deepEqual(report.rows[0].reasons, ['Bank visit']);
+    assert.equal(report.events.length, 2);
+  }
+  for (const content of ['sign\nin', 'sign in\nhello', 'sign out\nplease sign in']) assert.equal(command(content), null);
+});
 test('reason-bearing sign ins preserve reasons and completed hours', () => {
   const result = buildReport([
     message('1', 'sign in\nReason: Deployed in AIBL', '2026-09-06T03:00:00Z'),

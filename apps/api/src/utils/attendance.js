@@ -1,7 +1,7 @@
 const TIME_ZONE = 'Asia/Dhaka';
 const { compareAttendanceEmployees } = require('./attendanceOrder');
 function command(content) {
-  const match = String(content || '').trim().match(/^sign[\s-]*(in|out)[.!]?(?:\nReason: ([\s\S]+))?$/i);
+  const match = String(content || '').trim().match(/^sign(?:[^\S\r\n]|-)*(in|out)[.!]?[^\S\r\n]*(?:\r?\nReason[^\S\r\n]*:[^\S\r\n]*([\s\S]+))?$/i);
   return match ? match[1].toLowerCase() : null;
 }
 function dateKey(value) {
@@ -37,7 +37,7 @@ function buildReport(messages, employees = [], range) {
     const key = `${message.authorId}:${date}`;
     if (!rows.has(key)) rows.set(key, { date, employeeId: message.authorId, name: message.author.name, employeeCode: message.author.employeeCode || '', signIn: null, signOut: null, minutes: 0, signIns: 0, signOuts: 0, issues: [], open: null });
     const row = rows.get(key);
-    const reason = String(message.content).match(/\nReason: ([\s\S]+)$/i)?.[1]?.trim() || '';
+    const reason = String(message.content).match(/\r?\nReason[^\S\r\n]*:[^\S\r\n]*([\s\S]+)$/i)?.[1]?.trim() || '';
     if (!row.reasons) row.reasons = [];
     if (reason) row.reasons.push(reason);
     const hasLocation = typeof message.latitude === 'number' && Number.isFinite(message.latitude) && Math.abs(message.latitude) <= 90 && typeof message.longitude === 'number' && Number.isFinite(message.longitude) && Math.abs(message.longitude) <= 180;

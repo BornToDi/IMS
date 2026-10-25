@@ -28,7 +28,7 @@ test('sign in reason is validated, authorized and saved with the chat message', 
     assert.equal(saved, undefined);
     role = 'EMPLOYEE';
     for (const action of ['in', 'out']) {
-      for (const coords of [{}, { latitude: null, longitude: null }, { latitude: 91, longitude: 90 }, { latitude: 23, longitude: 181 }, { latitude: '23', longitude: 90 }]) {
+      for (const coords of [{}, { latitude: null, longitude: null }, { latitude: 91, longitude: 90 }, { latitude: 23, longitude: 181 }, { latitude: '23', longitude: 90 }, { latitude: NaN, longitude: 90 }, { latitude: 23, longitude: Infinity }, { latitude: -91, longitude: 90 }, { latitude: 23, longitude: -181 }]) {
         res = response();
         await postGlobalMessage({ userId: 'self', body: { content: `sign ${action}`, attendanceAction: action, attendanceReason: action === 'in' ? 'Deployed in AIBL' : undefined, ...coords } }, res);
         assert.equal(res.code, 400);
