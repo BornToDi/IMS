@@ -61,6 +61,7 @@ const prisma = require('./prismaClient');
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/workspaces', require('./routes/workspaces'));
 app.use('/api/tickets', require('./routes/tickets'));
+app.use('/api/direct-messages', require('./routes/directMessages'));
 app.use('/api/pos-serials', require('./routes/posSerials'));
 app.use('/api/hardware', require('./routes/hardware'));
 app.use('/api/workspaces/:workspaceId/goals', require('./routes/goals'));
@@ -82,6 +83,7 @@ app.use('/api/location', require('./routes/location'));
 app.get('/api/health', async (req, res) => {
   try {
     await prisma.globalMessage.findFirst({ select: { id: true, replyToId: true } });
+    await prisma.directMessage.findFirst({ select: { id: true } });
     await prisma.inventoryDevice.findFirst({ select: { id: true } });
     res.json({ status: 'ok', database: 'ok', allowedOrigins });
   } catch (error) {

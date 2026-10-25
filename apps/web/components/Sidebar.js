@@ -8,6 +8,7 @@ import { notificationCounts } from '../lib/notificationCounts.mjs'
 import { apiFetch } from '../lib/api'
 
 const allItems = [
+  { href: '/support', label: 'Private Messages', hint: 'Bank and admin inbox', icon: '↗', roles: ['BANK', 'ADMIN'] },
   { href: '/profile', label: 'My Profile', hint: 'Edit name and password', icon: '◌', roles: ['ADMIN', 'MANAGEMENT', 'ASSISTANT', 'EMPLOYEE', 'BANK'] },
   { href: '/dashboard', label: 'Dashboard', hint: 'Overview', icon: '⌁', roles: ['BANK', 'ADMIN', 'MANAGEMENT', 'ASSISTANT', 'EMPLOYEE'] },
   { href: '/tickets', label: 'Bank Tickets', hint: 'Client requests', icon: '▣', roles: ['BANK', 'ADMIN', 'MANAGEMENT', 'ASSISTANT'] },
@@ -27,7 +28,7 @@ export default function Sidebar({ open = true, onClose }){
   const setNotes = useNotificationStore(state => state.setNotes)
   const accessToken = useAuthStore(state => state.accessToken)
   const counts = notificationCounts(notes)
-  const badgeFor = href => href === '/chat' ? counts.chat : href === '/announcements' ? counts.announcements : 0
+  const badgeFor = href => href === '/support' ? notes.filter(note => !note.isRead && note.type === 'DIRECT_MESSAGE').length : href === '/chat' ? counts.chat : href === '/announcements' ? counts.announcements : 0
   const role = String(user?.userRole || 'EMPLOYEE').toUpperCase()
   const items = allItems.filter((item) => item.roles.includes(role))
   async function openItem(href) {

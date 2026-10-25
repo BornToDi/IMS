@@ -40,6 +40,8 @@ model User {
   pushSubscriptions PushSubscription[]
   auditLogs AuditLog[]
   messages     Message[]
+  sentDirectMessages DirectMessage[] @relation("directMessageSender")
+  receivedDirectMessages DirectMessage[] @relation("directMessageRecipient")
   files        File[]
   globalMessages GlobalMessage[]
   globalFiles GlobalFile[]
@@ -47,6 +49,20 @@ model User {
   meetingInvites MeetingInvite[] @relation("meetingInvites")
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+}
+
+model DirectMessage {
+  id          String   @id @default(uuid())
+  senderId    String
+  recipientId String
+  sender      User     @relation("directMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  recipient   User     @relation("directMessageRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  content     String
+  readAt      DateTime?
+  createdAt   DateTime @default(now())
+
+  @@index([senderId, recipientId, createdAt, id])
+  @@index([recipientId, readAt])
 }
 
 model Workspace {

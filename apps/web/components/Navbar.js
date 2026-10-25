@@ -22,8 +22,8 @@ export default function Navbar({ navigationOpen = true, onToggleNavigation }) {
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-slate-700/60 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-800 text-white shadow-[0_12px_30px_rgba(15,23,42,0.35)] backdrop-blur">
-      <div className="mx-auto flex h-16 items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center gap-3">
+      <div className="mx-auto flex h-16 items-center justify-between gap-2 px-3 sm:gap-4 sm:px-6 lg:px-8">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           <button
             type="button"
             onClick={onToggleNavigation}
@@ -35,18 +35,18 @@ export default function Navbar({ navigationOpen = true, onToggleNavigation }) {
             <span className="md:hidden" aria-hidden="true">{navigationOpen ? '×' : '☰'}</span>
             <span className="hidden md:inline" aria-hidden="true">{navigationOpen ? '←' : '→'}</span>
           </button>
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/10">
+          <div className="hidden h-10 w-10 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/10 sm:flex">
             <span className="text-sm font-bold tracking-wide">TH</span>
           </div>
           <div>
-            <div className="text-lg font-semibold tracking-tight">TrackField</div>
+            <div className="text-base font-semibold tracking-tight sm:text-lg">TrackField</div>
             {/* <div className="text-xs text-slate-300">Workspaces, goals, messages, and notifications</div> */}
           </div>
         </div>
 
         <div />
 
-        <div className="flex items-center gap-3 sm:gap-4">
+        <div className="flex shrink-0 items-center gap-2 sm:gap-4">
           {user ? (
             <>
               <Link href="/profile" className="hidden text-right sm:block" aria-label="Open my profile">
@@ -54,9 +54,10 @@ export default function Navbar({ navigationOpen = true, onToggleNavigation }) {
                 <div className="text-xs text-slate-300">{user.userRole || 'EMPLOYEE'}</div>
               </Link>
               <NotificationBell />
+              {['BANK', 'ADMIN'].includes(user.userRole) && <Link href="/support" className="rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-xs font-semibold text-white" aria-label="Open private messages">Inbox</Link>}
               <button
                 onClick={handleLogout}
-                className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-100 transition hover:bg-white/10 hover:text-white"
+                className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-slate-100 transition hover:bg-white/10 hover:text-white sm:px-4 sm:text-sm"
               >
                 Logout
               </button>

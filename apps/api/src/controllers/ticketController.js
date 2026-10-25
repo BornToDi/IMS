@@ -90,8 +90,17 @@ async function listTickets(req, res) {
 async function createTicket(req, res) {
   const user = await currentUser(req, res); if (!user) return;
   if (!isBankRole(user.userRole) && !isAdminRole(user.userRole)) return res.status(403).json({ error: 'Only bank/admin users can create tickets' });
-  const { title, description, tidNumber, posSerial, zoneName, serviceType, merchantAddress, priority } = req.body;
-  const bankName = isBankRole(user.userRole) ? (bankOfUser(user) || clean(req.body.bankName)) : clean(req.body.bankName);
+  const fields = {};
+  for (const [key, max] of Object.entries({ title: 200, description: 6000, tidNumber: 150, posSerial: 150, zoneName: 200, serviceType: 200, merchantAddress: 1000 })) {
+    const value = req.body?.[key];
+    if (value !== undefined && value !== null && typeof value !== 'string') return res.status(400).json({ error: `${key} must be text` });
+    fields[key] = clean(value);
+    if (fields[key].length > max) return res.status(400).json({ error: `${key} must be ${max} characters or fewer` });
+  }
+  const { title, description, tidNumber, posSerial, zoneName, serviceType, merchantAddress } = fields;
+  const priority = req.body?.priority || 'NORMAL';
+  if (!['NORMAL', 'HIGH', 'URGENT'].includes(priority)) return res.status(400).json({ error: 'Choose a valid ticket priority' });
+  const bankName = isBankRole(user.userRole) ? (bankOfUser(user) || clean(req.body?.bankName)) : clean(req.body?.bankName);
   if (!bankName) return res.status(400).json({ error: 'Bank name is required' });
   if (!title && !tidNumber && !posSerial) return res.status(400).json({ error: 'Ticket title, TID or POS serial is required' });
   const ticket = await prisma.bankTicket.create({
@@ -113,7 +122,7 @@ async function createTicket(req, res) {
     },
     include: includeTicket
   });
-  await notifyAdmins(req, `New bank ticket submitted: ${ticket.ticketNo} (${bankName})`, user.id);
+  await notifyAdmins(req, `New bank ticket submitted: ${ticket.ticketNo} (${bankName})`, user.id).catch(error => console.error('[ticket] notification:', error));
   const io = req.app.locals.io;
   if (io) io.emit('ticket:updated', { ticketId: ticket.id });
   res.status(201).json(normalizeTicket(ticket));
@@ -130,7 +139,7 @@ async function getTicket(req, res) {
 async function assignTicket(req, res) {
   const user = await currentUser(req, res); if (!user) return;
   if (!isAdminRole(user.userRole)) return res.status(403).json({ error: 'Only admin can assign tickets' });
-  const { employeeId, serviceType, note, isImportant } = req.body;
+  const { employeeId, serviceType, note, isImportant } = req.body || {};
   if (!employeeId) return res.status(400).json({ error: 'Employee is required' });
   const ticket = await prisma.bankTicket.findUnique({ where: { id: req.params.id }, include: includeTicket });
   if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
@@ -161,13 +170,19 @@ async function addTicketUpdate(req, res) {
   const ticket = await prisma.bankTicket.findUnique({ where: { id: req.params.id }, include: includeTicket });
   if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
   if (!canSeeTicket(user, ticket)) return res.status(403).json({ error: 'Access denied' });
-  const { message, type = 'COMMENT', status } = req.body;
-  if (!message) return res.status(400).json({ error: 'Message is required' });
-  const update = await addTimeline(ticket.id, user.id, type, message);
-  const nextData = status ? { status } : {};
-  if (Object.keys(nextData).length) await prisma.bankTicket.update({ where: { id: ticket.id }, data: nextData });
+  const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
+  const { status } = req.body || {};
+  if (!message || message.length > 6000) return res.status(400).json({ error: 'Enter an update between 1 and 6,000 characters' });
+  if (status && !isAdminRole(user.userRole)) return res.status(403).json({ error: 'Only admins can change ticket status' });
+  if (status && !['SUBMITTED', 'ASSIGNED', 'IN_PROGRESS', 'COMPLETED'].includes(status)) return res.status(400).json({ error: 'Invalid ticket status' });
+  const update = await prisma.$transaction(async tx => {
+    const row = await tx.ticketUpdate.create({ data: { ticketId: ticket.id, userId: user.id, type: status ? 'STATUS_UPDATE' : 'COMMENT', message } });
+    if (status) await tx.bankTicket.update({ where: { id: ticket.id }, data: { status } });
+    return row;
+  });
   const recipients = [ticket.bankUserId, ticket.assignedAdminId, ticket.assignedEmployeeId].filter(Boolean).filter((id) => id !== user.id);
-  await Promise.all([...new Set(recipients)].map((id) => createNotification(req, { userId: id, type: 'TICKET_UPDATE', message: `Ticket ${ticket.ticketNo}: ${message}`, targetUrl: `/tickets/${ticket.id}` })));
+  if (!ticket.assignedAdminId && isBankRole(user.userRole)) await notifyAdmins(req, `Ticket ${ticket.ticketNo}: ${message}`, user.id).catch(error => console.error('[ticket] notification:', error));
+  await Promise.all([...new Set(recipients)].map((id) => createNotification(req, { userId: id, type: 'TICKET_UPDATE', message: `Ticket ${ticket.ticketNo}: ${message}`, targetUrl: `/tickets/${ticket.id}` }))).catch(error => console.error('[ticket] notification:', error));
   const io = req.app.locals.io;
   if (io) io.emit('ticket:updated', { ticketId: ticket.id });
   res.status(201).json(update);
