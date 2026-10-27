@@ -1,5 +1,6 @@
 const prisma = require('../prismaClient');
 const { createNotification } = require('../utils/workflow');
+const { registrationTarget } = require('../utils/bankRegistrationNotifications');
 const memberFields = { id: true, name: true, email: true, bankId: true, bankName: true, bankRole: true, bankStatus: true, bankVersion: true, userRole: true };
 const fail = (message, status = 400) => { const error = new Error(message); error.status = status; throw error; };
 const text = (value, max = 1000) => typeof value === 'string' ? value.trim().slice(0, max) : '';
@@ -19,6 +20,15 @@ async function me(req, res) {
   const user = await prisma.user.findUnique({ where: { id: req.userId }, select: memberFields });
   if (!user || !['ADMIN', 'BANK'].includes(user.userRole)) fail('Bank team access required', 403);
   res.json({ user, canManage: manager(user), canApprove: approver(user), banks: user.userRole === 'ADMIN' ? await prisma.bankMaster.findMany({ where: { active: true }, select: { id: true, name: true }, orderBy: { name: 'asc' } }) : [] });
+}
+async function pendingCount(req, res) {
+  const user = await prisma.user.findUnique({ where: { id: req.userId }, select: memberFields });
+  if (!user || !['ADMIN', 'BANK'].includes(user.userRole)) fail('Bank team access required', 403);
+  if (!approver(user)) return res.json({ pending: 0 });
+  const where = { userRole: 'BANK', bankStatus: 'PENDING', ...(user.userRole === 'ADMIN' ? { bankId: { not: null } } : { bankId: user.bankId || '\u0000', bankRole: { not: 'ADMIN' } }) };
+  const pending = await prisma.user.count({ where });
+  const first = pending ? await prisma.user.findFirst({ where, select: { bankId: true }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] }) : null;
+  res.json({ pending, bankId: first?.bankId || null });
 }
 async function listMembers(req, res) {
   const { user, bank } = await context(req);
@@ -44,6 +54,7 @@ async function updateMember(req, res) {
     return tx.user.findUnique({ where: { id: target.id }, select: memberFields });
   });
   req.app?.locals?.io?.in?.(`user:${updated.id}`)?.disconnectSockets?.(true);
+  if (updated.bankStatus !== 'PENDING') await prisma.notification.updateMany({ where: { type: 'BANK_REGISTRATION', targetUrl: registrationTarget(updated), isRead: false }, data: { isRead: true } }).catch(error => console.error('[bank-registration] read status:', error.code || error.message));
   await createNotification(req, { userId: updated.id, type: 'BANK_TEAM', message: `Your ${bank.name} membership is ${bankStatus.toLowerCase()} (${bankRole.toLowerCase()})`, targetUrl: '/bank-team' }).catch(() => {});
   res.json(updated);
 }
@@ -182,4 +193,4 @@ async function reviewCompletion(req, res) {
   res.json({ status });
 }
 async function closeTarget(req, res) { const { user, bank } = await context(req); if (!manager(user)) fail('Only managers can close targets', 403); const target = await targetFor(req, user, bank); res.json(await prisma.bankTarget.update({ where: { id: target.id }, data: { status: 'CLOSED' } })); }
-module.exports = { banks, me, listMembers, updateMember, devices, assignDevices, history, targets, createTarget, completions, reportCompletion, reviewCompletion, closeTarget };
+module.exports = { banks, me, pendingCount, listMembers, updateMember, devices, assignDevices, history, targets, createTarget, completions, reportCompletion, reviewCompletion, closeTarget };

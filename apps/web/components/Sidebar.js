@@ -1,5 +1,5 @@
 "use client"
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuthStore } from '../store/useAuthStore'
@@ -29,11 +29,35 @@ export default function Sidebar({ open = true, onClose }){
   const setNotes = useNotificationStore(state => state.setNotes)
   const accessToken = useAuthStore(state => state.accessToken)
   const counts = notificationCounts(notes)
-  const badgeFor = href => href === '/support' ? notes.filter(note => !note.isRead && note.type === 'DIRECT_MESSAGE').length : href === '/chat' ? counts.chat : href === '/announcements' ? counts.announcements : 0
+  const [pendingApprovals, setPendingApprovals] = useState(0)
+  const [pendingBankId, setPendingBankId] = useState('')
+  useEffect(() => {
+    const canApprove = user?.userRole === 'ADMIN' || (user?.userRole === 'BANK' && user?.bankRole === 'ADMIN' && user?.bankStatus === 'APPROVED')
+    if (!canApprove || !accessToken) { setPendingApprovals(0); return }
+    let active = true
+    const refresh = () => apiFetch('/api/bank-team/pending-count', accessToken).then(data => { if (active) { setPendingApprovals(data.pending || 0); setPendingBankId(data.bankId || '') } }).catch(() => {})
+    refresh()
+    const timer = setInterval(() => { if (document.visibilityState === 'visible') refresh() }, 15000)
+    window.addEventListener('bank-team:updated', refresh)
+    return () => { active = false; clearInterval(timer); window.removeEventListener('bank-team:updated', refresh) }
+  }, [accessToken, user?.id, user?.userRole, user?.bankRole, user?.bankStatus, notes])
+  const bankUpdates = notes.filter(note => !note.isRead && ['BANK_TEAM', 'BANK_ASSIGNMENT', 'BANK_TARGET'].includes(note.type)).length
+  const bankTeamHref = pendingApprovals ? `/bank-team?${new URLSearchParams({ tab: 'members', ...(pendingBankId ? { bankId: pendingBankId } : {}) })}` : '/bank-team'
+  const badgeFor = href => href === '/bank-team' ? pendingApprovals + bankUpdates : href === '/support' ? notes.filter(note => !note.isRead && note.type === 'DIRECT_MESSAGE').length : href === '/chat' ? counts.chat : href === '/announcements' ? counts.announcements : 0
   const role = String(user?.userRole || 'EMPLOYEE').toUpperCase()
   const items = allItems.filter((item) => item.roles.includes(role) && !(role === 'BANK' && user?.bankStatus && user.bankStatus !== 'APPROVED' && item.href !== '/bank-team'))
   async function openItem(href) {
     if (window.matchMedia('(max-width: 767px)').matches) onClose?.()
+    if (href === '/bank-team' && accessToken) {
+      const updates = notes.filter(note => !note.isRead && ['BANK_TEAM', 'BANK_ASSIGNMENT', 'BANK_TARGET'].includes(note.type))
+      await Promise.all(updates.map(async note => {
+        try {
+          await apiFetch(`/api/notifications/${note.id}/read`, accessToken, { method: 'PATCH' })
+          setNotes(current => current.map(item => item.id === note.id ? { ...item, isRead: true } : item))
+        } catch (error) { console.error('Failed to mark bank update as read:', error) }
+      }))
+      return
+    }
     const type = href === '/chat' ? 'GLOBAL_CHAT' : href === '/announcements' ? 'ANNOUNCEMENT' : null
     if (!type || !accessToken) return
     const unread = notes.filter(note => !note.isRead && note.type === type)
@@ -59,7 +83,7 @@ export default function Sidebar({ open = true, onClose }){
           return (
             <Link
               key={i.href}
-              href={i.href}
+              href={i.href === '/bank-team' ? bankTeamHref : i.href}
               onClick={() => openItem(i.href)}
                   className={`relative mb-1 flex items-center gap-3 rounded-2xl px-3 py-3 transition-colors ${active ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-700 hover:bg-slate-100'}`}>
               <span className="grid h-8 w-8 place-items-center rounded-xl bg-black/5 text-sm">{i.icon}</span>
@@ -84,7 +108,7 @@ export default function Sidebar({ open = true, onClose }){
               return (
                 <Link
                   key={i.href}
-                  href={i.href}
+                  href={i.href === '/bank-team' ? bankTeamHref : i.href}
                   onClick={() => openItem(i.href)}
                   className={`relative mb-1 flex items-center gap-3 rounded-2xl px-3 py-3 transition-colors ${active ? 'bg-slate-900 text-white shadow-lg' : 'bg-white/60 text-slate-700 hover:bg-white hover:text-slate-950'}`}>
                   <span className="grid h-8 w-8 place-items-center rounded-xl bg-white/10 text-sm">{i.icon}</span>

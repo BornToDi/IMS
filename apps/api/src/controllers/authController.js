@@ -2,6 +2,7 @@ const prisma = require('../prismaClient');
 const { hashPassword, verifyPassword } = require('../utils/hash');
 const { signAccess, signRefresh, verify } = require('../utils/jwt');
 const { sessionCookieOptions } = require('../utils/sessionCookie');
+const { notifyBankRegistration } = require('../utils/bankRegistrationNotifications');
 
 const publicUserSelect = {
   id: true,
@@ -87,6 +88,7 @@ async function register(req, res) {
   }
   const passwordHash = await hashPassword(password);
   const user = await prisma.user.create({ data: { name: String(name).trim(), email: normalizedEmail, passwordHash, userRole, bankName: trimOrNull(bankName), ...membership } });
+  if (userRole === 'BANK') await notifyBankRegistration(req, user).catch(error => console.error('[bank-registration] notification:', error.code || error.message));
   const access = sendTokens(req, res, user);
   res.json({ user: serializeUser(user), accessToken: access });
 }

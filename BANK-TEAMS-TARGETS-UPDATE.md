@@ -8,6 +8,8 @@ Bank registration lists active banks from Bank Management. A user selects **Bank
 
 The IMS Admin opens Bank Team & Targets, selects the bank, then approves its first Bank Admin. Only the IMS Admin can appoint, demote or suspend Bank Admin accounts. A Bank Admin can approve their own bank's employee registrations and assign POS Manager, Employee or Viewer roles. Bank admins cannot change their own membership or manage another bank's users. Updates check a membership version to reject stale edits.
 
+New registrations notify the IMS Admin; employee requests also notify approved Bank Admins in that bank. Bank Admin requests are not sent to Bank Admins who cannot approve them. The Bank Team & Targets navigation badge includes the actual pending approval count (including requests created before this notification feature), plus unread membership/assignment/target updates. Pending requests remain counted until decided, even if the notification is read. Approval links open the right bank's Team members tab and scroll to the applicant. Membership decisions mark the associated registration notifications read. The badge refreshes on new notification events, after decisions and periodically while the page is visible.
+
 Existing BANK accounts retain their previous portal access. Migration links matching bank names to a canonical bank ID but does not automatically promote anyone to Bank Admin. The IMS Admin should approve/assign an explicit bank role to existing bank users in the Team members tab.
 
 Internal IMS employees and assistants are created by IMS Admin/Management in **Employees → New internal account**. Public registration cannot be used to bypass bank restrictions by claiming an internal role.

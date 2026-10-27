@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
+import { useNotificationStore } from '../store/useNotificationStore'
 import { useAuthStore } from '../store/useAuthStore'
 import { apiFetch } from '../lib/api'
 import { Icon, Modal, label } from './inventory/shared'
@@ -16,10 +18,16 @@ function Member({ member, mainAdmin, busy, onSave }) {
   const [role, setRole] = useState(member.bankRole || 'EMPLOYEE')
   const [status, setStatus] = useState(member.bankStatus)
   const protectedAdmin = member.bankRole === 'ADMIN' && !mainAdmin
-  return <tr><td><strong>{member.name}</strong><small>{member.email}</small></td><td>{member.assigned.toLocaleString()}</td><td><select aria-label={`Role for ${member.name}`} disabled={busy || protectedAdmin} value={role} onChange={event => setRole(event.target.value)}>{(mainAdmin || member.bankRole === 'ADMIN' ? ['ADMIN', 'POS_MANAGER', 'EMPLOYEE', 'VIEWER'] : ['POS_MANAGER', 'EMPLOYEE', 'VIEWER']).map(value => <option key={value} value={value}>{label(value)}</option>)}</select></td><td><select aria-label={`Status for ${member.name}`} disabled={busy || protectedAdmin} value={status} onChange={event => setStatus(event.target.value)}>{['PENDING', 'APPROVED', 'SUSPENDED', 'REJECTED'].map(value => <option key={value}>{value}</option>)}</select></td><td><button className={s.secondary} type="button" disabled={busy || protectedAdmin || (role === member.bankRole && status === member.bankStatus)} onClick={() => onSave(member, role, status)}>Save membership</button>{protectedAdmin && <small>IMS admin approval required</small>}</td></tr>
+  return <tr id={`bank-member-${member.id}`}><td><strong>{member.name}</strong><small>{member.email}</small></td><td>{member.assigned.toLocaleString()}</td><td><select aria-label={`Role for ${member.name}`} disabled={busy || protectedAdmin} value={role} onChange={event => setRole(event.target.value)}>{(mainAdmin || member.bankRole === 'ADMIN' ? ['ADMIN', 'POS_MANAGER', 'EMPLOYEE', 'VIEWER'] : ['POS_MANAGER', 'EMPLOYEE', 'VIEWER']).map(value => <option key={value} value={value}>{label(value)}</option>)}</select></td><td><select aria-label={`Status for ${member.name}`} disabled={busy || protectedAdmin} value={status} onChange={event => setStatus(event.target.value)}>{['PENDING', 'APPROVED', 'SUSPENDED', 'REJECTED'].map(value => <option key={value}>{value}</option>)}</select></td><td><button className={s.secondary} type="button" disabled={busy || protectedAdmin || (role === member.bankRole && status === member.bankStatus)} onClick={() => onSave(member, role, status)}>Save membership</button>{protectedAdmin && <small>IMS admin approval required</small>}</td></tr>
 }
 
 export default function BankTeam() {
+  const params = useSearchParams()
+  const requestedBank = params.get('bankId') || ''
+  const requestedTab = params.get('tab') || ''
+  const requestedMember = params.get('member') || ''
+  const navigation = useRef('')
+  const focusedMember = useRef('')
   const token = useAuthStore(state => state.accessToken)
   const refreshSession = useAuthStore(state => state.refreshAccessToken)
   const [context, setContext] = useState(null)
@@ -57,6 +65,7 @@ export default function BankTeam() {
   const approved = context && (mainAdmin || context.user.bankStatus === 'APPROVED')
   const activeBank = mainAdmin ? bankId : context?.user.bankId
   const approvedMembers = members.filter(member => member.bankStatus === 'APPROVED' && member.bankRole)
+  const pendingMembers = members.filter(member => member.bankStatus === 'PENDING' && (mainAdmin || member.bankRole !== 'ADMIN'))
   const call = useCallback((path, options) => apiFetch(`/api/bank-team/${path}${path.includes('?') ? '&' : '?'}${new URLSearchParams({ bankId: activeBank || '' })}`, token, options), [activeBank, token])
   const post = (body, method = 'POST') => ({ method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
 
@@ -73,6 +82,20 @@ export default function BankTeam() {
     setTargetForm(emptyTarget); setReviewNotes({}); setSource('UNASSIGNED')
     setNotice(''); setError('')
   }, [activeBank])
+  useEffect(() => {
+    if (!context) return
+    const key = `${requestedBank}:${requestedTab}:${requestedMember}`
+    if (navigation.current === key) return
+    navigation.current = key
+    focusedMember.current = ''
+    if (context.user.userRole === 'ADMIN' && context.banks.some(bank => bank.id === requestedBank)) setBankId(requestedBank)
+    if (['members', 'devices', 'targets', 'history'].includes(requestedTab)) setTab(requestedTab)
+  }, [requestedBank, requestedTab, requestedMember, context])
+  useEffect(() => {
+    if (tab !== 'members' || !requestedMember || focusedMember.current === requestedMember || !members.some(member => member.id === requestedMember)) return
+    const row = document.getElementById(`bank-member-${requestedMember}`)
+    if (row) { row.scrollIntoView({ block: 'center' }); focusedMember.current = requestedMember }
+  }, [tab, members, requestedMember])
   useEffect(() => {
     if (!approved || !activeBank) return
     const current = ++generation.current
@@ -92,7 +115,14 @@ export default function BankTeam() {
   async function run(action, message) {
     if (lock.current) return
     lock.current = true; setBusy(true); setError(''); setNotice('')
-    try { await action(); setNotice(message); setRevision(value => value + 1) }
+    try {
+      await action(); setNotice(message); setRevision(value => value + 1)
+      window.dispatchEvent(new Event('bank-team:updated'))
+      if (tab === 'members') {
+        const notes = await apiFetch('/api/notifications', token).catch(() => null)
+        if (Array.isArray(notes)) useNotificationStore.getState().setNotes(notes)
+      }
+    }
     catch (err) { setError(err.message) }
     finally { lock.current = false; setBusy(false) }
   }
@@ -121,6 +151,7 @@ export default function BankTeam() {
     {!activeBank ? <section className={`${s.panel} ${s.detailBody}`}><h2>Select or configure a bank first</h2><p className={s.threadHelp}>The IMS admin can create banks in Hardware → Banks, then link or approve bank members here.</p></section> : <>
     <div className={b.metrics}><div><span>{canManage ? 'Matching POS' : 'My matching POS'}</span><strong>{devices.total.toLocaleString()}</strong></div><div><span>{canManage ? 'Bank assigned POS' : 'My assigned POS'}</span><strong>{devices.assigned.toLocaleString()}</strong></div><div><span>Targets</span><strong>{targets.total}</strong></div><div><span>My access</span><strong className={b.role}>{mainAdmin ? 'IMS Admin' : label(context.user.bankRole || 'Legacy bank user')}</strong></div></div>
     <nav className={b.tabs} aria-label="Bank workspace sections">{[...(canManage ? [['members', 'Team members']] : []), ['devices', canManage ? 'POS responsibility' : 'My POS'], ['targets', 'Targets & progress'], ['history', 'Assignment history']].map(([value, title]) => <button key={value} type="button" aria-pressed={tab === value} onClick={() => setTab(value)}>{title}</button>)}</nav>
+    {canApprove && pendingMembers.length > 0 && <div role="status" className={s.success}><div><strong>{pendingMembers.length} membership {pendingMembers.length === 1 ? 'request needs' : 'requests need'} approval</strong><p>Review registered users for this bank before granting access.</p></div><button className={s.secondary} onClick={() => setTab('members')}>Review requests</button></div>}
     {tab === 'members' && <section className={s.panel}><div className={s.listHeader}><div><h2>People in this bank</h2><p>Only registered members of the selected bank are listed. Bank Admin appointments require the IMS admin.</p></div></div><div className={b.tableScroll}><table className={b.table}><thead><tr><th>Member</th><th>Assigned POS</th><th>Bank role</th><th>Approval status</th><th>Action</th></tr></thead><tbody>{members.map(member => canApprove && member.id !== context.user.id ? <Member key={`${member.id}-${member.bankVersion}`} member={member} mainAdmin={mainAdmin} busy={busy} onSave={(row, role, status) => run(() => call(`members/${row.id}`, post({ bankRole: role, bankStatus: status, version: row.bankVersion }, 'PATCH')), 'Membership updated')}/> : <tr key={member.id}><td><strong>{member.name}</strong><small>{member.email}</small></td><td>{member.assigned}</td><td>{label(member.bankRole || 'Legacy')}</td><td>{label(member.bankStatus)}</td><td>{member.id === context.user.id ? 'Your account' : 'Bank admin manages membership'}</td></tr>)}</tbody></table></div>{!members.length && <div className={s.empty}>No bank members yet. Ask employees to register with this bank.</div>}</section>}
     {tab === 'devices' && <><section className={s.panel}><div className={s.listHeader}><div><h2>{canManage ? 'POS responsibility register' : 'Your assigned terminals'}</h2><p>{loading ? 'Refreshing…' : `${devices.total.toLocaleString()} matching terminals`} · 50 per page</p></div><Link href="/hardware" className={s.secondary}>Hardware details</Link></div><div className={b.filters}><input type="search" aria-label="Search bank POS" placeholder="Serial, TID, merchant or location" value={query} onChange={event => setQuery(event.target.value)}/>{canManage && <select aria-label="Current POS owner" value={source} onChange={event => setSource(event.target.value)}><option value="">All bank POS</option><option value="UNASSIGNED">Unassigned POS</option>{members.map(member => <option key={member.id} value={member.id}>{member.name} · {member.assigned} POS</option>)}</select>}</div><div className={b.tableScroll}><table className={b.table}><thead><tr>{canManage && <th><input type="checkbox" aria-label="Select this page" checked={!!devices.rows.length && devices.rows.every(row => selected.includes(row.id))} onChange={event => setSelected(event.target.checked ? devices.rows.map(row => row.id) : [])}/></th>}<th>POS serial / TID</th><th>Merchant / location</th><th>Current responsibility</th><th>Status</th></tr></thead><tbody>{devices.rows.map(row => <tr key={row.id}>{canManage && <td><input type="checkbox" aria-label={`Select ${row.serialNumber}`} checked={selected.includes(row.id)} onChange={event => setSelected(current => event.target.checked ? [...current, row.id] : current.filter(id => id !== row.id))}/></td>}<td><Link className={b.link} href={`/hardware/${row.id}`}>{row.serialNumber}</Link><small>{row.tid || 'No TID'}</small></td><td>{row.merchant || '—'}<small>{row.location}</small></td><td>{row.bankAssignment?.employee.name || 'Unassigned'}</td><td>{label(row.status)}</td></tr>)}</tbody></table></div>{!devices.rows.length && <p className={s.empty}>{loading ? 'Loading POS…' : 'No POS matches. Try another owner or search.'}</p>}<Pager page={page} total={devices.total} size={50} setPage={value => { setPage(value); setSelected([]) }}/></section>
       {canManage && <form onSubmit={prepareAssignment} className={s.createForm}><div className={s.sectionHeader}><div><h2>Assign or transfer responsibility</h2><p>Every device has one current owner. Assignment history is retained.</p></div></div><fieldset disabled={busy} className={s.detailBody}><div className={s.fieldGrid}><label className={s.field}><span>Recipient</span><select value={assignment.employeeId} onChange={event => setAssignment(current => ({ ...current, employeeId: event.target.value }))}><option value="">Remove responsibility (unassign)</option>{approvedMembers.filter(member => member.id !== source).map(member => <option key={member.id} value={member.id}>{member.name} · {label(member.bankRole)}</option>)}</select></label><label className={s.field}><span>Selection method</span><select value={assignment.mode} onChange={event => setAssignment(current => ({ ...current, mode: event.target.value }))}><option value="count">Exact count from current filter</option><option value="selection">Checked devices ({selected.length})</option><option value="serials">Paste exact serial numbers</option></select></label>{assignment.mode === 'count' && <label className={s.field}><span>Device count *</span><input type="number" min="1" max="5000" required value={assignment.count} onChange={event => setAssignment(current => ({ ...current, count: Number(event.target.value) }))}/><small>First N matching serials in ascending order. Example: 3,000 from 12,000 unassigned POS.</small></label>}{assignment.mode === 'serials' && <label className={`${s.field} ${s.wide}`}><span>Exact serials *</span><textarea required maxLength={250000} rows={5} placeholder="One serial per line, or comma-separated" value={assignment.serials} onChange={event => setAssignment(current => ({ ...current, serials: event.target.value }))}/></label>}<label className={`${s.field} ${s.wide}`}><span>Assignment / transfer note *</span><textarea required rows={2} maxLength={1000} value={assignment.note} onChange={event => setAssignment(current => ({ ...current, note: event.target.value }))} placeholder="e.g. Dhaka North merchant portfolio for November"/></label></div><div className={b.formActions}><button className={s.primary} disabled={loading || busy}>Review assignment<Icon name="arrow" size={16}/></button></div></fieldset></form>}

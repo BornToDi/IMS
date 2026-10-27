@@ -51,11 +51,16 @@ test('registration requests membership without granting privileges and blocks se
   assert.equal(registered.status, 200, JSON.stringify(registered.body));
   assert.equal(registered.body.user.bankId, bank.id); assert.equal(registered.body.user.bankStatus, 'PENDING');
   const applicant = registered.body.user;
+  const adminRequestNotes = await prisma.notification.findMany({ where: { type: 'BANK_REGISTRATION', targetUrl: { contains: applicant.id } } });
+  assert.deepEqual(adminRequestNotes.map(note => note.userId), [ims.id]);
+  assert.ok(adminRequestNotes[0].targetUrl.includes(`bankId=${bank.id}`));
+  assert.ok(adminRequestNotes[0].targetUrl.includes('tab=members'));
   assert.equal((await request('/hardware/summary', { user: applicant })).status, 403);
   assert.equal((await request('/bank-team/me', { user: applicant })).status, 200);
   assert.equal((await request(url(`members/${applicant.id}`), { method: 'PATCH', body: { bankRole: 'ADMIN', bankStatus: 'APPROVED', version: 0 } })).status, 403);
   assert.equal((await request(url(`members/${applicant.id}`), { user: ims, method: 'PATCH', body: { bankRole: 'ADMIN', bankStatus: 'APPROVED', version: 0 } })).status, 200);
   assert.equal((await request('/bank-team/me', { user: applicant })).body.canManage, true);
+  assert.equal((await prisma.notification.findUnique({ where: { id: adminRequestNotes[0].id } })).isRead, true);
   assert.equal((await request('/auth/register', { user: null, body: { ...payload, email: 'fake-bank@team.test', bankName: 'Not registered' } })).status, 400);
   assert.equal((await request('/auth/register', { user: null, body: { ...payload, email: 'fake-global@team.test', userRole: 'ASSISTANT' } })).status, 403);
   assert.equal((await request('/auth/admin/users', { user: employee, body: { name: 'Bad', email: 'bad@team.test', password: 'valid-password-123' } })).status, 403);
@@ -168,4 +173,26 @@ test('migration preserves existing accounts and private messages while linking l
     assert.equal(db.prepare('SELECT content FROM DirectMessage').get().content, 'Keep this message');
     assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(), []);
   } finally { db.close(); }
+});
+
+test('employee registrations notify the correct approvers and pending badges reflect decisions, including existing requests', async () => {
+  const employeeRequest = await request('/auth/register', { user: null, body: { name: 'New Pubali employee', email: 'new-employee@team.test', password: 'valid-password-123', userRole: 'BANK', bankName: bank.name, bankRole: 'EMPLOYEE' } });
+  assert.equal(employeeRequest.status, 200);
+  const applicant = employeeRequest.body.user;
+  const notes = await prisma.notification.findMany({ where: { type: 'BANK_REGISTRATION', targetUrl: { contains: applicant.id } } });
+  assert.ok(notes.some(note => note.userId === ims.id));
+  assert.ok(notes.some(note => note.userId === admin.id));
+  assert.ok(notes.every(note => ![outsider.id, manager.id, employee.id].includes(note.userId)));
+  const ownBefore = await request('/bank-team/pending-count');
+  const globalBefore = await request('/bank-team/pending-count', { user: ims });
+  assert.ok(ownBefore.body.pending >= 1); assert.equal(ownBefore.body.bankId, bank.id);
+  assert.equal((await request('/bank-team/pending-count', { user: manager })).body.pending, 0);
+  await prisma.user.create({ data: { name: 'Other pending', email: 'other-pending@team.test', passwordHash: 'unused', userRole: 'BANK', bankId: otherBank.id, bankName: otherBank.name, bankRole: 'EMPLOYEE', bankStatus: 'PENDING' } });
+  assert.equal((await request('/bank-team/pending-count')).body.pending, ownBefore.body.pending);
+  assert.equal((await request('/bank-team/pending-count', { user: ims })).body.pending, globalBefore.body.pending + 1);
+  assert.equal((await request('/bank-team/pending-count', { user: outsider })).body.pending, 1);
+  const approved = await request(url(`members/${applicant.id}`), { method: 'PATCH', body: { bankRole: 'EMPLOYEE', bankStatus: 'APPROVED', version: 0 } });
+  assert.equal(approved.status, 200);
+  assert.equal((await request('/bank-team/pending-count')).body.pending, ownBefore.body.pending - 1);
+  assert.equal(await prisma.notification.count({ where: { id: { in: notes.map(note => note.id) }, isRead: false } }), 0);
 });

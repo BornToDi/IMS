@@ -4,6 +4,7 @@ const ctrl = require('../controllers/bankTeamController');
 router.get('/banks', ctrl.banks);
 router.use(auth, (req, res, next) => { res.setHeader('Cache-Control', 'no-store'); next(); });
 router.get('/me', ctrl.me);
+router.get('/pending-count', ctrl.pendingCount);
 router.get('/members', ctrl.listMembers);
 router.patch('/members/:id', ctrl.updateMember);
 router.get('/devices', ctrl.devices);
