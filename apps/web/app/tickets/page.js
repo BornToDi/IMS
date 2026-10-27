@@ -19,7 +19,7 @@ export default function TicketsPage() {
   const user = useAuthStore(state => state.user)
   const role = user?.userRole
   const isBank = role === 'BANK'
-  const canCreate = ['BANK', 'ADMIN', 'MANAGEMENT', 'ASSISTANT'].includes(role)
+  const canCreate = ['BANK', 'ADMIN', 'MANAGEMENT', 'ASSISTANT'].includes(role) && user?.bankRole !== 'VIEWER'
   const bankName = String(user?.bankName || (isBank ? user?.name : '') || '').trim()
   const [tickets, setTickets] = useState([])
   const [options, setOptions] = useState({ banks: [], serviceTypes: services })

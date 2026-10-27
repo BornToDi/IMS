@@ -58,6 +58,7 @@ export default function ProtectedRoute({ children }) {
 
   useEffect(() => {
     if (!user || loading) return
+    if (user.userRole === 'BANK' && user.bankStatus && user.bankStatus !== 'APPROVED' && pathname !== '/bank-team') { router.replace('/bank-team'); return }
     const role = String(user.userRole || '').toUpperCase()
     const bankBlockedPaths = ['/workspaces', '/meetings', '/announcements', '/chat', '/goals', '/action-items']
     const blocked = role === 'BANK' && bankBlockedPaths.some((path) => pathname === path || pathname.startsWith(`${path}/`))
@@ -66,5 +67,6 @@ export default function ProtectedRoute({ children }) {
 
   if (loading) return <div role="status" className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-200">Restoring your session…</div>
   if (!user || !accessToken) return <div role="alert" className="flex min-h-screen flex-col items-center justify-center gap-3 bg-slate-950 p-6 text-slate-200"><p>{sessionError || 'Restoring your session…'}</p>{sessionError && <button type="button" onClick={() => setAttempt(value => value + 1)} className="rounded-lg bg-emerald-400 px-4 py-2 font-semibold text-emerald-950">Retry connection</button>}</div>
+  if (user.userRole === 'BANK' && user.bankStatus && user.bankStatus !== 'APPROVED' && pathname !== '/bank-team') return <p role="status" className="p-6">Opening your bank membership status…</p>
   return children
 }

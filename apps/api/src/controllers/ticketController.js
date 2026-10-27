@@ -36,9 +36,13 @@ async function currentUser(req, res) {
   return user;
 }
 
-function canSeeTicket(user, ticket) {
+async function canSeeTicket(user, ticket) {
   if (!user || !ticket) return false;
   if (isAdminRole(user.userRole)) return true;
+  if (isBankRole(user.userRole) && ticket.bankName === user.bankName) {
+    if (['ADMIN', 'POS_MANAGER'].includes(user.bankRole)) return true;
+    if (user.bankRole && ticket.posSerial && await prisma.inventoryDevice.findFirst({ where: { serialNumber: ticket.posSerial, bankId: user.bankId, bankAssignment: { is: { employeeId: user.id } } }, select: { id: true } })) return true;
+  }
   if (ticket.bankUserId === user.id) return true;
   if (ticket.assignedEmployeeId === user.id) return true;
   const workspaces = ticket.workspaces || (ticket.workspace ? [ticket.workspace] : []);
@@ -53,14 +57,15 @@ async function addTimeline(ticketId, userId, type, message) {
 async function listTicketOptions(req, res) {
   const user = await currentUser(req, res); if (!user) return;
   const ownBank = bankOfUser(user);
-  const bankWhere = isBankRole(user.userRole) ? { bankName: ownBank } : {};
+  const assignedSerials = isBankRole(user.userRole) && ['EMPLOYEE', 'VIEWER'].includes(user.bankRole) ? (await prisma.inventoryDevice.findMany({ where: { bankId: user.bankId, bankAssignment: { is: { employeeId: user.id } } }, select: { serialNumber: true } })).map(row => row.serialNumber) : null;
+  const bankWhere = isBankRole(user.userRole) ? { bankName: ownBank, ...(assignedSerials ? { posSerial: { in: assignedSerials } } : {}) } : {};
   const [bankMasters, bankUsers, tickets, tasks, hardware, posRows] = await Promise.all([
     prisma.bankMaster.findMany({ select: { name: true }, orderBy: { name: 'asc' } }).catch(() => []),
     prisma.user.findMany({ where: { userRole: 'BANK' }, select: { name: true, bankName: true }, orderBy: { name: 'asc' } }),
     prisma.bankTicket.findMany({ where: bankWhere, select: { bankName: true, posSerial: true }, orderBy: { createdAt: 'desc' } }),
     prisma.workspace.findMany({ where: bankWhere, select: { bankName: true, posSerial: true }, orderBy: { createdAt: 'desc' } }),
     prisma.hardwareBatch.findMany({ where: isBankRole(user.userRole) ? { bankName: ownBank } : {}, select: { bankName: true }, orderBy: { createdAt: 'desc' } }),
-    prisma.posSerial.findMany({ where: isBankRole(user.userRole) && ownBank ? { bankName: ownBank, status: 'ACTIVE' } : { status: 'ACTIVE' }, select: { bankName: true, serialNumber: true }, orderBy: [{ bankName: 'asc' }, { serialNumber: 'asc' }], take: 100 })
+    prisma.posSerial.findMany({ where: isBankRole(user.userRole) && ownBank ? { bankName: ownBank, status: 'ACTIVE', ...(assignedSerials ? { serialNumber: { in: assignedSerials } } : {}) } : { status: 'ACTIVE' }, select: { bankName: true, serialNumber: true }, orderBy: [{ bankName: 'asc' }, { serialNumber: 'asc' }], take: 100 })
   ]);
   const bankNames = [...new Set([
     ...DEFAULT_BANKS,
@@ -82,7 +87,8 @@ async function listTicketOptions(req, res) {
 
 async function listTickets(req, res) {
   const user = await currentUser(req, res); if (!user) return;
-  const where = isAdminRole(user.userRole) ? {} : isBankRole(user.userRole) ? { bankUserId: user.id } : { OR: [{ assignedEmployeeId: user.id }, { workspaces: { some: { assignedEmployeeId: user.id } } }] };
+  const assigned = isBankRole(user.userRole) && ['EMPLOYEE', 'VIEWER'].includes(user.bankRole) ? await prisma.inventoryDevice.findMany({ where: { bankId: user.bankId, bankAssignment: { is: { employeeId: user.id } } }, select: { serialNumber: true } }) : [];
+  const where = isAdminRole(user.userRole) ? {} : isBankRole(user.userRole) ? ['ADMIN', 'POS_MANAGER'].includes(user.bankRole) ? { bankName: user.bankName } : { OR: [{ bankUserId: user.id }, { bankName: user.bankName, posSerial: { in: assigned.map(row => row.serialNumber) } }] } : { OR: [{ assignedEmployeeId: user.id }, { workspaces: { some: { assignedEmployeeId: user.id } } }] };
   const tickets = await prisma.bankTicket.findMany({ where, include: includeTicket, orderBy: [{ status: 'asc' }, { createdAt: 'desc' }] });
   res.json(tickets.map(normalizeTicket));
 }
@@ -98,6 +104,11 @@ async function createTicket(req, res) {
     if (fields[key].length > max) return res.status(400).json({ error: `${key} must be ${max} characters or fewer` });
   }
   const { title, description, tidNumber, posSerial, zoneName, serviceType, merchantAddress } = fields;
+  if (isBankRole(user.userRole) && user.bankRole === 'VIEWER') return res.status(403).json({ error: 'Your bank role is read-only' });
+  if (isBankRole(user.userRole) && user.bankRole === 'EMPLOYEE') {
+    const device = await prisma.inventoryDevice.findFirst({ where: { bankId: user.bankId, archived: false, bankAssignment: { is: { employeeId: user.id } }, ...(posSerial ? { serialNumber: posSerial } : { tid: tidNumber || '\u0000' }) }, select: { id: true } });
+    if (!device) return res.status(403).json({ error: 'Choose a POS currently assigned to you' });
+  }
   const priority = req.body?.priority || 'NORMAL';
   if (!['NORMAL', 'HIGH', 'URGENT'].includes(priority)) return res.status(400).json({ error: 'Choose a valid ticket priority' });
   const bankName = isBankRole(user.userRole) ? (bankOfUser(user) || clean(req.body?.bankName)) : clean(req.body?.bankName);
@@ -132,7 +143,7 @@ async function getTicket(req, res) {
   const user = await currentUser(req, res); if (!user) return;
   const ticket = await prisma.bankTicket.findUnique({ where: { id: req.params.id }, include: includeTicket });
   if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
-  if (!canSeeTicket(user, ticket)) return res.status(403).json({ error: 'Access denied' });
+  if (!await canSeeTicket(user, ticket)) return res.status(403).json({ error: 'Access denied' });
   res.json(normalizeTicket(ticket));
 }
 
@@ -169,7 +180,8 @@ async function addTicketUpdate(req, res) {
   const user = await currentUser(req, res); if (!user) return;
   const ticket = await prisma.bankTicket.findUnique({ where: { id: req.params.id }, include: includeTicket });
   if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
-  if (!canSeeTicket(user, ticket)) return res.status(403).json({ error: 'Access denied' });
+  if (!await canSeeTicket(user, ticket)) return res.status(403).json({ error: 'Access denied' });
+  if (user.userRole === 'BANK' && user.bankRole === 'VIEWER') return res.status(403).json({ error: 'Your bank role is read-only' });
   const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
   const { status } = req.body || {};
   if (!message || message.length > 6000) return res.status(400).json({ error: 'Enter an update between 1 and 6,000 characters' });

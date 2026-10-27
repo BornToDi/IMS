@@ -11,6 +11,7 @@ const publicUserSelect = {
   avatarUrl: true,
   userRole: true,
   bankName: true,
+  bankId: true, bankRole: true, bankStatus: true,
   createdAt: true,
   updatedAt: true
 };
@@ -32,6 +33,7 @@ function serializeUser(user) {
     avatarUrl: user.avatarUrl,
     userRole: user.userRole,
     bankName: user.bankName,
+    bankId: user.bankId, bankRole: user.bankRole, bankStatus: user.bankStatus,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt
   };
@@ -66,13 +68,25 @@ async function register(req, res) {
   const requestedRole = String(req.body.userRole || 'EMPLOYEE').toUpperCase();
   const allowedRoles = ['BANK', 'ADMIN', 'EMPLOYEE', 'ASSISTANT'];
   const userRole = allowedRoles.includes(requestedRole) ? requestedRole : 'EMPLOYEE';
+  if (!['BANK', 'ADMIN'].includes(userRole)) {
+    const adminCount = await prisma.user.count({ where: { userRole: { in: ['ADMIN', 'MANAGEMENT'] } } });
+    if (adminCount > 0) return res.status(403).json({ error: 'Internal employee and assistant accounts must be created by the IMS admin' });
+  }
   if (userRole === 'ADMIN') {
     const adminCount = await prisma.user.count({ where: { userRole: { in: ['ADMIN', 'MANAGEMENT'] } } });
     if (adminCount > 0) return res.status(403).json({ error: 'Admin registration is disabled after initial setup' });
   }
   if (userRole === 'BANK' && !String(bankName || '').trim()) return res.status(400).json({ error: 'Bank name is required' });
+  let membership = {};
+  if (userRole === 'BANK') {
+    const bank = await prisma.bankMaster.findFirst({ where: { name: String(bankName).trim(), active: true }, select: { id: true, name: true } });
+    if (!bank) return res.status(400).json({ error: 'Choose a registered bank from the list' });
+    const bankRole = req.body.bankRole || 'EMPLOYEE';
+    if (!['ADMIN', 'EMPLOYEE'].includes(bankRole)) return res.status(400).json({ error: 'Choose bank employee or request bank admin access' });
+    membership = { bankId: bank.id, bankName: bank.name, bankRole, bankStatus: 'PENDING' };
+  }
   const passwordHash = await hashPassword(password);
-  const user = await prisma.user.create({ data: { name: String(name).trim(), email: normalizedEmail, passwordHash, userRole, bankName: trimOrNull(bankName) } });
+  const user = await prisma.user.create({ data: { name: String(name).trim(), email: normalizedEmail, passwordHash, userRole, bankName: trimOrNull(bankName), ...membership } });
   const access = sendTokens(req, res, user);
   res.json({ user: serializeUser(user), accessToken: access });
 }
@@ -86,6 +100,16 @@ async function login(req, res) {
   if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
   const access = sendTokens(req, res, user);
   return res.json({ user: serializeUser(user), accessToken: access });
+}
+
+async function adminCreateUser(req, res) {
+  requireAdmin(await getActor(req));
+  const { name, email, password, userRole = 'EMPLOYEE' } = req.body || {};
+  if (typeof name !== 'string' || !name.trim() || typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) || typeof password !== 'string' || password.length < 8) return res.status(400).json({ error: 'Enter a name, valid email and password of at least 8 characters' });
+  if (!['EMPLOYEE', 'FIELD_EMPLOYEE', 'ASSISTANT', 'MANAGEMENT', 'ADMIN'].includes(userRole)) return res.status(400).json({ error: 'Choose an internal account role' });
+  if (await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } })) return res.status(409).json({ error: 'Email already exists' });
+  const user = await prisma.user.create({ data: { name: name.trim(), email: email.trim().toLowerCase(), passwordHash: await hashPassword(password), userRole }, select: publicUserSelect });
+  res.status(201).json({ user: serializeUser(user) });
 }
 
 async function logout(req, res) {
@@ -272,6 +296,7 @@ async function adminDeleteUser(req, res) {
 }
 
 module.exports = {
+  adminCreateUser,
   register,
   login,
   logout,

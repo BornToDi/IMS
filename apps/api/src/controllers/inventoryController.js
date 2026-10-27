@@ -6,11 +6,11 @@ const include = { bank: true };
 const documentSelect = { id: true, deviceId: true, category: true, name: true, mimeType: true, size: true, uploadedBy: true, createdAt: true };
 
 async function identify(req, res, next) {
-  const user = await prisma.user.findUnique({ where: { id: req.userId }, select: { id: true, name: true, userRole: true, inventoryRole: true, bankName: true } });
+  const user = await prisma.user.findUnique({ where: { id: req.userId }, select: { id: true, name: true, userRole: true, inventoryRole: true, bankName: true, bankId: true, bankRole: true } });
   if (!user) return res.status(401).json({ error: 'Not authenticated' });
   req.inventoryUser = user;
   req.inventoryRole = inventoryRole(user);
-  if (req.inventoryRole === 'BANK') req.inventoryBankId = (await prisma.bankMaster.findUnique({ where: { name: user.bankName || '\u0000' }, select: { id: true } }))?.id;
+  if (req.inventoryRole === 'BANK') req.inventoryBankId = user.bankId || (!user.bankRole ? (await prisma.bankMaster.findUnique({ where: { name: user.bankName || '\u0000' }, select: { id: true } }))?.id : undefined);
   res.set('Cache-Control', 'no-store');
   if (['POST','PUT','PATCH','DELETE'].includes(req.method)) res.once('finish', () => {
     if (res.statusCode < 300) req.app.locals.io?.emit('inventory:updated');
@@ -18,7 +18,7 @@ async function identify(req, res, next) {
   next();
 }
 function scope(req) {
-  return req.inventoryRole === 'BANK' ? { bankId: req.inventoryBankId || '\u0000' } : {};
+  return req.inventoryRole === 'BANK' ? { bankId: req.inventoryBankId || '\u0000', ...(['EMPLOYEE', 'VIEWER'].includes(req.inventoryUser.bankRole) ? { bankAssignment: { is: { employeeId: req.inventoryUser.id } } } : {}) } : {};
 }
 function visibleEvent(req, event) {
   const after = JSON.parse(event.details).after;
@@ -271,6 +271,13 @@ async function applyAction(req, tx, id, body) {
     const updated = await tx.inventoryDevice.updateMany({ where: { id: before.id, version: body.version }, data });
     if (updated.count !== 1) fail('This device changed. Refresh and try again.', 409);
     const after = await tx.inventoryDevice.findUnique({ where: { id: before.id }, include });
+    if (before.bankId !== after.bankId || after.archived) {
+      const assignment = await tx.bankPosAssignment.findUnique({ where: { deviceId: before.id } });
+      if (assignment) {
+        if (before.bankId) await tx.bankAssignmentHistory.create({ data: { bankId: before.bankId, deviceId: before.id, serialNumber: before.serialNumber, previousEmployeeId: assignment.employeeId, actorId: req.inventoryUser.id, action: 'BANK_TRANSFER_CLEAR', note: 'Responsibility cleared because the POS left the bank or was archived' } });
+        await tx.bankPosAssignment.delete({ where: { deviceId: before.id } });
+      }
+    }
     await tx.inventoryEvent.create({ data: eventData(req, action, before, after, body) });
     return after;
 }

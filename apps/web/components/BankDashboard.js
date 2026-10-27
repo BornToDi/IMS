@@ -99,8 +99,9 @@ export default function BankDashboard() {
         <div className={s.heroMeta}><span className={s.dot}/>{updated ? `Updated ${updated.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}` : 'Preparing your overview'}<span>Auto-refresh every 45 seconds</span></div>
       </div>
       <div className={s.heroActions}>
+        <Link href="/bank-team" className={s.heroSecondary}><Icon name="chart"/>Team & targets</Link>
         <Link href="/support" className={s.heroSecondary}><Icon name="arrow"/>Message admin</Link>
-        <Link href="/tickets?new=1" className={s.heroPrimary}><Icon name="plus"/>New ticket</Link>
+        {user?.bankRole !== 'VIEWER' && <Link href="/tickets?new=1" className={s.heroPrimary}><Icon name="plus"/>New ticket</Link>}
         <button type="button" className={s.heroSecondary} onClick={load} disabled={busy}><Icon name="refresh"/>{busy ? 'Refreshing…' : 'Refresh'}</button>
       </div>
     </header>

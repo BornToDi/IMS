@@ -66,11 +66,11 @@ export const useAuthStore = create((set, get) => ({
     set({ user: data.user, accessToken: data.accessToken, sessionError: '', sessionExpired: false })
     return data.user
   },
-  register: async (name, email, password, userRole = 'EMPLOYEE', bankName = '') => {
+  register: async (name, email, password, userRole = 'EMPLOYEE', bankName = '', bankRole = 'EMPLOYEE') => {
     const res = await fetch(`${API_BASE_URL}/api/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email, password, userRole, bankName }),
+      body: JSON.stringify({ name, email, password, userRole, bankName, bankRole }),
       credentials: 'include'
     })
     if (!res.ok) {

@@ -19,6 +19,13 @@ model User {
   userRole     String    @default("EMPLOYEE")
   inventoryRole String?
   bankName     String?
+  bankId       String?
+  bankRole     String?
+  bankStatus   String @default("APPROVED")
+  bankVersion  Int @default(0)
+  memberBank   BankMaster? @relation(fields: [bankId], references: [id], onDelete: SetNull)
+  bankAssignments BankPosAssignment[]
+  bankTargets BankTarget[]
   workspaces   WorkspaceMember[]
   ownedWorkspaces Workspace[]
   assignedWorkspaces Workspace[] @relation("assignedWorkspaceEmployee")
@@ -49,6 +56,7 @@ model User {
   meetingInvites MeetingInvite[] @relation("meetingInvites")
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+  @@index([bankId, userRole, bankStatus])
 }
 
 model DirectMessage {
@@ -532,6 +540,9 @@ model BankMaster {
   agreementReference String?
   active Boolean @default(true)
   devices InventoryDevice[]
+  members User[]
+  targets BankTarget[]
+  assignmentHistory BankAssignmentHistory[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -575,12 +586,74 @@ model InventoryDevice {
   version Int @default(0)
   events InventoryEvent[]
   documents InventoryDocument[]
+  bankAssignment BankPosAssignment?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([bankId, status])
   @@index([status, model])
   @@index([warrantyUntil])
+}
+
+model BankPosAssignment {
+  deviceId String @id
+  device InventoryDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  employeeId String
+  employee User @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  assignedBy String
+  assignedAt DateTime @default(now())
+  version Int @default(0)
+  @@index([employeeId])
+}
+
+model BankAssignmentHistory {
+  id String @id @default(uuid())
+  bankId String
+  bank BankMaster @relation(fields: [bankId], references: [id], onDelete: Cascade)
+  deviceId String
+  serialNumber String
+  previousEmployeeId String?
+  employeeId String?
+  employeeName String?
+  actorId String
+  action String
+  note String
+  createdAt DateTime @default(now())
+  @@index([bankId, createdAt])
+  @@index([deviceId, createdAt])
+}
+
+model BankTarget {
+  id String @id @default(uuid())
+  bankId String
+  bank BankMaster @relation(fields: [bankId], references: [id], onDelete: Cascade)
+  employeeId String
+  employee User @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  title String
+  quantity Int
+  startsAt DateTime
+  dueAt DateTime
+  status String @default("ACTIVE")
+  createdBy String
+  createdAt DateTime @default(now())
+  completions BankTargetCompletion[]
+  @@index([bankId, employeeId, dueAt])
+}
+
+model BankTargetCompletion {
+  id String @id @default(uuid())
+  targetId String
+  target BankTarget @relation(fields: [targetId], references: [id], onDelete: Cascade)
+  deviceId String
+  serialNumber String
+  note String
+  status String @default("PENDING")
+  reviewedBy String?
+  reviewedAt DateTime?
+  reviewNote String?
+  createdAt DateTime @default(now())
+  @@unique([targetId, deviceId])
+  @@index([targetId, status])
 }
 
 model InventoryEvent {

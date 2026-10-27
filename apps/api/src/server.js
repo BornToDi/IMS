@@ -61,6 +61,7 @@ const prisma = require('./prismaClient');
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/workspaces', require('./routes/workspaces'));
 app.use('/api/tickets', require('./routes/tickets'));
+app.use('/api/bank-team', require('./routes/bankTeam'));
 app.use('/api/direct-messages', require('./routes/directMessages'));
 app.use('/api/pos-serials', require('./routes/posSerials'));
 app.use('/api/hardware', require('./routes/hardware'));
@@ -84,6 +85,9 @@ app.get('/api/health', async (req, res) => {
   try {
     await prisma.globalMessage.findFirst({ select: { id: true, replyToId: true } });
     await prisma.directMessage.findFirst({ select: { id: true, attachmentKey: true } });
+    await prisma.user.findFirst({ select: { id: true, bankId: true, bankRole: true, bankStatus: true } });
+    await prisma.bankPosAssignment.findFirst({ select: { deviceId: true } });
+    await prisma.bankTarget.findFirst({ select: { id: true } });
     await prisma.inventoryDevice.findFirst({ select: { id: true } });
     res.json({ status: 'ok', database: 'ok', allowedOrigins });
   } catch (error) {
@@ -130,17 +134,23 @@ io.on('connection', async (socket) => {
     return;
   }
 
+  let socketUser;
+  try { socketUser = await prisma.user.findUnique({ where: { id: userId }, select: { userRole: true, bankStatus: true } }); }
+  catch { socket.disconnect(true); return; }
+  if (!socketUser || (socketUser.userRole === 'BANK' && socketUser.bankStatus !== 'APPROVED')) { socket.disconnect(true); return; }
+
   socket.userId = userId;
   socket.join(`user:${userId}`);
   console.log('[socket] connected:', socket.id, 'userId:', userId);
 
   socket.on('join-workspace', async (workspaceId) => {
+    if (socketUser.userRole === 'BANK') return;
     if (!workspaceId) return;
     const member = await prisma.workspaceMember.findFirst({ where: { workspaceId, userId } });
     if (member) socket.join(`workspace:${workspaceId}`);
   });
 
-  socket.on('join-global-chat', () => socket.join('global-chat-room'));
+  socket.on('join-global-chat', () => { if (socketUser.userRole !== 'BANK') socket.join('global-chat-room'); });
 
   socket.on('send-global-message', async (data = {}) => {
     try {
@@ -149,6 +159,7 @@ io.on('connection', async (socket) => {
 
       const user = await prisma.user.findUnique({ where: { id: userId } });
       if (!user) return socket.emit('global-message-error', { message: 'User not found' });
+      if (user.userRole === 'BANK') return socket.emit('global-message-error', { message: 'Company chat is for internal IMS staff' });
 
       const message = await prisma.globalMessage.create({
         data: {
@@ -196,6 +207,8 @@ async function startServer() {
   try {
     await prisma.globalMessage.findFirst({ select: { id: true, replyToId: true } });
     await prisma.inventoryDevice.findFirst({ select: { id: true } });
+    await prisma.user.findFirst({ select: { id: true, bankId: true, bankRole: true, bankStatus: true } });
+    await prisma.bankPosAssignment.findFirst({ select: { deviceId: true } });
   } catch (error) {
     console.error('[startup] Database schema is not current. Run prisma migrate deploy with the production DATABASE_URL.', error);
     process.exit(1);

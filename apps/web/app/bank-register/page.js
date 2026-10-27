@@ -15,10 +15,10 @@ export default function BankRegisterPage(){
   useEffect(() => {
     async function loadBanks() {
       try {
-        const res = await fetch('/api/pos-serials/banks')
+        const res = await fetch('/api/bank-team/banks')
         if (!res.ok) throw new Error('Failed to load bank list')
         const data = await res.json()
-        setBankOptions(Array.isArray(data?.banks) ? data.banks : [])
+        setBankOptions(Array.isArray(data) ? data.map(bank => bank.name) : [])
       } catch (e) {
         setBankLoadError(e.message || 'Failed to load bank list')
       }
@@ -26,9 +26,9 @@ export default function BankRegisterPage(){
     loadBanks()
   }, [])
 
-  async function handleRegister(name,email,password,userRole,bankName){
-    await register(name,email,password,userRole,bankName)
-    router.push('/dashboard')
+  async function handleRegister(name,email,password,userRole,bankName,bankRole){
+    await register(name,email,password,userRole,bankName,bankRole)
+    router.push('/bank-team')
   }
 
   return (
@@ -43,7 +43,7 @@ export default function BankRegisterPage(){
           <section className="p-6 sm:p-10">
             <div className="mb-6">
               <h2 className="text-2xl font-black">Bank registration</h2>
-              <p className="mt-1 text-sm font-semibold text-black/55">For bank/client users only. Bank name comes from admin POS serial records.</p>
+              <p className="mt-1 text-sm font-semibold text-black/55">Join your bank as an employee or request Bank Admin access.</p>
             </div>
             {bankLoadError && <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{bankLoadError}</div>}
             <AuthForm mode="register" onSubmit={handleRegister} fixedRole="BANK" bankOptions={bankOptions}/>

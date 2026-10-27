@@ -207,6 +207,10 @@ async function listPosSerials(req, res) {
     if (!ownBank) return res.json([]);
     where.push('"bankName" = ?');
     values.push(ownBank);
+    if (['EMPLOYEE', 'VIEWER'].includes(user.bankRole)) {
+      where.push('"serialNumber" IN (SELECT d."serialNumber" FROM "InventoryDevice" d JOIN "BankPosAssignment" a ON a."deviceId" = d."id" WHERE a."employeeId" = ? AND d."bankId" = ?)');
+      values.push(user.id, user.bankId || '\u0000');
+    }
   } else if (bankQuery) {
     where.push('"bankName" = ?');
     values.push(bankQuery);

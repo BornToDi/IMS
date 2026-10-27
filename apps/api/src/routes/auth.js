@@ -11,6 +11,7 @@ router.get('/me', auth, controller.me);
 router.get('/users', auth, controller.listUsers);
 router.put('/profile', auth, controller.updateProfile);
 router.get('/admin/users', auth, controller.adminListUsers);
+router.post('/admin/users', auth, controller.adminCreateUser);
 router.put('/admin/users/:id', auth, controller.adminUpdateUser);
 router.put('/admin/users/:id/password', auth, controller.adminResetPassword);
 router.delete('/admin/users/:id', auth, controller.adminDeleteUser);

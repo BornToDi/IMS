@@ -13,7 +13,7 @@ function isFullAdminRole(role) {
 }
 async function getUser(userId) {
   if (!userId) return null;
-  return prisma.user.findUnique({ where: { id: userId }, select: { id: true, name: true, email: true, userRole: true, bankName: true } });
+  return prisma.user.findUnique({ where: { id: userId }, select: { id: true, name: true, email: true, userRole: true, bankName: true, bankId: true, bankRole: true, bankStatus: true } });
 }
 async function createNotification(req, { userId, workspaceId = null, type, message, targetUrl = null }) {
   if (!userId || !message) return null;

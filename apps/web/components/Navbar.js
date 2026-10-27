@@ -53,7 +53,7 @@ export default function Navbar({ navigationOpen = true, onToggleNavigation }) {
                 <div className="text-sm font-medium text-slate-100">{user.name}</div>
                 <div className="text-xs text-slate-300">{user.userRole || 'EMPLOYEE'}</div>
               </Link>
-              <NotificationBell />
+              {(user.userRole !== 'BANK' || !user.bankStatus || user.bankStatus === 'APPROVED') && <NotificationBell />}
               {['BANK', 'ADMIN'].includes(user.userRole) && <Link href="/support" className="rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-xs font-semibold text-white" aria-label="Open private messages">Inbox</Link>}
               <button
                 onClick={handleLogout}

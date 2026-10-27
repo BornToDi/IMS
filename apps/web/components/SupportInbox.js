@@ -204,7 +204,7 @@ export default function SupportInbox() {
   const unread = contacts.reduce((total, item) => total + item.unread, 0)
 
   return <div className={s.page}>
-    <header className={s.hero}><div><span className={s.eyebrow}>BANK SUPPORT</span><h1>Your direct line to {isBank ? 'admin' : 'bank users'}</h1><p>Private conversations. Clear updates. Faster follow-ups.</p></div><Link href="/tickets?new=1" className={s.primary}><Icon name="plus" size={17}/>New ticket</Link></header>
+    <header className={s.hero}><div><span className={s.eyebrow}>BANK SUPPORT</span><h1>Your direct line to {isBank ? 'admin' : 'bank users'}</h1><p>Private conversations. Clear updates. Faster follow-ups.</p></div>{user?.bankRole !== 'VIEWER' && <Link href="/tickets?new=1" className={s.primary}><Icon name="plus" size={17}/>New ticket</Link>}</header>
     {error && <div role="alert" className={s.error}>{error}<button type="button" onClick={() => { setError(''); setRetry(value => value + 1) }}>Retry</button></div>}
     <section className={`${s.inbox} ${selected ? s.hasSelection : ''}`} aria-label="Private support inbox">
       <aside className={s.contacts}>

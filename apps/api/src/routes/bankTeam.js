@@ -1,0 +1,25 @@
+const router = require('express').Router();
+const auth = require('../middleware/auth');
+const ctrl = require('../controllers/bankTeamController');
+router.get('/banks', ctrl.banks);
+router.use(auth, (req, res, next) => { res.setHeader('Cache-Control', 'no-store'); next(); });
+router.get('/me', ctrl.me);
+router.get('/members', ctrl.listMembers);
+router.patch('/members/:id', ctrl.updateMember);
+router.get('/devices', ctrl.devices);
+router.post('/assignments', ctrl.assignDevices);
+router.get('/history', ctrl.history);
+router.get('/targets', ctrl.targets);
+router.post('/targets', ctrl.createTarget);
+router.get('/targets/:id/completions', ctrl.completions);
+router.post('/targets/:id/completions', ctrl.reportCompletion);
+router.patch('/targets/:id/completions/:completionId', ctrl.reviewCompletion);
+router.patch('/targets/:id/close', ctrl.closeTarget);
+router.use((error, req, res, next) => {
+  if (error.status) return res.status(error.status).json({ error: error.message });
+  if (error.code === 'P2002') return res.status(409).json({ error: 'This record was already submitted. Refresh and try again.' });
+  if (['P2028', 'P2034', 'P1008'].includes(error.code)) return res.status(409).json({ error: 'Another update is in progress. Refresh before retrying.' });
+  console.error('[bank-team]', error.code || error.message);
+  res.status(500).json({ error: 'Bank workspace could not complete this request. Please retry.' });
+});
+module.exports = router;

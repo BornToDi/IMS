@@ -18,6 +18,7 @@ export default function AuthForm({ mode = 'login', onSubmit, fixedRole = null, d
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [bankName, setBankName] = useState('')
+  const [bankRole, setBankRole] = useState('EMPLOYEE')
   const [userRole, setUserRole] = useState(fixedRole || defaultRole)
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -46,7 +47,7 @@ export default function AuthForm({ mode = 'login', onSubmit, fixedRole = null, d
     setLoading(true)
     try {
       if (mode === 'login') await onSubmit(email, password)
-      else await onSubmit(name, email, password, fixedRole || userRole, bankName)
+      else await onSubmit(name, email, password, fixedRole || userRole, bankName, bankRole)
     } catch (err) {
       setError(err.message || 'Unable to continue')
     } finally {
@@ -87,13 +88,16 @@ export default function AuthForm({ mode = 'login', onSubmit, fixedRole = null, d
 
           {registeringBank && (
             <div>
+              <label className={labelClass} htmlFor="bankRole">Bank membership</label>
+              <select id="bankRole" value={bankRole} onChange={event => setBankRole(event.target.value)} className={`${selectClass} mb-3`}><option value="EMPLOYEE">Bank employee</option><option value="ADMIN">Request Bank Admin access</option></select>
+              <p className="mb-4 text-xs leading-5 text-slate-500">Employees need approval from their bank admin. Bank Admin requests are approved by the IMS admin. Registration never grants admin access automatically.</p>
               <label className={labelClass} htmlFor="bankName">Bank name</label>
               <select id="bankName" value={bankName} onChange={(e) => setBankName(e.target.value)} className={selectClass} required disabled={!banks.length}>
                 <option value="">{banks.length ? 'Select bank' : 'No bank found. Admin must add/import POS serials first.'}</option>
                 {banks.map((b) => <option key={b} value={b}>{b}</option>)}
               </select>
               {fieldErrors.bankName && <p className="mt-1 text-xs font-bold text-red-600">{fieldErrors.bankName}</p>}
-              {!banks.length && <p className="mt-1 text-xs font-bold text-amber-700">Bank list comes from Admin POS Serial Management. Because apparently data needs a birthplace.</p>}
+              {!banks.length && <p className="mt-1 text-xs font-bold text-amber-700">Ask the IMS admin to add your bank in Bank Management.</p>}
             </div>
           )}
         </>

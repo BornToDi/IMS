@@ -38,6 +38,8 @@ export default function EmployeesPage() {
   const [passwordDraft, setPasswordDraft] = useState('')
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [newUser, setNewUser] = useState({ name: '', email: '', password: '', userRole: 'EMPLOYEE' })
+  const [createOpen, setCreateOpen] = useState(false)
 
   async function loadEmployees({ silent = false } = {}) {
     if (!accessToken || !isAdmin) return
@@ -224,6 +226,7 @@ export default function EmployeesPage() {
               <p className="mt-2 max-w-2xl text-sm font-semibold text-black/60">Edit names, reset passwords, and delete employees from one responsive management screen.</p>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">
+              <button type="button" onClick={() => setCreateOpen(value => !value)} className="rounded-2xl bg-emerald-800 px-5 py-3 text-sm font-bold text-white">New internal account</button>
               <button type="button" onClick={() => loadEmployees()} className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-black text-black">Refresh</button>
               <Link href="/profile" className="rounded-2xl bg-black px-5 py-3 text-center text-sm font-black text-white">My profile</Link>
             </div>
@@ -232,6 +235,7 @@ export default function EmployeesPage() {
 
         {error && <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">{error}</div>}
         {notice && <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700">{notice}</div>}
+        {createOpen && <form className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-5 sm:grid-cols-2" onSubmit={async event => { event.preventDefault(); if (saving) return; setSaving(true); setError(''); try { await apiFetch('/api/auth/admin/users', accessToken, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newUser) }); setNewUser({ name: '', email: '', password: '', userRole: 'EMPLOYEE' }); setCreateOpen(false); await loadEmployees({ silent: true }); setNotice('Internal account created.') } catch (err) { setError(err.message) } finally { setSaving(false) } }}><h2 className="font-semibold sm:col-span-2">Create an internal IMS account</h2>{[['name', 'Full name', 'text'], ['email', 'Email', 'email'], ['password', 'Initial password', 'password']].map(([key, title, type]) => <label key={key} className="grid gap-2 text-sm">{title}<input required type={type} minLength={key === 'password' ? 8 : undefined} autoComplete="off" className="rounded-xl border p-3" value={newUser[key]} onChange={event => setNewUser(current => ({ ...current, [key]: event.target.value }))}/></label>)}<label className="grid gap-2 text-sm">Role<select className="rounded-xl border p-3" value={newUser.userRole} onChange={event => setNewUser(current => ({ ...current, userRole: event.target.value }))}>{['EMPLOYEE', 'FIELD_EMPLOYEE', 'ASSISTANT', 'MANAGEMENT', 'ADMIN'].map(role => <option key={role}>{role}</option>)}</select></label><p className="text-xs text-slate-500 sm:col-span-2">Bank employees should use Bank Registration and be approved in Bank Team instead.</p><button disabled={saving} className="rounded-xl bg-emerald-800 p-3 text-sm font-semibold text-white">{saving ? 'Creating…' : 'Create internal account'}</button></form>}
 
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           {[

@@ -8,6 +8,7 @@ import { notificationCounts } from '../lib/notificationCounts.mjs'
 import { apiFetch } from '../lib/api'
 
 const allItems = [
+  { href: '/bank-team', label: 'Bank Team & Targets', hint: 'People, POS and progress', icon: '▦', roles: ['BANK', 'ADMIN'] },
   { href: '/support', label: 'Private Messages', hint: 'Bank and admin inbox', icon: '↗', roles: ['BANK', 'ADMIN'] },
   { href: '/profile', label: 'My Profile', hint: 'Edit name and password', icon: '◌', roles: ['ADMIN', 'MANAGEMENT', 'ASSISTANT', 'EMPLOYEE', 'BANK'] },
   { href: '/dashboard', label: 'Dashboard', hint: 'Overview', icon: '⌁', roles: ['BANK', 'ADMIN', 'MANAGEMENT', 'ASSISTANT', 'EMPLOYEE'] },
@@ -30,7 +31,7 @@ export default function Sidebar({ open = true, onClose }){
   const counts = notificationCounts(notes)
   const badgeFor = href => href === '/support' ? notes.filter(note => !note.isRead && note.type === 'DIRECT_MESSAGE').length : href === '/chat' ? counts.chat : href === '/announcements' ? counts.announcements : 0
   const role = String(user?.userRole || 'EMPLOYEE').toUpperCase()
-  const items = allItems.filter((item) => item.roles.includes(role))
+  const items = allItems.filter((item) => item.roles.includes(role) && !(role === 'BANK' && user?.bankStatus && user.bankStatus !== 'APPROVED' && item.href !== '/bank-team'))
   async function openItem(href) {
     if (window.matchMedia('(max-width: 767px)').matches) onClose?.()
     const type = href === '/chat' ? 'GLOBAL_CHAT' : href === '/announcements' ? 'ANNOUNCEMENT' : null
