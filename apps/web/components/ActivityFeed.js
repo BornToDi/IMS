@@ -44,7 +44,7 @@ export default function ActivityFeed({ activities }) {
                 <p className="mt-1 text-sm text-slate-700 leading-relaxed break-words">
                   {activity.message}
                 </p>
-                <p className="mt-2 text-xs text-slate-400">
+                <p className="mt-2 text-xs text-slate-600">
                   {createdDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </p>
               </div>

@@ -35,7 +35,7 @@ export default function Notifications({ workspaceId }) {
             <div>{n.message}</div>
             {!n.isRead && <button className="text-xs text-blue-600 hover:text-blue-800 whitespace-nowrap font-semibold" onClick={() => markRead(n.id)}>✓</button>}
           </div>
-          <div className="text-xs text-gray-400 mt-1">{new Date(n.createdAt).toLocaleString()}</div>
+          <div className="text-xs text-slate-600 mt-1">{new Date(n.createdAt).toLocaleString()}</div>
         </div>
       ))}
     </div>

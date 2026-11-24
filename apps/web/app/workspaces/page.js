@@ -427,7 +427,7 @@ export default function WorkspacesPage() {
                   type="button"
                   disabled={!form.bankName}
                   onClick={() => setPosDropdownOpen((p) => !p)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full px-2 text-sm font-black text-slate-400 disabled:opacity-40"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full px-2 text-sm font-black text-slate-600 disabled:opacity-40"
                 >
                   ▾
                 </button>

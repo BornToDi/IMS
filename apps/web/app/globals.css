@@ -5,7 +5,7 @@
 :root{
   --accent: #2563eb;
   --accent-strong: #0f766e;
-  --muted: #64748b;
+  --muted: #334155;
   --surface: rgba(255, 255, 255, 0.88);
 }
 
@@ -121,4 +121,16 @@ body {
 
 body, input, textarea, select, button {
   color: #000000;
+}
+
+.text-slate-500, .text-slate-600,
+.text-gray-500, .text-gray-600,
+.text-black\/40, .text-black\/45, .text-black\/50,
+.text-black\/55, .text-black\/60 {
+  color: var(--muted);
+}
+
+.input::placeholder {
+  color: var(--muted);
+  opacity: 1;
 }

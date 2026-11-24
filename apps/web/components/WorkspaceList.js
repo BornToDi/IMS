@@ -36,7 +36,7 @@ export default function WorkspaceList({ showChat = false }) {
                 <div className="truncate text-base font-semibold text-slate-950">{w.name}</div>
               </div>
               {w.description && <div className="mt-2 text-sm leading-6 text-slate-600">{w.description}</div>}
-              <div className="mt-3 text-xs text-slate-400">Owner workspace • open the hub or jump into a module directly</div>
+              <div className="mt-3 text-xs text-slate-600">Owner workspace • open the hub or jump into a module directly</div>
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
               <Link href={`/workspaces/${w.id}`} className="rounded-full bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-700">Messege</Link>

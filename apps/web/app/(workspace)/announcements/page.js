@@ -189,7 +189,7 @@ export default function AnnouncementsPage() {
           <div className="grid gap-3 lg:grid-cols-[minmax(240px,1fr)_2fr] lg:items-center">
             <label className="relative block">
               <span className="sr-only">Search announcements</span>
-              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400" aria-hidden="true">⌕</span>
+              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-600" aria-hidden="true">⌕</span>
               <input className="input w-full pl-9" type="search" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search title, update, or author..." />
             </label>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">

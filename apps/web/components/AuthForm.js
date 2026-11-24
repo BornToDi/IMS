@@ -55,8 +55,8 @@ export default function AuthForm({ mode = 'login', onSubmit, fixedRole = null, d
     }
   }
 
-  const inputClass = 'w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 pl-11 text-sm font-semibold text-black outline-none transition placeholder:text-slate-400 focus:border-black focus:ring-4 focus:ring-slate-100'
-  const selectClass = 'w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-black outline-none transition focus:border-black focus:ring-4 focus:ring-slate-100 disabled:bg-slate-50 disabled:text-slate-400'
+  const inputClass = 'w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 pl-11 text-sm font-semibold text-black outline-none transition placeholder:text-slate-600 focus:border-black focus:ring-4 focus:ring-slate-100'
+  const selectClass = 'w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-black outline-none transition focus:border-black focus:ring-4 focus:ring-slate-100 disabled:bg-slate-50 disabled:text-slate-600'
   const labelClass = 'mb-1.5 block text-xs font-black uppercase tracking-[0.14em] text-slate-600'
 
   return (
@@ -66,7 +66,7 @@ export default function AuthForm({ mode = 'login', onSubmit, fixedRole = null, d
           <div>
             <label className={labelClass} htmlFor="name">Name</label>
             <div className="relative">
-              <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"><FieldIcon type="user" /></span>
+              <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-600"><FieldIcon type="user" /></span>
               <input id="name" value={name} onChange={(e) => setName(e.target.value)} className={inputClass} placeholder="Full name" autoComplete="name" />
             </div>
             {fieldErrors.name && <p className="mt-1 text-xs font-bold text-red-600">{fieldErrors.name}</p>}
@@ -106,7 +106,7 @@ export default function AuthForm({ mode = 'login', onSubmit, fixedRole = null, d
       <div>
         <label className={labelClass} htmlFor="email">Email</label>
         <div className="relative">
-          <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"><FieldIcon type="mail" /></span>
+          <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-600"><FieldIcon type="mail" /></span>
           <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} placeholder="name@company.com" autoComplete="email" />
         </div>
         {fieldErrors.email && <p className="mt-1 text-xs font-bold text-red-600">{fieldErrors.email}</p>}
@@ -115,8 +115,8 @@ export default function AuthForm({ mode = 'login', onSubmit, fixedRole = null, d
       <div>
         <label className={labelClass} htmlFor="password">Password</label>
         <div className="relative">
-          <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"><FieldIcon type="lock" /></span>
-          <input id="password" type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 pl-11 pr-16 text-sm font-semibold text-black outline-none transition placeholder:text-slate-400 focus:border-black focus:ring-4 focus:ring-slate-100" placeholder="Minimum 8 characters" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} />
+          <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-600"><FieldIcon type="lock" /></span>
+          <input id="password" type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 pl-11 pr-16 text-sm font-semibold text-black outline-none transition placeholder:text-slate-600 focus:border-black focus:ring-4 focus:ring-slate-100" placeholder="Minimum 8 characters" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} />
           <button type="button" onClick={() => setShowPassword((v) => !v)} className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black text-slate-600 hover:text-black">{showPassword ? 'Hide' : 'Show'}</button>
         </div>
         {fieldErrors.password && <p className="mt-1 text-xs font-bold text-red-600">{fieldErrors.password}</p>}

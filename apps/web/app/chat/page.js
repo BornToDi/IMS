@@ -219,9 +219,9 @@ const ChatContacts = React.memo(function ChatContacts({ filteredContacts, setMob
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-3">
                       <p className="truncate text-sm font-semibold text-white">{contact.isMe ? `${contact.name} (You)` : contact.name}</p>
-                      <span className="shrink-0 text-[11px] text-slate-400">{formatMessageTime(contact.createdAt)}</span>
+                      <span className="shrink-0 text-[11px] text-slate-300">{formatMessageTime(contact.createdAt)}</span>
                     </div>
-                    <p className="truncate text-sm text-slate-400">{contact.lastMessage}</p>
+                    <p className="truncate text-sm text-slate-300">{contact.lastMessage}</p>
                   </div>
                 </button>
               ))}
@@ -795,13 +795,13 @@ function CompanyChatContent() {
 
           <div className="flex-none border-b border-white/10 px-4 py-4">
             <div className="flex items-center gap-3 rounded-full bg-[#202c33] px-4 py-3 text-sm text-slate-300">
-              <span className="text-slate-400">⌕</span>
+              <span className="text-slate-300">⌕</span>
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Search or start a new chat"
-                className="w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-400"
+                className="w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-300"
               />
             </div>
 
@@ -834,7 +834,7 @@ function CompanyChatContent() {
               </div>
               <div className="min-w-0">
                 <h1 className="truncate text-sm font-semibold text-white sm:text-base">Company Chat</h1>
-                <p className="hidden truncate text-sm text-slate-400 sm:block">Everyone in the company can message here</p>
+                <p className="hidden truncate text-sm text-slate-300 sm:block">Everyone in the company can message here</p>
               </div>
             </div>
             <div className="flex items-center gap-2 text-slate-300">
@@ -855,13 +855,13 @@ function CompanyChatContent() {
             />
             {selectedDate ? (
               <>
-                <span className="text-xs text-slate-400">{visibleMessages.length} message(s)</span>
+                <span className="text-xs text-slate-300">{visibleMessages.length} message(s)</span>
                 <button type="button" onClick={() => setSelectedDate('')} className="rounded-lg bg-white/10 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/15">
                   Show all dates
                 </button>
               </>
             ) : (
-              <span className="text-xs text-slate-400">{messages.length} loaded messages</span>
+              <span className="text-xs text-slate-300">{messages.length} loaded messages</span>
             )}
             <button type="button" disabled={loading} onClick={() => { targetMessageHandledRef.current = true; setTargetMessageId(''); setSelectedDate(''); setHistoryAttempt(value => value + 1) }} className="ml-auto rounded-lg bg-white/10 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/15 disabled:opacity-50">Latest messages</button>
           </div>
@@ -878,7 +878,7 @@ function CompanyChatContent() {
               {!loading && !historyError && visibleMessages.length === 0 ? (
                 <div className="mx-auto mt-10 max-w-md rounded-3xl border border-white/10 bg-black/20 px-5 py-7 text-center text-slate-300 backdrop-blur sm:mt-16 sm:px-6 sm:py-8">
                   <p className="text-base font-semibold text-white sm:text-lg">{selectedDate ? 'No messages on this date' : 'No messages yet'}</p>
-                  <p className="mt-2 text-sm text-slate-400">{selectedDate ? 'Choose another date or show all dates.' : 'Start the conversation and the feed will appear here in the same style as WhatsApp.'}</p>
+                  <p className="mt-2 text-sm text-slate-300">{selectedDate ? 'Choose another date or show all dates.' : 'Start the conversation and the feed will appear here in the same style as WhatsApp.'}</p>
                 </div>
               ) : null}
 
@@ -943,7 +943,7 @@ function CompanyChatContent() {
               <div className="grid grid-cols-[44px_44px_minmax(0,1fr)] items-center gap-1.5 rounded-2xl border border-white/10 bg-[#111b21] p-2 shadow-sm sm:flex sm:gap-2 sm:p-2.5">
                 <button
                   type="button"
-                  className="row-start-2 grid h-11 w-11 shrink-0 place-items-center rounded-xl text-xl text-slate-400 transition hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 sm:order-1"
+                  className="row-start-2 grid h-11 w-11 shrink-0 place-items-center rounded-xl text-xl text-slate-300 transition hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 sm:order-1"
                   aria-label="Attach file" title="Attach file"
                   onClick={openFilePicker}
                 >
@@ -951,7 +951,7 @@ function CompanyChatContent() {
                 </button>
                 <button
                   type="button"
-                  className="row-start-2 grid h-11 w-11 shrink-0 place-items-center rounded-xl text-xl text-slate-400 transition hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 sm:order-1"
+                  className="row-start-2 grid h-11 w-11 shrink-0 place-items-center rounded-xl text-xl text-slate-300 transition hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 sm:order-1"
                   aria-label="Choose a sticker" title="Stickers"
                   onClick={openStickerTray}
                 >
@@ -985,7 +985,7 @@ function CompanyChatContent() {
                     onKeyDown={handleMessageKeyDown}
                     aria-label="Message"
                     placeholder="Type a message"
-                    className="max-h-[120px] min-h-9 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent py-1.5 text-[13px] leading-5 text-white outline-none placeholder:text-slate-400 sm:text-sm"
+                    className="max-h-[120px] min-h-9 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent py-1.5 text-[13px] leading-5 text-white outline-none placeholder:text-slate-300 sm:text-sm"
                   />
                   <button
                     type="submit"

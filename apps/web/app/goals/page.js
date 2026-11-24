@@ -122,7 +122,7 @@ export default function GoalsPage() {
           {!activeWorkspace && <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">Select or create a workspace first.</div>}
           {error && <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
           <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {[['Total goals', summary.total], ['Completed', summary.done], ['Avg progress', `${summary.avg}%`], ['Overdue', summary.overdue]].map(([label, value]) => <div key={label} className="rounded-3xl bg-white/80 p-4 shadow-sm"><div className="text-xs font-bold uppercase tracking-widest text-slate-400">{label}</div><div className="mt-1 text-3xl font-black text-slate-950">{value}</div></div>)}
+            {[['Total goals', summary.total], ['Completed', summary.done], ['Avg progress', `${summary.avg}%`], ['Overdue', summary.overdue]].map(([label, value]) => <div key={label} className="rounded-3xl bg-white/80 p-4 shadow-sm"><div className="text-xs font-bold uppercase tracking-widest text-slate-600">{label}</div><div className="mt-1 text-3xl font-black text-slate-950">{value}</div></div>)}
           </div>
           <div className="mt-5 grid gap-3 lg:grid-cols-[1fr_auto]">
             <input className="input" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search goal, KPI, owner..." />

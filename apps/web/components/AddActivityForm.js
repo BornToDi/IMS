@@ -26,7 +26,7 @@ export default function AddActivityForm({ onSubmit, isSubmitting = false }) {
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
           placeholder="Share an update... (completed a milestone, blocked, etc.)"
-          className="flex-1 px-4 py-2 bg-white text-sm font-medium text-slate-900 placeholder-slate-500 focus:outline-none"
+          className="flex-1 px-4 py-2 bg-white text-sm font-medium text-slate-900 placeholder-slate-700 focus:outline-none"
         />
         <button
           type="submit"

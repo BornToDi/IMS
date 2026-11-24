@@ -26,7 +26,7 @@ export default function AddMilestoneForm({ onSubmit, isSubmitting = false }) {
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
           placeholder="Add a new milestone (e.g., Complete backend setup)"
-          className="flex-1 px-4 py-2 bg-white text-sm font-medium text-slate-900 placeholder-slate-500 focus:outline-none"
+          className="flex-1 px-4 py-2 bg-white text-sm font-medium text-slate-900 placeholder-slate-700 focus:outline-none"
         />
         <button
           type="submit"

@@ -201,7 +201,7 @@ export default function NotificationBell() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className={`text-sm ${note.isRead ? 'text-slate-700' : 'font-bold text-slate-950'}`}>{note.message}</p>
-                    <p className="mt-1 text-xs text-slate-400">{new Date(note.createdAt).toLocaleString()}</p>
+                    <p className="mt-1 text-xs text-slate-600">{new Date(note.createdAt).toLocaleString()}</p>
                   </div>
                   {!note.isRead && <span className="whitespace-nowrap rounded-full bg-white px-2 py-1 text-xs font-bold text-emerald-700 shadow-sm">Open</span>}
                 </div>

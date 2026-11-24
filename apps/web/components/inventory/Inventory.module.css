@@ -1,4 +1,4 @@
-.shell { --ink: #172b3a; --muted: #697b88; --line: #e3e9ec; --teal: #0f766e; color: var(--ink); font: 13px/1.45 Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+.shell { --ink: #172b3a; --muted: #334155; --line: #e3e9ec; --teal: #0f766e; color: var(--ink); font: 13px/1.45 Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
 .shell * { box-sizing: border-box; }
 .shell button, .shell input, .shell select, .shell textarea { font: inherit; }
 .header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
