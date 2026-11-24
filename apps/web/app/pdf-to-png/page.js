@@ -2,6 +2,7 @@
 
 import React, { useRef, useState } from 'react'
 import Layout from '../../components/Layout'
+import QrImageCrop from './QrImageCrop'
 
 const OUTPUT_SIZE = 500
 const CONTENT_PADDING = 16
@@ -137,6 +138,23 @@ async function addPngDpi(blob, dpi) {
 }
 
 export default function PdfToPngPage() {
+  const [mode, setMode] = useState('pdf')
+
+  return (
+    <Layout>
+      <div className="mx-auto max-w-5xl">
+        <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="Conversion mode">
+          <button type="button" aria-pressed={mode === 'pdf'} className={mode === 'pdf' ? 'btn' : 'rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800'} onClick={() => setMode('pdf')}>PDF to PNG</button>
+          <button type="button" aria-pressed={mode === 'image'} className={mode === 'image' ? 'btn' : 'rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800'} onClick={() => setMode('image')}>UCB QR image to PNG</button>
+        </div>
+        <div hidden={mode !== 'pdf'}><PdfConverter /></div>
+        <div hidden={mode !== 'image'}><QrImageCrop /></div>
+      </div>
+    </Layout>
+  )
+}
+
+function PdfConverter() {
   const inputRef = useRef(null)
   const canvasRef = useRef(null)
   const pdfRef = useRef(null)
@@ -257,7 +275,6 @@ export default function PdfToPngPage() {
   }
 
   return (
-    <Layout>
       <section className="mx-auto max-w-5xl space-y-6">
         <div className="shell-panel overflow-hidden">
           <div className="border-b border-slate-200 bg-slate-900 px-6 py-6 text-white sm:px-8">
@@ -307,6 +324,5 @@ export default function PdfToPngPage() {
           </div>
         </div>
       </section>
-    </Layout>
   )
 }
