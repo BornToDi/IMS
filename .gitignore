@@ -2,6 +2,7 @@ node_modules
 .env
 .env.local
 **/.next
+**/.next-mobile-check*
 **/dist
 **/coverage
 *.log

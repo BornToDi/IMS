@@ -21,7 +21,8 @@ export default function Navbar({ navigationOpen = true, onToggleNavigation }) {
   }
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-slate-700/60 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-800 text-white shadow-[0_12px_30px_rgba(15,23,42,0.35)] backdrop-blur">
+    <header className="app-header sticky top-0 z-40 w-full border-b border-slate-700/60 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-800 text-white shadow-[0_12px_30px_rgba(15,23,42,0.35)] backdrop-blur">
+      <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:bg-white focus:p-3 focus:text-black">Skip to content</a>
       <div className="mx-auto flex h-16 items-center justify-between gap-2 px-3 sm:gap-4 sm:px-6 lg:px-8">
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           <button
@@ -30,6 +31,7 @@ export default function Navbar({ navigationOpen = true, onToggleNavigation }) {
             className="grid h-10 w-10 place-items-center rounded-xl border border-cyan-300/60 bg-gradient-to-br from-cyan-400 to-blue-600 text-xl font-black text-white shadow-lg shadow-cyan-950/40 transition-colors hover:from-cyan-300 hover:to-indigo-500"
             aria-label={navigationOpen ? 'Close navigation menu' : 'Open navigation menu'}
             aria-expanded={navigationOpen}
+            aria-controls="mobile-navigation"
             title={navigationOpen ? 'Close navigation' : 'Open navigation'}
           >
             <span className="md:hidden" aria-hidden="true">{navigationOpen ? '×' : '☰'}</span>

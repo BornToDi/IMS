@@ -1,4 +1,10 @@
 import './globals.css'
+import AppRuntime from '../components/AppRuntime'
+
+export const viewport = {
+  width: 'device-width', initialScale: 1, viewportFit: 'cover',
+  interactiveWidget: 'resizes-content', themeColor: '#020617',
+}
 
 export const metadata = {
   title: 'TrackField',
@@ -24,7 +30,7 @@ export default function RootLayout({ children }) {
         className="bg-slate-950 text-slate-900"
         suppressHydrationWarning
       >
-        {children}
+        <AppRuntime>{children}</AppRuntime>
       </body>
     </html>
   )

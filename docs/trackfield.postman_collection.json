@@ -1,0 +1,1746 @@
+{
+  "info": {
+    "name": "TrackField API — Android handoff",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Generated endpoint inventory. Cookie jar required for refresh. Replace credentials locally; do not share exported secrets. See docs/ANDROID-HANDOFF.md."
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://27-147-139-157.sslip.io"
+    },
+    {
+      "key": "email",
+      "value": ""
+    },
+    {
+      "key": "password",
+      "value": ""
+    },
+    {
+      "key": "accessToken",
+      "value": ""
+    },
+    {
+      "key": "bankName",
+      "value": ""
+    },
+    {
+      "key": "serialNumber",
+      "value": ""
+    },
+    {
+      "key": "id",
+      "value": ""
+    },
+    {
+      "key": "updateId",
+      "value": ""
+    },
+    {
+      "key": "memberId",
+      "value": ""
+    },
+    {
+      "key": "completionId",
+      "value": ""
+    },
+    {
+      "key": "messageId",
+      "value": ""
+    },
+    {
+      "key": "contactId",
+      "value": ""
+    },
+    {
+      "key": "documentId",
+      "value": ""
+    },
+    {
+      "key": "workspaceId",
+      "value": ""
+    },
+    {
+      "key": "milestoneId",
+      "value": ""
+    },
+    {
+      "key": "commentId",
+      "value": ""
+    },
+    {
+      "key": "fileId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "auth",
+      "item": [
+        {
+          "name": "POST /api/auth/register",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/auth/register",
+            "description": "Source: apps/api/src/routes/auth.js:6. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Bank User\",\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"userRole\": \"BANK\",\n  \"bankName\": \"{{bankName}}\",\n  \"bankRole\": \"EMPLOYEE\"\n}"
+            }
+          }
+        },
+        {
+          "name": "POST /api/auth/login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/auth/login",
+            "description": "Source: apps/api/src/routes/auth.js:7. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) { const data = pm.response.json(); if (data.accessToken) pm.collectionVariables.set('accessToken', data.accessToken); }",
+                  "pm.test('Session request succeeds', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/auth/logout",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/auth/logout",
+            "description": "Source: apps/api/src/routes/auth.js:8. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification.",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "POST /api/auth/refresh",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/auth/refresh",
+            "description": "Source: apps/api/src/routes/auth.js:9. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) { const data = pm.response.json(); if (data.accessToken) pm.collectionVariables.set('accessToken', data.accessToken); }",
+                  "pm.test('Session request succeeds', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/auth/me",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/auth/me",
+            "description": "Source: apps/api/src/routes/auth.js:10. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "GET /api/auth/users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/auth/users",
+            "description": "Source: apps/api/src/routes/auth.js:11. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "PUT /api/auth/profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/auth/profile",
+            "description": "Source: apps/api/src/routes/auth.js:12. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Name\"\n}"
+            }
+          }
+        },
+        {
+          "name": "GET /api/auth/admin/users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/auth/admin/users",
+            "description": "Source: apps/api/src/routes/auth.js:13. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "POST /api/auth/admin/users",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/auth/admin/users",
+            "description": "Source: apps/api/src/routes/auth.js:14. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "PUT /api/auth/admin/users/:id",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": "{{baseUrl}}/api/auth/admin/users/{{id}}",
+            "description": "Source: apps/api/src/routes/auth.js:15. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "PUT /api/auth/admin/users/:id/password",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": "{{baseUrl}}/api/auth/admin/users/{{id}}/password",
+            "description": "Source: apps/api/src/routes/auth.js:16. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "DELETE /api/auth/admin/users/:id",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/auth/admin/users/{{id}}",
+            "description": "Source: apps/api/src/routes/auth.js:17. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        }
+      ]
+    },
+    {
+      "name": "workspaces",
+      "item": [
+        {
+          "name": "GET /api/workspaces/employees",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/employees",
+            "description": "Source: apps/api/src/routes/workspaces.js:8. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "GET /api/workspaces/my-tasks",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/my-tasks",
+            "description": "Source: apps/api/src/routes/workspaces.js:9. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "GET /api/workspaces",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces",
+            "description": "Source: apps/api/src/routes/workspaces.js:10. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "POST /api/workspaces",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces",
+            "description": "Source: apps/api/src/routes/workspaces.js:11. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "GET /api/workspaces/:id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{id}}",
+            "description": "Source: apps/api/src/routes/workspaces.js:12. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "PUT /api/workspaces/:id",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{id}}",
+            "description": "Source: apps/api/src/routes/workspaces.js:13. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "DELETE /api/workspaces/:id",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{id}}",
+            "description": "Source: apps/api/src/routes/workspaces.js:14. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "POST /api/workspaces/:id/task-updates",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{id}}/task-updates",
+            "description": "Source: apps/api/src/routes/workspaces.js:15. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "PATCH /api/workspaces/:id/task-updates/:updateId",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{id}}/task-updates/{{updateId}}",
+            "description": "Source: apps/api/src/routes/workspaces.js:16. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "DELETE /api/workspaces/:id/task-updates/:updateId",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{id}}/task-updates/{{updateId}}",
+            "description": "Source: apps/api/src/routes/workspaces.js:17. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "POST /api/workspaces/:id/invite",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{id}}/invite",
+            "description": "Source: apps/api/src/routes/workspaces.js:18. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "GET /api/workspaces/:id/members",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{id}}/members",
+            "description": "Source: apps/api/src/routes/workspaces.js:19. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "PATCH /api/workspaces/:id/members/:memberId/role",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{id}}/members/{{memberId}}/role",
+            "description": "Source: apps/api/src/routes/workspaces.js:20. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "DELETE /api/workspaces/:id/members/:memberId",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{id}}/members/{{memberId}}",
+            "description": "Source: apps/api/src/routes/workspaces.js:21. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "GET /api/workspaces/:workspaceId/goals",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{workspaceId}}/goals",
+            "description": "Source: apps/api/src/routes/goals.js:8. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "POST /api/workspaces/:workspaceId/goals",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{workspaceId}}/goals",
+            "description": "Source: apps/api/src/routes/goals.js:9. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "GET /api/workspaces/:workspaceId/goals/:id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{workspaceId}}/goals/{{id}}",
+            "description": "Source: apps/api/src/routes/goals.js:10. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "PUT /api/workspaces/:workspaceId/goals/:id",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{workspaceId}}/goals/{{id}}",
+            "description": "Source: apps/api/src/routes/goals.js:11. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "DELETE /api/workspaces/:workspaceId/goals/:id",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{workspaceId}}/goals/{{id}}",
+            "description": "Source: apps/api/src/routes/goals.js:12. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "POST /api/workspaces/:workspaceId/goals/:id/milestones",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{workspaceId}}/goals/{{id}}/milestones",
+            "description": "Source: apps/api/src/routes/goals.js:14. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "PUT /api/workspaces/:workspaceId/goals/:id/milestones/:milestoneId",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{workspaceId}}/goals/{{id}}/milestones/{{milestoneId}}",
+            "description": "Source: apps/api/src/routes/goals.js:15. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "DELETE /api/workspaces/:workspaceId/goals/:id/milestones/:milestoneId",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{workspaceId}}/goals/{{id}}/milestones/{{milestoneId}}",
+            "description": "Source: apps/api/src/routes/goals.js:16. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "POST /api/workspaces/:workspaceId/goals/:id/activity",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{workspaceId}}/goals/{{id}}/activity",
+            "description": "Source: apps/api/src/routes/goals.js:18. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "GET /api/workspaces/:workspaceId/goals/:id/activity",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{workspaceId}}/goals/{{id}}/activity",
+            "description": "Source: apps/api/src/routes/goals.js:19. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "GET /api/workspaces/:workspaceId/announcements",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{workspaceId}}/announcements",
+            "description": "Source: apps/api/src/routes/announcements.js:9. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "POST /api/workspaces/:workspaceId/announcements",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{workspaceId}}/announcements",
+            "description": "Source: apps/api/src/routes/announcements.js:10. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "GET /api/workspaces/:workspaceId/announcements/:id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{workspaceId}}/announcements/{{id}}",
+            "description": "Source: apps/api/src/routes/announcements.js:11. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "PUT /api/workspaces/:workspaceId/announcements/:id",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{workspaceId}}/announcements/{{id}}",
+            "description": "Source: apps/api/src/routes/announcements.js:12. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "DELETE /api/workspaces/:workspaceId/announcements/:id",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{workspaceId}}/announcements/{{id}}",
+            "description": "Source: apps/api/src/routes/announcements.js:13. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "PATCH /api/workspaces/:workspaceId/announcements/:id/pin",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{workspaceId}}/announcements/{{id}}/pin",
+            "description": "Source: apps/api/src/routes/announcements.js:14. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "POST /api/workspaces/:workspaceId/announcements/:id/reactions",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{workspaceId}}/announcements/{{id}}/reactions",
+            "description": "Source: apps/api/src/routes/announcements.js:17. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "DELETE /api/workspaces/:workspaceId/announcements/:id/reactions",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{workspaceId}}/announcements/{{id}}/reactions",
+            "description": "Source: apps/api/src/routes/announcements.js:18. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "POST /api/workspaces/:workspaceId/announcements/:id/comments",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{workspaceId}}/announcements/{{id}}/comments",
+            "description": "Source: apps/api/src/routes/announcements.js:21. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "GET /api/workspaces/:workspaceId/announcements/:id/comments",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{workspaceId}}/announcements/{{id}}/comments",
+            "description": "Source: apps/api/src/routes/announcements.js:22. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "DELETE /api/workspaces/:workspaceId/announcements/comments/:commentId",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{workspaceId}}/announcements/comments/{{commentId}}",
+            "description": "Source: apps/api/src/routes/announcements.js:23. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "GET /api/workspaces/:workspaceId/action-items",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{workspaceId}}/action-items",
+            "description": "Source: apps/api/src/routes/actionItems.js:8. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "POST /api/workspaces/:workspaceId/action-items",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{workspaceId}}/action-items",
+            "description": "Source: apps/api/src/routes/actionItems.js:9. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "GET /api/workspaces/:workspaceId/action-items/:id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{workspaceId}}/action-items/{{id}}",
+            "description": "Source: apps/api/src/routes/actionItems.js:10. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "PUT /api/workspaces/:workspaceId/action-items/:id",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{workspaceId}}/action-items/{{id}}",
+            "description": "Source: apps/api/src/routes/actionItems.js:11. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "DELETE /api/workspaces/:workspaceId/action-items/:id",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{workspaceId}}/action-items/{{id}}",
+            "description": "Source: apps/api/src/routes/actionItems.js:12. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "PATCH /api/workspaces/:workspaceId/action-items/:id/status",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{workspaceId}}/action-items/{{id}}/status",
+            "description": "Source: apps/api/src/routes/actionItems.js:13. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "GET /api/workspaces/:workspaceId/notifications",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{workspaceId}}/notifications",
+            "description": "Source: apps/api/src/routes/notifications.js:8. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "GET /api/workspaces/:workspaceId/notifications/push/public-key",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{workspaceId}}/notifications/push/public-key",
+            "description": "Source: apps/api/src/routes/notifications.js:9. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "POST /api/workspaces/:workspaceId/notifications/push/subscribe",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{workspaceId}}/notifications/push/subscribe",
+            "description": "Source: apps/api/src/routes/notifications.js:10. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "DELETE /api/workspaces/:workspaceId/notifications/push/subscribe",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{workspaceId}}/notifications/push/subscribe",
+            "description": "Source: apps/api/src/routes/notifications.js:11. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "PATCH /api/workspaces/:workspaceId/notifications/:id/read",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{workspaceId}}/notifications/{{id}}/read",
+            "description": "Source: apps/api/src/routes/notifications.js:12. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "PATCH /api/workspaces/:workspaceId/notifications/read-all",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{workspaceId}}/notifications/read-all",
+            "description": "Source: apps/api/src/routes/notifications.js:13. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "GET /api/workspaces/:workspaceId/audit",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{workspaceId}}/audit",
+            "description": "Source: apps/api/src/routes/audit.js:8. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "GET /api/workspaces/:workspaceId/export",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{workspaceId}}/export",
+            "description": "Source: apps/api/src/routes/export.js:8. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "POST /api/workspaces/:workspaceId/messages",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{workspaceId}}/messages",
+            "description": "Source: apps/api/src/routes/messages.js:35. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "GET /api/workspaces/:workspaceId/messages",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{workspaceId}}/messages",
+            "description": "Source: apps/api/src/routes/messages.js:84. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "POST /api/workspaces/:workspaceId/files",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{workspaceId}}/files",
+            "description": "Source: apps/api/src/routes/files.js:33. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "GET /api/workspaces/:workspaceId/files",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{workspaceId}}/files",
+            "description": "Source: apps/api/src/routes/files.js:34. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "DELETE /api/workspaces/:workspaceId/files/:fileId",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{workspaceId}}/files/{{fileId}}",
+            "description": "Source: apps/api/src/routes/files.js:35. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "GET /api/workspaces/:workspaceId/meetings/meeting/:id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{workspaceId}}/meetings/meeting/{{id}}",
+            "description": "Source: apps/api/src/routes/meetings.js:19. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "PUT /api/workspaces/:workspaceId/meetings/meeting/:id",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{workspaceId}}/meetings/meeting/{{id}}",
+            "description": "Source: apps/api/src/routes/meetings.js:20. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "DELETE /api/workspaces/:workspaceId/meetings/meeting/:id",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{workspaceId}}/meetings/meeting/{{id}}",
+            "description": "Source: apps/api/src/routes/meetings.js:21. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "POST /api/workspaces/:workspaceId/meetings/meeting/:id/invite",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{workspaceId}}/meetings/meeting/{{id}}/invite",
+            "description": "Source: apps/api/src/routes/meetings.js:22. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "PATCH /api/workspaces/:workspaceId/meetings/meeting/:id/invite/respond",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{workspaceId}}/meetings/meeting/{{id}}/invite/respond",
+            "description": "Source: apps/api/src/routes/meetings.js:23. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "GET /api/workspaces/:workspaceId/meetings/upcoming",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{workspaceId}}/meetings/upcoming",
+            "description": "Source: apps/api/src/routes/meetings.js:26. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "GET /api/workspaces/:workspaceId/meetings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{workspaceId}}/meetings",
+            "description": "Source: apps/api/src/routes/meetings.js:29. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "POST /api/workspaces/:workspaceId/meetings",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{workspaceId}}/meetings",
+            "description": "Source: apps/api/src/routes/meetings.js:30. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "PATCH /api/workspaces/:workspaceId/meetings/invite/respond",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": "{{baseUrl}}/api/workspaces/{{workspaceId}}/meetings/invite/respond",
+            "description": "Source: apps/api/src/routes/meetings.js:33. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        }
+      ]
+    },
+    {
+      "name": "tickets",
+      "item": [
+        {
+          "name": "GET /api/tickets/options",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/tickets/options",
+            "description": "Source: apps/api/src/routes/tickets.js:7. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "GET /api/tickets",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/tickets",
+            "description": "Source: apps/api/src/routes/tickets.js:8. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "POST /api/tickets",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/tickets",
+            "description": "Source: apps/api/src/routes/tickets.js:9. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"POS service request\",\n  \"bankName\": \"{{bankName}}\",\n  \"posSerial\": \"{{serialNumber}}\",\n  \"serviceType\": \"Repair\",\n  \"priority\": \"NORMAL\",\n  \"description\": \"Describe the problem\"\n}"
+            }
+          }
+        },
+        {
+          "name": "GET /api/tickets/:id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/tickets/{{id}}",
+            "description": "Source: apps/api/src/routes/tickets.js:10. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "POST /api/tickets/:id/assign",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/tickets/{{id}}/assign",
+            "description": "Source: apps/api/src/routes/tickets.js:11. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "POST /api/tickets/:id/updates",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/tickets/{{id}}/updates",
+            "description": "Source: apps/api/src/routes/tickets.js:12. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        }
+      ]
+    },
+    {
+      "name": "bank-team",
+      "item": [
+        {
+          "name": "GET /api/bank-team/banks",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/bank-team/banks",
+            "description": "Source: apps/api/src/routes/bankTeam.js:4. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification.",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "GET /api/bank-team/me",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/bank-team/me",
+            "description": "Source: apps/api/src/routes/bankTeam.js:6. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "GET /api/bank-team/pending-count",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/bank-team/pending-count",
+            "description": "Source: apps/api/src/routes/bankTeam.js:7. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "GET /api/bank-team/members",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/bank-team/members",
+            "description": "Source: apps/api/src/routes/bankTeam.js:8. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "PATCH /api/bank-team/members/:id",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": "{{baseUrl}}/api/bank-team/members/{{id}}",
+            "description": "Source: apps/api/src/routes/bankTeam.js:9. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "GET /api/bank-team/devices",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/bank-team/devices",
+            "description": "Source: apps/api/src/routes/bankTeam.js:10. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "POST /api/bank-team/assignments",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/bank-team/assignments",
+            "description": "Source: apps/api/src/routes/bankTeam.js:11. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "GET /api/bank-team/history",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/bank-team/history",
+            "description": "Source: apps/api/src/routes/bankTeam.js:12. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "GET /api/bank-team/targets",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/bank-team/targets",
+            "description": "Source: apps/api/src/routes/bankTeam.js:13. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "POST /api/bank-team/targets",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/bank-team/targets",
+            "description": "Source: apps/api/src/routes/bankTeam.js:14. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "GET /api/bank-team/targets/:id/completions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/bank-team/targets/{{id}}/completions",
+            "description": "Source: apps/api/src/routes/bankTeam.js:15. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "POST /api/bank-team/targets/:id/completions",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/bank-team/targets/{{id}}/completions",
+            "description": "Source: apps/api/src/routes/bankTeam.js:16. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "PATCH /api/bank-team/targets/:id/completions/:completionId",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": "{{baseUrl}}/api/bank-team/targets/{{id}}/completions/{{completionId}}",
+            "description": "Source: apps/api/src/routes/bankTeam.js:17. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "PATCH /api/bank-team/targets/:id/close",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": "{{baseUrl}}/api/bank-team/targets/{{id}}/close",
+            "description": "Source: apps/api/src/routes/bankTeam.js:18. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        }
+      ]
+    },
+    {
+      "name": "direct-messages",
+      "item": [
+        {
+          "name": "GET /api/direct-messages/contacts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/direct-messages/contacts",
+            "description": "Source: apps/api/src/routes/directMessages.js:15. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "GET /api/direct-messages/attachments/:messageId",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/direct-messages/attachments/{{messageId}}",
+            "description": "Source: apps/api/src/routes/directMessages.js:16. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "POST /api/direct-messages/:contactId/attachments",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/direct-messages/{{contactId}}/attachments",
+            "description": "Source: apps/api/src/routes/directMessages.js:17. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "GET /api/direct-messages/:contactId",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/direct-messages/{{contactId}}",
+            "description": "Source: apps/api/src/routes/directMessages.js:23. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "POST /api/direct-messages/:contactId",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/direct-messages/{{contactId}}",
+            "description": "Source: apps/api/src/routes/directMessages.js:24. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Hello from the Android client\"\n}"
+            }
+          }
+        },
+        {
+          "name": "PATCH /api/direct-messages/:contactId/read",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": "{{baseUrl}}/api/direct-messages/{{contactId}}/read",
+            "description": "Source: apps/api/src/routes/directMessages.js:25. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        }
+      ]
+    },
+    {
+      "name": "pos-serials",
+      "item": [
+        {
+          "name": "GET /api/pos-serials/banks",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/pos-serials/banks",
+            "description": "Source: apps/api/src/routes/posSerials.js:13. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification.",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "GET /api/pos-serials/bank-master",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/pos-serials/bank-master",
+            "description": "Source: apps/api/src/routes/posSerials.js:16. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "POST /api/pos-serials/bank-master",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/pos-serials/bank-master",
+            "description": "Source: apps/api/src/routes/posSerials.js:17. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "PUT /api/pos-serials/bank-master/:id",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": "{{baseUrl}}/api/pos-serials/bank-master/{{id}}",
+            "description": "Source: apps/api/src/routes/posSerials.js:18. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "DELETE /api/pos-serials/bank-master/:id",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/pos-serials/bank-master/{{id}}",
+            "description": "Source: apps/api/src/routes/posSerials.js:19. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "GET /api/pos-serials",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/pos-serials",
+            "description": "Source: apps/api/src/routes/posSerials.js:20. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "POST /api/pos-serials",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/pos-serials",
+            "description": "Source: apps/api/src/routes/posSerials.js:21. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "PUT /api/pos-serials/:id",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": "{{baseUrl}}/api/pos-serials/{{id}}",
+            "description": "Source: apps/api/src/routes/posSerials.js:22. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "POST /api/pos-serials/import",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/pos-serials/import",
+            "description": "Source: apps/api/src/routes/posSerials.js:23. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "DELETE /api/pos-serials/bulk",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/pos-serials/bulk",
+            "description": "Source: apps/api/src/routes/posSerials.js:24. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "DELETE /api/pos-serials/:id",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/pos-serials/{{id}}",
+            "description": "Source: apps/api/src/routes/posSerials.js:25. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        }
+      ]
+    },
+    {
+      "name": "hardware",
+      "item": [
+        {
+          "name": "GET /api/hardware/legacy",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/hardware/legacy",
+            "description": "Source: apps/api/src/routes/hardware.js:11. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "GET /api/hardware/legacy/:id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/hardware/legacy/{{id}}",
+            "description": "Source: apps/api/src/routes/hardware.js:12. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "GET /api/hardware/summary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/hardware/summary",
+            "description": "Source: apps/api/src/routes/hardware.js:13. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "GET /api/hardware/reports",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/hardware/reports",
+            "description": "Source: apps/api/src/routes/hardware.js:14. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "GET /api/hardware/settings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/hardware/settings",
+            "description": "Source: apps/api/src/routes/hardware.js:15. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "PUT /api/hardware/settings",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": "{{baseUrl}}/api/hardware/settings",
+            "description": "Source: apps/api/src/routes/hardware.js:16. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "POST /api/hardware/banks",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/hardware/banks",
+            "description": "Source: apps/api/src/routes/hardware.js:17. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "PUT /api/hardware/banks/:id",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": "{{baseUrl}}/api/hardware/banks/{{id}}",
+            "description": "Source: apps/api/src/routes/hardware.js:18. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "DELETE /api/hardware/banks/:id",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/hardware/banks/{{id}}",
+            "description": "Source: apps/api/src/routes/hardware.js:19. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "GET /api/hardware/documents/:documentId",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/hardware/documents/{{documentId}}",
+            "description": "Source: apps/api/src/routes/hardware.js:20. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "GET /api/hardware",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/hardware",
+            "description": "Source: apps/api/src/routes/hardware.js:21. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "POST /api/hardware/stock-in",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/hardware/stock-in",
+            "description": "Source: apps/api/src/routes/hardware.js:22. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "POST /api/hardware/sync-pos-serials",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/hardware/sync-pos-serials",
+            "description": "Source: apps/api/src/routes/hardware.js:23. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "POST /api/hardware/actions",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/hardware/actions",
+            "description": "Source: apps/api/src/routes/hardware.js:24. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "POST /api/hardware/actions/by-serial",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/hardware/actions/by-serial",
+            "description": "Source: apps/api/src/routes/hardware.js:25. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "GET /api/hardware/:id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/hardware/{{id}}",
+            "description": "Source: apps/api/src/routes/hardware.js:26. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "DELETE /api/hardware/:id",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/hardware/{{id}}",
+            "description": "Source: apps/api/src/routes/hardware.js:27. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "POST /api/hardware/:id/actions",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/hardware/{{id}}/actions",
+            "description": "Source: apps/api/src/routes/hardware.js:28. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "POST /api/hardware/:id/documents",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/hardware/{{id}}/documents",
+            "description": "Source: apps/api/src/routes/hardware.js:29. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        }
+      ]
+    },
+    {
+      "name": "announcements",
+      "item": [
+        {
+          "name": "GET /api/announcements",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/announcements",
+            "description": "Source: apps/api/src/routes/announcements.js:9. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "POST /api/announcements",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/announcements",
+            "description": "Source: apps/api/src/routes/announcements.js:10. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "GET /api/announcements/:id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/announcements/{{id}}",
+            "description": "Source: apps/api/src/routes/announcements.js:11. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "PUT /api/announcements/:id",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": "{{baseUrl}}/api/announcements/{{id}}",
+            "description": "Source: apps/api/src/routes/announcements.js:12. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "DELETE /api/announcements/:id",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/announcements/{{id}}",
+            "description": "Source: apps/api/src/routes/announcements.js:13. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "PATCH /api/announcements/:id/pin",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": "{{baseUrl}}/api/announcements/{{id}}/pin",
+            "description": "Source: apps/api/src/routes/announcements.js:14. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "POST /api/announcements/:id/reactions",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/announcements/{{id}}/reactions",
+            "description": "Source: apps/api/src/routes/announcements.js:17. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "DELETE /api/announcements/:id/reactions",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/announcements/{{id}}/reactions",
+            "description": "Source: apps/api/src/routes/announcements.js:18. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "POST /api/announcements/:id/comments",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/announcements/{{id}}/comments",
+            "description": "Source: apps/api/src/routes/announcements.js:21. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "GET /api/announcements/:id/comments",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/announcements/{{id}}/comments",
+            "description": "Source: apps/api/src/routes/announcements.js:22. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "DELETE /api/announcements/comments/:commentId",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/announcements/comments/{{commentId}}",
+            "description": "Source: apps/api/src/routes/announcements.js:23. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        }
+      ]
+    },
+    {
+      "name": "notifications",
+      "item": [
+        {
+          "name": "GET /api/notifications",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/notifications",
+            "description": "Source: apps/api/src/routes/notifications.js:8. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "GET /api/notifications/push/public-key",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/notifications/push/public-key",
+            "description": "Source: apps/api/src/routes/notifications.js:9. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "POST /api/notifications/push/subscribe",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/notifications/push/subscribe",
+            "description": "Source: apps/api/src/routes/notifications.js:10. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "DELETE /api/notifications/push/subscribe",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/notifications/push/subscribe",
+            "description": "Source: apps/api/src/routes/notifications.js:11. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "PATCH /api/notifications/:id/read",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": "{{baseUrl}}/api/notifications/{{id}}/read",
+            "description": "Source: apps/api/src/routes/notifications.js:12. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "PATCH /api/notifications/read-all",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": "{{baseUrl}}/api/notifications/read-all",
+            "description": "Source: apps/api/src/routes/notifications.js:13. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        }
+      ]
+    },
+    {
+      "name": "stats",
+      "item": [
+        {
+          "name": "GET /api/stats/dashboard",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/stats/dashboard",
+            "description": "Source: apps/api/src/routes/stats.js:9. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        }
+      ]
+    },
+    {
+      "name": "meetings",
+      "item": [
+        {
+          "name": "GET /api/meetings/meeting/:id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/meetings/meeting/{{id}}",
+            "description": "Source: apps/api/src/routes/meetings.js:19. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "PUT /api/meetings/meeting/:id",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": "{{baseUrl}}/api/meetings/meeting/{{id}}",
+            "description": "Source: apps/api/src/routes/meetings.js:20. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "DELETE /api/meetings/meeting/:id",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/meetings/meeting/{{id}}",
+            "description": "Source: apps/api/src/routes/meetings.js:21. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "POST /api/meetings/meeting/:id/invite",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/meetings/meeting/{{id}}/invite",
+            "description": "Source: apps/api/src/routes/meetings.js:22. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "PATCH /api/meetings/meeting/:id/invite/respond",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": "{{baseUrl}}/api/meetings/meeting/{{id}}/invite/respond",
+            "description": "Source: apps/api/src/routes/meetings.js:23. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "GET /api/meetings/upcoming",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/meetings/upcoming",
+            "description": "Source: apps/api/src/routes/meetings.js:26. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "GET /api/meetings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/meetings",
+            "description": "Source: apps/api/src/routes/meetings.js:29. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "POST /api/meetings",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/meetings",
+            "description": "Source: apps/api/src/routes/meetings.js:30. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "PATCH /api/meetings/invite/respond",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": "{{baseUrl}}/api/meetings/invite/respond",
+            "description": "Source: apps/api/src/routes/meetings.js:33. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        }
+      ]
+    },
+    {
+      "name": "chat",
+      "item": [
+        {
+          "name": "GET /api/chat/attendance",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/chat/attendance",
+            "description": "Source: apps/api/src/routes/globalChat.js:27. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "GET /api/chat/attendance/state",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/chat/attendance/state",
+            "description": "Source: apps/api/src/routes/globalChat.js:28. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "GET /api/chat",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/chat",
+            "description": "Source: apps/api/src/routes/globalChat.js:29. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "POST /api/chat",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/chat",
+            "description": "Source: apps/api/src/routes/globalChat.js:30. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "GET /api/chat/files",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/chat/files",
+            "description": "Source: apps/api/src/routes/globalChat.js:31. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        },
+        {
+          "name": "POST /api/chat/files",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/chat/files",
+            "description": "Source: apps/api/src/routes/globalChat.js:32. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification."
+          }
+        }
+      ]
+    },
+    {
+      "name": "location",
+      "item": [
+        {
+          "name": "GET /api/location/reverse",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/location/reverse",
+            "description": "Source: apps/api/src/routes/location.js:6. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification.",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "health",
+      "item": [
+        {
+          "name": "GET /api/health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/health",
+            "description": "Source: apps/api/src/routes/../server.js:90. See ANDROID-HANDOFF.md for authentication, role rules and request schemas. Route discovery is not a complete schema specification.",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

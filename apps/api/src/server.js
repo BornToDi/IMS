@@ -53,6 +53,12 @@ app.locals.io = io;
 app.use(express.json({ limit: '20mb' }));
 app.use(cookieParser());
 app.use(cors(corsOptions));
+// Authenticated responses must not be retained by shared proxies or browsers.
+app.use('/api', (req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  next();
+});
 app.options('/{*splat}', cors(corsOptions));
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 

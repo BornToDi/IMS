@@ -1,4 +1,5 @@
 "use client"
+import { sessionFetch } from '../lib/api'
 import React, { useEffect, useState } from 'react'
 import { useAuthStore } from '../store/useAuthStore'
 import InviteMemberForm from './InviteMemberForm'
@@ -16,7 +17,7 @@ export default function WorkspaceList({ showChat = false }) {
   useEffect(() => {
     async function load() {
       const headers = accessToken ? { Authorization: `Bearer ${accessToken}` } : {}
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/workspaces`, { headers, credentials: 'include' })
+      const res = await sessionFetch(`/api/workspaces`, { headers, credentials: 'include' })
       if (!res.ok) return
       const data = await res.json()
       setWorkspaces(data)
@@ -79,7 +80,7 @@ export default function WorkspaceList({ showChat = false }) {
   async function saveWorkspace(workspaceId) {
     setActionState((current) => ({ ...current, [workspaceId]: 'saving' }))
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/workspaces/${workspaceId}`, {
+      const res = await sessionFetch(`/api/workspaces/${workspaceId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -104,7 +105,7 @@ export default function WorkspaceList({ showChat = false }) {
   async function handleDeleteWorkspace(workspaceId) {
     if (!confirm('Are you sure you want to delete this workspace? This action cannot be undone.')) return
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/workspaces/${workspaceId}`, {
+      const res = await sessionFetch(`/api/workspaces/${workspaceId}`, {
         method: 'DELETE',
         headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
         credentials: 'include'
@@ -128,7 +129,7 @@ function WorkspaceCardChat({ workspaceId, accessToken }) {
     let cancelled = false
     async function load() {
       try {
-          const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/workspaces/${workspaceId}/messages?limit=5`, {
+          const res = await sessionFetch(`/api/workspaces/${workspaceId}/messages?limit=5`, {
           headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
           credentials: 'include'
         })
@@ -147,7 +148,7 @@ function WorkspaceCardChat({ workspaceId, accessToken }) {
       if (pendingFile) {
         const formData = new FormData()
         formData.append('file', pendingFile)
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/workspaces/${workspaceId}/files`, {
+        const res = await sessionFetch(`/api/workspaces/${workspaceId}/files`, {
           method: 'POST',
           headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
           body: formData,
@@ -162,7 +163,7 @@ function WorkspaceCardChat({ workspaceId, accessToken }) {
       }
 
       if (text.trim()) {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/workspaces/${workspaceId}/messages`, {
+        const res = await sessionFetch(`/api/workspaces/${workspaceId}/messages`, {
           method: 'POST',
           headers: accessToken ? { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` } : { 'Content-Type': 'application/json' },
           credentials: 'include',

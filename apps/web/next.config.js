@@ -4,8 +4,15 @@
 const apiUrl = process.env.API_URL || 'http://127.0.0.1:5000';
 
 const nextConfig = {
+  distDir: process.env.NEXT_DIST_DIR || '.next',
   reactStrictMode: true,
   experimental: { proxyTimeout: 300000 },
+  async headers() {
+    return [
+      { source: '/sw.js', headers: [{ key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' }] },
+      { source: '/offline.html', headers: [{ key: 'Cache-Control', value: 'no-cache' }] },
+    ]
+  },
   async rewrites() {
     return apiUrl ? [
       {

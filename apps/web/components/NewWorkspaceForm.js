@@ -1,4 +1,5 @@
 "use client"
+import { sessionFetch } from '../lib/api'
 import React, { useState } from 'react'
 import { useAuthStore } from '../store/useAuthStore'
 
@@ -15,7 +16,7 @@ export default function NewWorkspaceForm({ accessToken, onCreated }) {
     if (!name) return setError('Name required')
     setLoading(true)
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/workspaces`, {
+      const res = await sessionFetch(`/api/workspaces`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
         credentials: 'include',

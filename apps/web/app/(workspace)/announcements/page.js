@@ -1,4 +1,5 @@
 "use client"
+import { sessionFetch } from '../../../lib/api'
 import React, { useEffect, useMemo, useState } from 'react'
 import Layout from '../../../components/Layout'
 import AnnouncementEditor from '../../../components/AnnouncementEditor'
@@ -27,7 +28,7 @@ export default function AnnouncementsPage() {
   }, [auth.accessToken])
 
   async function fetchAnnouncements() {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/announcements`, {
+    const res = await sessionFetch(`/api/announcements`, {
       headers: auth.accessToken ? { Authorization: `Bearer ${auth.accessToken}` } : {},
       credentials: 'include'
     })
@@ -45,7 +46,7 @@ export default function AnnouncementsPage() {
   async function saveAnnouncement(id) {
     setAnnouncementState((current) => ({ ...current, [id]: 'saving' }))
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/announcements/${id}`, {
+      const res = await sessionFetch(`/api/announcements/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -68,7 +69,7 @@ export default function AnnouncementsPage() {
     if (!window.confirm('Delete this announcement?')) return
     setAnnouncementState((current) => ({ ...current, [id]: 'deleting' }))
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/announcements/${id}`, {
+      const res = await sessionFetch(`/api/announcements/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${auth.accessToken}` },
         credentials: 'include'
@@ -85,7 +86,7 @@ export default function AnnouncementsPage() {
 
   async function handleAddComment(id, content) {
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/announcements/${id}/comments`, {
+      const res = await sessionFetch(`/api/announcements/${id}/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${auth.accessToken}` },
         credentials: 'include',
@@ -103,7 +104,7 @@ export default function AnnouncementsPage() {
     
     const payload = { title, content }
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/announcements`, {
+      const res = await sessionFetch(`/api/announcements`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${auth.accessToken}` },
         credentials: 'include',

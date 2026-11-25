@@ -1,11 +1,12 @@
 "use client"
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuthStore } from '../store/useAuthStore'
 import { useNotificationStore } from '../store/useNotificationStore'
 import { notificationCounts } from '../lib/notificationCounts.mjs'
 import { apiFetch } from '../lib/api'
+import { InstallAppButton } from './AppRuntime'
 
 const allItems = [
   { href: '/bank-team', label: 'Bank Team & Targets', hint: 'People, POS and progress', icon: '▦', roles: ['BANK', 'ADMIN'] },
@@ -19,10 +20,28 @@ const allItems = [
   { href: '/meetings', label: 'Meetings', hint: 'Schedule', icon: '◷', roles: ['ADMIN', 'MANAGEMENT', 'ASSISTANT', 'EMPLOYEE'] },
   { href: '/announcements', label: 'Announcements', hint: 'Updates', icon: '✦', roles: ['ADMIN', 'MANAGEMENT', 'ASSISTANT', 'EMPLOYEE'] },
   { href: '/chat', label: 'Company Chat', hint: 'Global room', icon: '◉', roles: ['ADMIN', 'MANAGEMENT', 'ASSISTANT', 'EMPLOYEE'] },
-  { href: '/pdf-to-png', label: 'PDF to PNG', hint: 'Transparent 500 × 500', icon: '⇩', roles: ['ADMIN', 'MANAGEMENT', 'ASSISTANT', 'EMPLOYEE'] }
+  { href: '/pdf-to-png', label: 'PDF to PNG', hint: 'Transparent 500 × 500', icon: '⇩', roles: ['ADMIN', 'MANAGEMENT', 'ASSISTANT', 'EMPLOYEE'] },
+  { href: '/receipts', label: 'Receipt', hint: 'POS transactions', icon: '▤', roles: ['ADMIN'] }
 ]
 
-export default function Sidebar({ open = true, onClose }){
+export default function Sidebar({ open = true, mobile = false, onClose }){
+  const navigationRef = useRef(null)
+  useEffect(() => {
+    if (!open || !mobile) return
+    const previousFocus = document.activeElement
+    const nav = navigationRef.current
+    const focusable = () => [...nav.querySelectorAll('a[href], button:not(:disabled)')]
+    focusable()[0]?.focus()
+    const trapFocus = event => {
+      if (event.key !== 'Tab') return
+      const items = focusable()
+      const first = items[0], last = items[items.length - 1]
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus() }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
+    }
+    nav.addEventListener('keydown', trapFocus)
+    return () => { nav.removeEventListener('keydown', trapFocus); if (previousFocus?.isConnected) previousFocus.focus() }
+  }, [open, mobile])
   const pathname = usePathname()
   const user = useAuthStore((state) => state.user)
   const notes = useNotificationStore(state => state.notes)
@@ -72,8 +91,9 @@ export default function Sidebar({ open = true, onClose }){
   if (!open) return null
   return (
     <>
-      <div className="fixed inset-0 top-16 z-30 bg-slate-950/45 backdrop-blur-sm md:hidden" onClick={onClose} aria-hidden="true" />
-      <nav className="fixed bottom-0 left-0 top-16 z-30 w-[min(82vw,320px)] overflow-y-auto border-r border-slate-200 bg-white p-4 shadow-2xl md:hidden" aria-label="Main navigation">
+      <div className="app-navigation fixed inset-0 top-16 z-30 bg-slate-950/45 backdrop-blur-sm md:hidden" onClick={onClose} aria-hidden="true" />
+      <nav id="mobile-navigation" ref={navigationRef} className="app-navigation fixed bottom-0 left-0 top-16 z-30 w-[min(82vw,320px)] overflow-y-auto border-r border-slate-200 bg-white p-4 shadow-2xl md:hidden" aria-label="Main navigation">
+        <button type="button" onClick={onClose} className="mb-2 w-full rounded-xl border p-2 text-sm font-semibold" aria-label="Close navigation">Close menu</button>
         <div className="mb-3 px-2 py-2">
           <div className="section-title">Navigation</div>
           <div className="mt-1 text-sm text-slate-500">Full delivery workflow</div>
@@ -95,8 +115,9 @@ export default function Sidebar({ open = true, onClose }){
             </Link>
           )
         })}
+        <InstallAppButton />
       </nav>
-      <aside className="hidden w-full max-w-[260px] md:block md:self-start">
+      <aside className="hidden w-full max-w-[260px] md:block md:w-52 md:shrink-0 md:self-start lg:w-[260px]">
         <div className="sticky top-24 max-h-[calc(100vh-6rem)] overflow-y-auto pr-1 scrollbar-none">
           <div className="shell-panel p-3">
             <div className="px-3 py-2">
@@ -120,6 +141,7 @@ export default function Sidebar({ open = true, onClose }){
                 </Link>
               )
             })}
+            <InstallAppButton />
           </div>
         </div>
       </aside>

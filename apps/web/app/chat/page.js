@@ -771,17 +771,17 @@ function CompanyChatContent() {
           <img src={lightbox} alt="Preview" className="max-h-[94vh] max-w-[98vw] rounded-2xl object-contain" />
         </div>
       ) : null}
-    <div className="relative h-[calc(100dvh-64px)] overflow-hidden rounded-none border border-white/10 bg-[#0b141a] text-white shadow-none md:h-[calc(100dvh-64px)] md:rounded-[28px] md:shadow-[0_30px_90px_rgba(15,23,42,0.45)]">
+    <div className="app-chat relative h-[calc(100dvh-64px)] overflow-hidden rounded-none border border-white/10 bg-[#0b141a] text-white shadow-none md:rounded-[28px] md:shadow-[0_30px_90px_rgba(15,23,42,0.45)]">
       {mobileContactsOpen ? (
         <button
           type="button"
           aria-label="Close contacts"
-          className="fixed inset-0 z-30 cursor-default bg-black/50 backdrop-blur-[2px] md:hidden"
+          className="fixed inset-0 z-30 cursor-default bg-black/50 backdrop-blur-[2px] xl:hidden"
           onClick={() => setMobileContactsOpen(false)}
         />
       ) : null}
       <div className="flex h-full min-h-0">
-        <aside className={`fixed inset-y-0 left-0 z-40 flex h-full min-h-0 w-[88vw] max-w-sm flex-none flex-col overflow-hidden border-r border-white/10 bg-[#111b21] transition-transform duration-300 md:static md:z-auto md:w-[340px] md:translate-x-0 ${mobileContactsOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+        <aside className={`fixed inset-y-0 left-0 z-40 flex h-full min-h-0 w-[88vw] max-w-sm flex-none flex-col overflow-hidden border-r border-white/10 bg-[#111b21] transition-transform duration-300 xl:static xl:z-auto xl:w-[300px] xl:translate-x-0 ${mobileContactsOpen ? 'translate-x-0' : '-translate-x-full xl:translate-x-0'}`}>
           <div className="flex items-center justify-between border-b border-white/10 px-4 py-4">
             <div>
               <p className="text-[11px] uppercase tracking-[0.22em] text-emerald-300/80">Chats</p>
@@ -829,9 +829,10 @@ function CompanyChatContent() {
         <section className="flex min-h-0 flex-1 min-w-0 flex-col bg-[#0b141a]">
           <div className="flex-none flex items-center justify-between border-b border-white/10 bg-[#202c33] px-3 py-3 sm:px-6">
             <div className="flex min-w-0 items-center gap-3">
-              <div className="grid h-11 w-11 place-items-center rounded-full bg-emerald-500/20 text-sm font-semibold text-emerald-200 ring-1 ring-emerald-400/20">
+              <button type="button" aria-label="Open chat contacts" onClick={() => setMobileContactsOpen(true)} className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-emerald-500/20 text-sm font-semibold text-emerald-200 ring-1 ring-emerald-400/20 xl:hidden">
                 {getInitials('Company')}
-              </div>
+              </button>
+              <span aria-hidden="true" className="hidden h-11 w-11 shrink-0 place-items-center rounded-full bg-emerald-500/20 text-sm font-semibold text-emerald-200 ring-1 ring-emerald-400/20 xl:grid">{getInitials('Company')}</span>
               <div className="min-w-0">
                 <h1 className="truncate text-sm font-semibold text-white sm:text-base">Company Chat</h1>
                 <p className="hidden truncate text-sm text-slate-300 sm:block">Everyone in the company can message here</p>

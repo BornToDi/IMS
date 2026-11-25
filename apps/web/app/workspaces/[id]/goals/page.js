@@ -1,4 +1,5 @@
 "use client"
+import { sessionFetch } from '../../../../lib/api'
 import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
@@ -35,11 +36,11 @@ export default function WorkspaceGoalsPage() {
       setLoading(true)
       try {
         const [workspaceRes, goalsRes] = await Promise.all([
-          fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/workspaces/${workspaceId}`, {
+          sessionFetch(`/api/workspaces/${workspaceId}`, {
             headers: { Authorization: `Bearer ${auth.accessToken}` },
             credentials: 'include'
           }),
-          fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/workspaces/${workspaceId}/goals`, {
+          sessionFetch(`/api/workspaces/${workspaceId}/goals`, {
             headers: { Authorization: `Bearer ${auth.accessToken}` },
             credentials: 'include'
           })
@@ -61,7 +62,7 @@ export default function WorkspaceGoalsPage() {
   }, [workspaceId, auth.accessToken])
 
   async function refreshGoals() {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/workspaces/${workspaceId}/goals`, {
+    const res = await sessionFetch(`/api/workspaces/${workspaceId}/goals`, {
       headers: { Authorization: `Bearer ${auth.accessToken}` },
       credentials: 'include'
     })
@@ -81,7 +82,7 @@ export default function WorkspaceGoalsPage() {
   async function saveGoal(goalId) {
     setGoalActionState((current) => ({ ...current, [goalId]: 'saving' }))
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/workspaces/${workspaceId}/goals/${goalId}`, {
+      const res = await sessionFetch(`/api/workspaces/${workspaceId}/goals/${goalId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -104,7 +105,7 @@ export default function WorkspaceGoalsPage() {
     if (!window.confirm('Delete this goal?')) return
     setGoalActionState((current) => ({ ...current, [goalId]: 'deleting' }))
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/workspaces/${workspaceId}/goals/${goalId}`, {
+      const res = await sessionFetch(`/api/workspaces/${workspaceId}/goals/${goalId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${auth.accessToken}` },
         credentials: 'include'
@@ -123,7 +124,7 @@ export default function WorkspaceGoalsPage() {
 
     setSubmitting(true)
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/workspaces/${workspaceId}/goals`, {
+      const res = await sessionFetch(`/api/workspaces/${workspaceId}/goals`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

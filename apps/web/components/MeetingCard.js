@@ -1,4 +1,5 @@
 "use client"
+import { sessionFetch } from '../lib/api'
 import React, { useEffect, useState } from 'react'
 import { useAuthStore } from '../store/useAuthStore'
 import Link from 'next/link'
@@ -13,7 +14,7 @@ export default function MeetingCard() {
     async function load() {
       try {
         setLoading(true)
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/meetings/upcoming`, {
+        const res = await sessionFetch(`/api/meetings/upcoming`, {
           headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
           credentials: 'include'
         })

@@ -1,4 +1,5 @@
 "use client"
+import { sessionFetch } from '../lib/api'
 import React, { useState } from 'react'
 import { useAuthStore } from '../store/useAuthStore'
 
@@ -15,7 +16,7 @@ export default function InviteMemberForm({ workspaceId, onSuccess }) {
     if (!email) return setError('Email is required')
     setLoading(true)
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/workspaces/${workspaceId}/invite`, {
+      const res = await sessionFetch(`/api/workspaces/${workspaceId}/invite`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -40,7 +41,7 @@ export default function InviteMemberForm({ workspaceId, onSuccess }) {
 
   return (
     <form onSubmit={submit} className="p-3 bg-gray-50 border rounded">
-      <div className="flex items-center space-x-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <input className="border p-2 flex-1" placeholder="user@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
         <select className="border p-2" value={role} onChange={(e) => setRole(e.target.value)}>
           <option value="MEMBER">Member</option>

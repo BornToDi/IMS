@@ -1,4 +1,5 @@
 "use client"
+import { sessionFetch } from '../lib/api'
 import React, { useEffect, useState } from 'react'
 import { useAuthStore } from '../store/useAuthStore'
 import { htmlToPlainText } from '../lib/plainText'
@@ -21,7 +22,7 @@ export default function WorkspaceAnnouncements({ workspaceId }) {
 
   async function fetchAnnouncements() {
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/workspaces/${workspaceId}/announcements`, {
+      const res = await sessionFetch(`/api/workspaces/${workspaceId}/announcements`, {
         headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
         credentials: 'include'
       })
@@ -37,7 +38,7 @@ export default function WorkspaceAnnouncements({ workspaceId }) {
   async function handleCreate() {
     const payload = { title, content }
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/workspaces/${workspaceId}/announcements`, {
+      const res = await sessionFetch(`/api/workspaces/${workspaceId}/announcements`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
         credentials: 'include',

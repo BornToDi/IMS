@@ -1,4 +1,5 @@
 "use client"
+import { sessionFetch } from '../lib/api'
 import React, { useEffect, useState } from 'react'
 import { useAuthStore } from '../store/useAuthStore'
 
@@ -11,7 +12,7 @@ export default function WorkspaceSwitcher() {
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/workspaces`, { credentials: 'include', headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {} })
+        const res = await sessionFetch(`/api/workspaces`, { credentials: 'include', headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {} })
         if (!res.ok) return
         const data = await res.json()
         setWorkspaces(data)

@@ -133,7 +133,17 @@ async function detail(req, res) {
   if (req.inventoryRole === 'BANK') {
     delete row.repairCost;
     events = events.filter(event => visibleEvent(req, event));
-    for (const event of events) { delete event.details; delete event.actorId; }
+    for (const event of events) {
+      if (['TRANSFER', 'EDIT_ASSIGNMENT'].includes(event.action)) {
+        let data = {};
+        try { data = JSON.parse(event.details || '{}'); } catch {}
+        const safeAssignment = assignment => assignment?.bankId === req.inventoryBankId
+          ? Object.fromEntries(['merchant', 'tid', 'mid', 'location', 'branch', 'address'].map(key => [key, assignment[key] ?? null]))
+          : null;
+        event.details = JSON.stringify({ before: safeAssignment(data.before), after: safeAssignment(data.after) });
+      } else delete event.details;
+      delete event.actorId;
+    }
     documents = [];
   }
   res.json({ ...row, events, documents });
@@ -406,13 +416,13 @@ async function reportRows(req) {
   if (type === 'warranty' && !req.query.warranty) where.warrantyUntil = { lte: new Date(Date.now() + 30 * 86400000) };
   if (['movement', 'audit', 'return'].includes(type)) {
     const { createdAt, ...deviceWhere } = where;
-    let events = await prisma.inventoryEvent.findMany({ where: { device: deviceWhere, ...(createdAt ? { occurredAt: createdAt } : {}), ...(type === 'return' ? { action: { in: ['RETURN','WITHDRAWAL','CONFIRM_RETURN'] } } : {}) }, include: { device: { select: { serialNumber: true } } }, orderBy: { createdAt: 'desc' }, take: 10001 });
-    if (events.length > 10000) fail('Narrow the filters to export 10,000 events or fewer');
+    let events = await prisma.inventoryEvent.findMany({ where: { device: deviceWhere, ...(createdAt ? { occurredAt: createdAt } : {}), ...(type === 'return' ? { action: { in: ['RETURN','WITHDRAWAL','CONFIRM_RETURN'] } } : {}) }, include: { device: { select: { serialNumber: true } } }, orderBy: { createdAt: 'desc' }, take: 30001 });
+    if (events.length > 30000) fail('Narrow the filters to export 30,000 events or fewer');
     if (req.inventoryRole === 'BANK') events = events.filter(event => visibleEvent(req, event));
     const rows = events.map(e => ({ Serial: e.device.serialNumber, Action: e.action, Previous: e.previousStatus || '', Status: e.newStatus, User: e.actorName, Date: e.occurredAt.toISOString(), Remarks: e.remarks || '', ...(req.inventoryRole !== 'BANK' ? { Details: e.details } : {}) }));
     if (type === 'audit' && req.inventoryRole !== 'BANK') {
-      const admin = await prisma.inventoryAdminAudit.findMany({ where: createdAt ? { createdAt } : {}, orderBy: { createdAt: 'desc' }, take: 10001 });
-      if (rows.length + admin.length > 10000) fail('Narrow the date range to export 10,000 events or fewer');
+      const admin = await prisma.inventoryAdminAudit.findMany({ where: createdAt ? { createdAt } : {}, orderBy: { createdAt: 'desc' }, take: 30001 });
+      if (rows.length + admin.length > 30000) fail('Narrow the date range to export 30,000 events or fewer');
       rows.push(...admin.map(e => ({ Serial: '', Action: e.action, Previous: '', Status: '', User: e.actorName, Date: e.createdAt.toISOString(), Remarks: '', Details: e.details })));
     }
     return rows;

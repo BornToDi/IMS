@@ -70,7 +70,7 @@ export default function GoalDetailPage() {
     async function load() {
       setLoading(true)
       try {
-        const res = await authFetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/workspaces/${workspaceId}/goals/${goalId}`)
+        const res = await authFetch(`/api/workspaces/${workspaceId}/goals/${goalId}`)
         if (!cancelled && res.ok) {
           const loadedGoal = await res.json()
           setGoal(loadedGoal)
@@ -97,7 +97,7 @@ export default function GoalDetailPage() {
   }, [workspaceId, goalId, auth.accessToken])
 
   async function refreshGoal() {
-    const res = await authFetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/workspaces/${workspaceId}/goals/${goalId}`)
+    const res = await authFetch(`/api/workspaces/${workspaceId}/goals/${goalId}`)
     if (res.ok) {
       const nextGoal = await res.json()
       setGoal(nextGoal)
@@ -117,7 +117,7 @@ export default function GoalDetailPage() {
   }
 
   async function updateStatus(nextStatus) {
-    const res = await authFetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/workspaces/${workspaceId}/goals/${goalId}`, {
+    const res = await authFetch(`/api/workspaces/${workspaceId}/goals/${goalId}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json'
@@ -136,7 +136,7 @@ export default function GoalDetailPage() {
   async function addMilestone(milestoneTitle) {
     if (!milestoneTitle.trim()) return
     setAddingMilestone(true)
-    const res = await authFetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/workspaces/${workspaceId}/goals/${goalId}/milestones`, {
+    const res = await authFetch(`/api/workspaces/${workspaceId}/goals/${goalId}/milestones`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -153,7 +153,7 @@ export default function GoalDetailPage() {
     setMilestoneSaveState((current) => ({ ...current, [milestoneId]: 'saving' }))
     const progress = Number(milestoneDrafts[milestoneId] ?? 0)
     try {
-      const res = await authFetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/workspaces/${workspaceId}/goals/${goalId}/milestones/${milestoneId}`, {
+      const res = await authFetch(`/api/workspaces/${workspaceId}/goals/${goalId}/milestones/${milestoneId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
@@ -183,7 +183,7 @@ export default function GoalDetailPage() {
 
     setMilestoneManageState((current) => ({ ...current, [milestoneId]: 'saving' }))
     try {
-      const res = await authFetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/workspaces/${workspaceId}/goals/${goalId}/milestones/${milestoneId}`, {
+      const res = await authFetch(`/api/workspaces/${workspaceId}/goals/${goalId}/milestones/${milestoneId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
@@ -212,7 +212,7 @@ export default function GoalDetailPage() {
 
     setMilestoneManageState((current) => ({ ...current, [milestoneId]: 'deleting' }))
     try {
-      const res = await authFetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/workspaces/${workspaceId}/goals/${goalId}/milestones/${milestoneId}`, {
+      const res = await authFetch(`/api/workspaces/${workspaceId}/goals/${goalId}/milestones/${milestoneId}`, {
         method: 'DELETE'
       })
       if (res.ok) {
@@ -228,7 +228,7 @@ export default function GoalDetailPage() {
   async function addActivity(activityText) {
     if (!activityText.trim()) return
     setAddingActivity(true)
-    const res = await authFetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/workspaces/${workspaceId}/goals/${goalId}/activity`, {
+    const res = await authFetch(`/api/workspaces/${workspaceId}/goals/${goalId}/activity`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -282,14 +282,14 @@ export default function GoalDetailPage() {
         </div>
 
         {/* Main Content Grid */}
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           {/* Milestones and Activity - Main Column */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="min-w-0 lg:col-span-2 space-y-6">
             {/* Milestones Section */}
             <section className="rounded-xl border border-slate-200 bg-white p-6">
               <div className="mb-6">
                 <h2 className="text-lg font-bold text-slate-950">Roadmap</h2>
-                <div className="mt-2 flex items-center justify-between">
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
                   <p className="text-sm text-slate-600">
                     {(goal.milestones || []).length === 0
                       ? 'No milestones yet. Add your first one to get started.'

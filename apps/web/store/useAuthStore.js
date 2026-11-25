@@ -38,16 +38,16 @@ export const useAuthStore = create((set, get) => ({
     set({ activeWorkspace: id })
     if (typeof window !== 'undefined') {
       if (id) {
-        localStorage.setItem('activeWorkspace', id)
+        try { localStorage.setItem('activeWorkspace', id) } catch {}
       } else {
-        localStorage.removeItem('activeWorkspace')
+        try { localStorage.removeItem('activeWorkspace') } catch {}
       }
     }
   },
   clearAuth: () => {
     set({ user: null, accessToken: null, activeWorkspace: null, sessionError: '', sessionExpired: true })
     if (typeof window !== 'undefined') {
-      localStorage.removeItem('activeWorkspace')
+      try { localStorage.removeItem('activeWorkspace') } catch {}
     }
   },
   login: async (email, password) => {

@@ -1,4 +1,5 @@
 "use client"
+import { sessionFetch } from '../lib/api'
 import React, { useEffect, useState } from 'react'
 import { useAuthStore } from '../store/useAuthStore'
 
@@ -9,7 +10,7 @@ export default function Notifications({ workspaceId }) {
   useEffect(() => {
     async function load() {
       if (!workspaceId) return
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/workspaces/${workspaceId}/notifications`, { credentials: 'include', headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {} })
+      const res = await sessionFetch(`/api/workspaces/${workspaceId}/notifications`, { credentials: 'include', headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {} })
       if (!res.ok) return
       const data = await res.json()
       setNotes(data)
@@ -19,7 +20,7 @@ export default function Notifications({ workspaceId }) {
 
   async function markRead(id) {
     try {
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/workspaces/${workspaceId}/notifications/${id}/read`, { method: 'PATCH', credentials: 'include', headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {} })
+      await sessionFetch(`/api/workspaces/${workspaceId}/notifications/${id}/read`, { method: 'PATCH', credentials: 'include', headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {} })
       setNotes((s) => s.map(n => n.id === id ? { ...n, isRead: true } : n))
     } catch (e) {}
   }

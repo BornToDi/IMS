@@ -253,13 +253,13 @@ export default function EmployeesPage() {
         </section>
 
         <section className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
-          <div className="space-y-4 rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+          <div className="min-w-0 space-y-4 rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <h2 className="text-2xl font-black text-black">Employees</h2>
                 <p className="text-sm font-semibold text-black/55">{filteredEmployees.length} visible {filteredEmployees.length === 1 ? 'person' : 'people'}</p>
               </div>
-              <div className="grid gap-2 sm:grid-cols-2 lg:w-[440px]">
+              <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 lg:w-[440px]">
                 <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search by name, email, role, bank" className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:border-black" />
                 <select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)} className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:border-black">
                   <option value="ALL">All roles</option>
@@ -291,7 +291,7 @@ export default function EmployeesPage() {
               {!loading && filteredEmployees.length === 0 && <div className="rounded-3xl border border-dashed border-slate-200 p-8 text-center text-sm font-bold text-black/50">No employees found.</div>}
             </div>
 
-            <div className="hidden overflow-hidden rounded-[24px] border border-slate-200 md:block">
+            <div className="hidden overflow-x-auto rounded-[24px] border border-slate-200 md:block">
               <table className="min-w-full text-left text-sm">
                 <thead className="bg-slate-50 text-xs uppercase tracking-[0.14em] text-black/55">
                   <tr>

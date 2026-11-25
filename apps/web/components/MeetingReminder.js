@@ -1,4 +1,5 @@
 "use client"
+import { sessionFetch } from '../lib/api'
 import React, { useEffect, useState } from 'react'
 import { useAuthStore } from '../store/useAuthStore'
 
@@ -13,7 +14,7 @@ export default function MeetingReminder() {
     async function loadUpcomingMeetings() {
       try {
         setLoading(true)
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/meetings/upcoming`, {
+        const res = await sessionFetch(`/api/meetings/upcoming`, {
           headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
           credentials: 'include'
         })
@@ -41,7 +42,7 @@ export default function MeetingReminder() {
 
   const handleRespond = async (meetingId, status) => {
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/meetings/meeting/${meetingId}/invite/respond`, {
+      const res = await sessionFetch(`/api/meetings/meeting/${meetingId}/invite/respond`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -52,7 +53,7 @@ export default function MeetingReminder() {
       })
       if (res.ok) {
         // Reload meetings
-        const meetsRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/meetings/upcoming`, {
+        const meetsRes = await sessionFetch(`/api/meetings/upcoming`, {
           headers: { Authorization: `Bearer ${accessToken}` },
           credentials: 'include'
         })

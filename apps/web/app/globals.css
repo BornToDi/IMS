@@ -3,6 +3,7 @@
 @tailwind utilities;
 
 :root{
+  --app-header-height: calc(4rem + env(safe-area-inset-top, 0px));
   --accent: #2563eb;
   --accent-strong: #0f766e;
   --muted: #334155;
@@ -133,4 +134,21 @@ body, input, textarea, select, button {
 .input::placeholder {
   color: var(--muted);
   opacity: 1;
+}
+
+main { min-width: 0; overflow-wrap: anywhere; }
+img, video, canvas { max-width: 100%; }
+input, select, textarea { min-width: 0; max-width: 100%; }
+button, a, input, select, textarea { touch-action: manipulation; }
+:focus-visible { outline: 3px solid #2563eb; outline-offset: 3px; }
+.app-header { padding-top: env(safe-area-inset-top, 0px); }
+.app-shell { min-height: 100dvh; padding-bottom: env(safe-area-inset-bottom, 0px); }
+.app-navigation { top: var(--app-header-height); padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px)); }
+.app-content { padding-left: max(1rem, env(safe-area-inset-left, 0px)); padding-right: max(1rem, env(safe-area-inset-right, 0px)); }
+.app-chat { height: calc(100dvh - var(--app-header-height)); }
+.app-notice { position: fixed; bottom: max(12px, env(safe-area-inset-bottom, 0px)); left: max(12px, env(safe-area-inset-left, 0px)); right: max(12px, env(safe-area-inset-right, 0px)); z-index: 70; margin: auto; max-width: 640px; padding: 12px 16px; border: 1px solid #fcd34d; border-radius: 12px; background: #fffbeb; color: #78350f; font-size: 14px; box-shadow: 0 4px 20px #0002; }
+@media (max-width: 767px) {
+  html { scrollbar-gutter: auto; }
+  body input:not([type=checkbox]):not([type=radio]), body textarea, body select { font-size: 16px; }
+  button:not([role=checkbox]), .btn { min-height: 44px; }
 }

@@ -136,6 +136,11 @@ export default function ProfilePage() {
             </div>
           </section>
         </form>
+        <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 className="text-xl font-black">Account deletion</h2>
+          <p className="mt-2 text-sm text-black/70">You can request deletion of your TrackField account and associated data.</p>
+          <a href="/account-deletion" className="mt-3 inline-block font-bold text-blue-700 underline">Request account deletion</a>
+        </section>
       </div>
     </Layout>
   )

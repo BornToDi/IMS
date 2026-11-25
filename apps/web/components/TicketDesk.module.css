@@ -2,3 +2,58 @@
 @media(max-width:1100px){.hero{align-items:flex-start;flex-direction:column}.stats{gap:8px}.stat{padding:15px}.detailGrid{grid-template-columns:minmax(0,1fr) 300px}.ticketMeta{max-width:130px}}
 @media(max-width:760px){.page{gap:16px}.hero h1{font-size:27px}.hero p{font-size:12px}.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.stat:first-child{grid-column:1/-1;display:grid;grid-template-columns:1fr auto;align-items:center}.stat:first-child>strong{grid-column:2;grid-row:1/3}.stat{padding:15px;gap:10px}.stat>strong{font-size:25px}.sectionHeader,.listHeader{padding:20px}.sectionHeader{align-items:flex-start}.sectionHeader h2{font-size:19px}.formTag{display:none}.formSection{padding:20px;gap:12px}.sectionNumber{width:25px;height:25px;font-size:9px}.fieldGrid{grid-template-columns:1fr;gap:15px}.priorities{grid-template-columns:1fr;gap:8px}.priorities>button{padding:12px}.formFooter{padding:18px 20px;flex-direction:column;align-items:stretch}.formFooter .actions{justify-content:flex-end}.formFooter .primary,.formFooter .secondary{flex:1;font-size:11px;padding:10px}.filters{padding:0 20px 18px;grid-template-columns:1fr}.ticketCard{padding:18px;gap:12px;flex-wrap:wrap}.ticketIcon{width:34px;height:38px}.ticketMain{flex-basis:calc(100% - 65px)}.ticketMeta{margin-left:46px;flex:1;max-width:none;align-items:flex-start;flex-direction:row;justify-content:space-between}.ticketMain h3{font-size:13px}.ticketCard>svg{display:none}.ticketHeading{gap:6px}.success{flex-wrap:wrap}.success a{margin-left:30px}.detailGrid{grid-template-columns:1fr}.detailBody{padding:20px}.steps{padding:20px;gap:5px}.step{font-size:9px}.detailValues{gap:20px 14px}.event{padding-left:20px}.primary,.secondary{font-size:11px}.hero .actions{width:100%}}
 @media(prefers-reduced-motion:reduce){.page *{scroll-behavior:auto!important;transition:none!important}}
+
+/* Ticket information and activity should remain legible at presentation scale. */
+.page{--muted:#344b60;color:#102b3e}
+.hero p,.sectionHeader p,.listHeader p{color:#344b60;font-size:15px}
+.backLink{font-size:14px;color:#075f69}
+.badge{font-size:12px;padding:6px 11px}
+.badge:before{width:7px;height:7px}
+.green{background:#e3f5ea;color:#12623d}
+.amber{background:#fff2d7;color:#805000}
+.blue{background:#e4f1ff;color:#174f88}
+.purple{background:#eee8ff;color:#513d91}
+.urgent{font-size:12px;color:#a02035;background:#ffe8ed}
+.detailValues dt{font-size:12px;font-weight:700;color:#3a526a;letter-spacing:.04em}
+.detailValues dd{font-size:16px;line-height:1.5;font-weight:650;color:#123b55}
+.description{font-size:15px;line-height:1.7;color:#203d50;background:#f1f8f6;border-color:#cfe6dc}
+.step{font-size:13px;color:#344b60}
+.stepDone{color:#12623d;font-weight:700}
+.stepDone b{color:#12623d;background:#dff3e6;border-color:#a7d8b9}
+.aside h3{font-size:17px;color:#123b55}
+.field>span{font-size:14px;color:#233f53}
+.field input,.field select,.field textarea{font-size:15px;color:#17384d}
+.primary,.secondary{font-size:14px}
+.secondary{color:#23485d}
+.eventHeader{font-size:15px;color:#173d52}
+.eventHeader time,.threadHelp,.count{font-size:13px;color:#40586a}
+.eventType{font-size:12px;font-weight:700;color:#12634f}
+.event p{font-size:15px;line-height:1.65;color:#233f53;background:#f1f8f6;border-color:#d5eae0}
+.event:before{background:#08745d;border-color:#b6e0ca}
+.eyebrow{font-size:12px;color:#08675a}
+.stat>span:first-child,.statFoot{font-size:14px;color:#344b60}
+.sectionContent>h3{font-size:17px;color:#17384d}
+.sectionContent>p,.listHeader p{font-size:14px;color:#344b60}
+.formTag,.sectionNumber{font-size:12px;color:#12634f}
+.field small,.formFooter>p{font-size:13px;color:#40586a}
+.posOptions button{font-size:14px;color:#17384d}
+.posOptions button span,.posOptions>p{font-size:13px;color:#40586a}
+.priorities strong{font-size:14px;color:#17384d}
+.priorities small{font-size:13px;color:#40586a}
+.search input,.filters>select{font-size:14px;color:#17384d}
+.search input::placeholder{color:#526779;opacity:1}
+.ticketHeading>strong{font-size:13px;color:#344b60}
+.ticketMain h3{font-size:16px;color:#123b55}
+.ticketMain>p,.ticketMeta,.ticketMeta time{font-size:14px;color:#40586a}
+.ticketIcon{color:#12634f;background:#e4f5ec}
+.empty h3{color:#17384d}
+.empty p,.error,.success,.success p{font-size:14px}
+@media(max-width:760px){
+  .hero p{font-size:14px}
+  .step{font-size:12px}
+  .detailValues dt{font-size:12px}
+  .detailValues dd{font-size:15px}
+  .primary,.secondary{font-size:14px}
+  .ticketMain h3{font-size:15px}
+  .formFooter .primary,.formFooter .secondary{font-size:14px}
+}

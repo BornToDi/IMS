@@ -1,4 +1,5 @@
 "use client"
+import { sessionFetch } from '../lib/api'
 import React, { useEffect, useState } from 'react'
 import { useAuthStore } from '../store/useAuthStore'
 
@@ -18,7 +19,7 @@ export default function ActionItemForm({ workspaceId, onSuccess }) {
   useEffect(() => {
     async function loadMembers() {
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/workspaces/${workspaceId}/members`, { credentials: 'include', headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {} })
+        const res = await sessionFetch(`/api/workspaces/${workspaceId}/members`, { credentials: 'include', headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {} })
         if (!res.ok) return
         const data = await res.json()
         setMembers(data)
@@ -26,7 +27,7 @@ export default function ActionItemForm({ workspaceId, onSuccess }) {
     }
     async function loadGoals() {
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/workspaces/${workspaceId}/goals`, { credentials: 'include', headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {} })
+        const res = await sessionFetch(`/api/workspaces/${workspaceId}/goals`, { credentials: 'include', headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {} })
         if (!res.ok) return
         const data = await res.json()
         setGoals(data)
@@ -42,7 +43,7 @@ export default function ActionItemForm({ workspaceId, onSuccess }) {
     if (!title) return setError('Title is required')
     setLoading(true)
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/workspaces/${workspaceId}/action-items`, {
+      const res = await sessionFetch(`/api/workspaces/${workspaceId}/action-items`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

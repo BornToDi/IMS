@@ -12,6 +12,11 @@ export function apiResponse(path, token, options = {}) {
   })
 }
 
+// Response-level adapter for older UI flows; always read the current session.
+export function sessionFetch(path, options = {}) {
+  return apiResponse(path, useAuthStore.getState().accessToken, options)
+}
+
 export function authHeaders(token, extra = {}) {
   return {
     ...extra,

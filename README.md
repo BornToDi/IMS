@@ -1,5 +1,7 @@
 # TrackField
 
+Web/Android integration: [developer handoff](docs/ANDROID-HANDOFF.md), [API endpoints](docs/API-ENDPOINTS.md), and [Postman collection](docs/trackfield.postman_collection.json).
+
 Monorepo scaffold for TrackField.
 
 Structure:
