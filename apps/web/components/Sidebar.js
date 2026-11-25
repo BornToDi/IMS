@@ -117,8 +117,8 @@ export default function Sidebar({ open = true, mobile = false, onClose }){
         })}
         <InstallAppButton />
       </nav>
-      <aside className="hidden w-full max-w-[260px] md:block md:w-52 md:shrink-0 md:self-start lg:w-[260px]">
-        <div className="sticky top-24 max-h-[calc(100vh-6rem)] overflow-y-auto pr-1 scrollbar-none">
+      <aside className="hidden w-full max-w-[260px] md:sticky md:top-24 md:block md:w-52 md:shrink-0 md:self-start lg:w-[260px]">
+        <div className="max-h-[calc(100dvh-6rem)] overflow-y-auto pr-1 scrollbar-none">
           <div className="shell-panel p-3">
             <div className="px-3 py-2">
               <div className="section-title">Navigation</div>
